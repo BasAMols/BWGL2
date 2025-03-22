@@ -59,8 +59,9 @@ export class Game {
     }
 
 
-    build() {
+    async build() {
         this.renderer = new Renderer();
+        await this.renderer.init();
 
         this.loader = new Loader();
         this.renderer.addChild(this.loader);
