@@ -150,13 +150,4 @@ export class LightManager {
         this.shaderManager.setUniform('uLightOuterCutOffs', outerCutOffs);
     }
 
-    private getLightTypeValue(type: LightType): number {
-        switch (type) {
-            case LightType.AMBIENT: return 0;
-            case LightType.DIRECTIONAL: return 1;
-            case LightType.POINT: return 2;
-            case LightType.SPOT: return 3;
-            default: return 0;
-        }
-    }
 } 

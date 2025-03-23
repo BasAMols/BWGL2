@@ -2,6 +2,7 @@ import { VertexBuffer, IndexBuffer, VertexArray } from './buffer';
 import { ShaderManager } from './shaderManager';
 import { fragmentShaderSource } from './shaders/fragmentShaderSource';
 import { vertexShaderSource } from './shaders/vertexShaderSource';
+import { shadowVertexShaderSource } from './shaders/shadowVertexShader';
 
 export class WebGL2Initializer {
     private canvas: HTMLCanvasElement;
@@ -25,8 +26,15 @@ export class WebGL2Initializer {
         this.vertexBuffer = new VertexBuffer(this.ctx);
         this.indexBuffer = new IndexBuffer(this.ctx);
 
-        // Load and use shader program
+        // Load and use shader programs
         this.shaderManager.loadShaderProgram('basic', vertexShaderSource, fragmentShaderSource);
+        this.shaderManager.loadShaderProgram('shadow', shadowVertexShaderSource, `#version 300 es
+            precision highp float;
+            out vec4 fragColor;
+            void main() {
+                // Only depth values are written
+            }
+        `);
         this.shaderManager.useProgram('basic');
 
         // Initialize light arrays

@@ -2,7 +2,7 @@ import { glob } from '../../game';
 import { TickerReturnData } from '../ticker';
 import { Camera } from './camera';
 import { SceneObject } from './meshes/sceneObject';
-import { Light, AmbientLight } from './lights/light';
+import { Light, AmbientLight, PointLight } from './lights/light';
 import { LightManager } from './lights/lightManager';
 import { v3, Vector3 } from '../util/math/vector3';
 
@@ -46,16 +46,65 @@ export class Scene {
     }
 
     public render(): void {
+        // First render pass: create shadow maps
+        for (const light of this.getLights()) {
+            if (light instanceof PointLight) {
+                const shadowMap = light.getShadowMap();
+                shadowMap.bind(glob.ctx);
+                
+                // Clear depth buffer
+                glob.ctx.clear(glob.ctx.DEPTH_BUFFER_BIT);
+                
+                // Use shadow shader program
+                glob.shaderManager.useProgram('shadow');
+                
+                // Set light space matrix uniform
+                const lightSpaceMatrix = light.getLightSpaceMatrix();
+                glob.shaderManager.setUniform('u_lightSpaceMatrix', lightSpaceMatrix.mat4);
+                
+                // Render scene from light's perspective
+                for (const object of this.objects) {
+                    // Set model matrix uniform
+                    glob.shaderManager.setUniform('u_model', object.transform.getWorldMatrix().mat4);
+                    
+                    // Bind VAO and draw
+                    object.vao.bind();
+                    if (object.indexBuffer) {
+                        glob.ctx.drawElements(glob.ctx.TRIANGLES, object.indexBuffer.getCount(), glob.ctx.UNSIGNED_SHORT, 0);
+                    } else {
+                        glob.ctx.drawArrays(glob.ctx.TRIANGLES, 0, object.drawCount);
+                    }
+                }
+            }
+        }
+        
+        // Second render pass: regular scene rendering with shadows
+        glob.ctx.bindFramebuffer(glob.ctx.FRAMEBUFFER, null);
+        glob.ctx.viewport(0, 0, glob.ctx.canvas.width, glob.ctx.canvas.height);
+        
         glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT | glob.ctx.DEPTH_BUFFER_BIT);
         glob.ctx.clearColor(...this.clearColor);
+
+        // Switch back to the main shader program
+        glob.shaderManager.useProgram('basic');
 
         const viewMatrix = this.camera.getViewMatrix();
         const projectionMatrix = this.camera.getProjectionMatrix();
 
-        // Update light uniforms
+        // Update light uniforms including shadow maps
         this.lightManager.updateShaderUniforms();
 
+        // For each object in the scene
         for (const object of this.objects) {
+            // Set shadow mapping uniforms
+            const light = this.getLights()[0]; // For now, just use the first light's shadow map
+            if (light instanceof PointLight) {
+                const shadowMap = light.getShadowMap();
+                glob.shaderManager.setUniform('uLightSpaceMatrix', light.getLightSpaceMatrix().mat4);
+                glob.shaderManager.setUniform('uShadowMap', 1); // Use texture unit 1 for shadow map
+                shadowMap.bindDepthTexture(glob.ctx, 1);
+            }
+
             object.render(viewMatrix, projectionMatrix);
         }
     }

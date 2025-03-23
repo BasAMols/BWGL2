@@ -1,6 +1,9 @@
+import { glob } from '../../../game';
+import { Matrix4 } from '../../util/math/matrix4';
 import { v3, Vector3 } from '../../util/math/vector3';
 import { IcoSphere } from '../meshes/icoSphere';
 import { Scene } from '../scene';
+import { ShadowMap } from './shadowMap';
 
 export enum LightType {
     AMBIENT = 0,
@@ -39,9 +42,6 @@ export class Light {
     constructor(color: Vector3 = v3(1, 1, 1), intensity: number = 1.0) {
         this.color = color;
         this.intensity = intensity;
-
-
-        
     }
 
     getType(): LightType {
@@ -53,6 +53,10 @@ export class Light {
             color: this.color,
             intensity: this.intensity
         };
+    }
+
+    getShadowMap(): ShadowMap | null {
+        return null;
     }
 }
 
@@ -85,6 +89,8 @@ export class PointLight extends Light {
     private constant: number;
     private linear: number;
     private quadratic: number;
+    private shadowMap: ShadowMap;
+    private lightProjection: Matrix4;
 
     constructor(
         position: Vector3 = v3(0, 0, 0),
@@ -93,7 +99,7 @@ export class PointLight extends Light {
         constant: number = 1.0,
         linear: number = 0.09,
         quadratic: number = 0.032,
-        meshContainer?: Scene
+        scene: Scene
     ) {
         super(color, intensity);
         this.position = position;
@@ -101,15 +107,22 @@ export class PointLight extends Light {
         this.linear = linear;
         this.quadratic = quadratic;
         this.type = LightType.POINT;
+        this.shadowMap = new ShadowMap(glob.ctx);
+        
+        // Create perspective projection matrix for the light
+        this.lightProjection = new Matrix4().perspective(
+            Math.PI / 2, // 90 degree FOV
+            0.1,         // near plane
+            100.0        // far plane
+        );
 
-        if (meshContainer) {
-            meshContainer.add(IcoSphere.create({
+        if (scene) {
+            scene.add(IcoSphere.create({
                 position: position,
                 scale: v3(0.1, 0.1, 0.1),
                 color: color.array,
             }));
         }
-
     }
 
     getData(): PointLightData {
@@ -120,6 +133,18 @@ export class PointLight extends Light {
             linear: this.linear,
             quadratic: this.quadratic
         };
+    }
+
+    getLightSpaceMatrix(): Matrix4 {
+        const lightView = Matrix4.lookAt(
+            this.position,
+            v3(0, 0, 0), // looking at origin
+        );
+        return lightView.multiply(this.lightProjection);
+    }
+
+    getShadowMap(): ShadowMap {
+        return this.shadowMap;
     }
 }
 
@@ -137,7 +162,7 @@ export class SpotLight extends PointLight {
         outerCutOff: number = Math.cos(Math.PI / 4), // 45 degrees
         meshContainer?: Scene
     ) {
-        super(position, color, intensity);
+        super(position, color, intensity, 1.0, 0.09, 0.032, meshContainer!);
         this.direction = direction.normalize();
         this.cutOff = cutOff;
         this.outerCutOff = outerCutOff;

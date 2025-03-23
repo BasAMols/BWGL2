@@ -16,6 +16,7 @@ in vec3 vNormal;
 in vec2 vTexCoord;
 in vec3 vFragPos;
 in vec3 vColor;
+in vec4 vFragPosLightSpace;  // Added for shadow mapping
 
 // Light uniforms
 uniform int uLightTypes[MAX_LIGHTS];
@@ -30,6 +31,10 @@ uniform float uLightCutOffs[MAX_LIGHTS];
 uniform float uLightOuterCutOffs[MAX_LIGHTS];
 uniform int uNumLights;
 
+// Shadow mapping uniforms
+uniform sampler2D uShadowMap;
+uniform mat4 uLightSpaceMatrix;
+
 // Other uniforms
 uniform vec3 uViewPos;
 uniform sampler2D uTexture;
@@ -38,6 +43,40 @@ uniform float uShininess;
 
 // Output
 out vec4 fragColor;
+
+float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir) {
+    // Perform perspective divide
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    
+    // Transform to [0,1] range
+    projCoords = projCoords * 0.5 + 0.5;
+    
+    // Get closest depth value from light's perspective
+    float closestDepth = texture(uShadowMap, projCoords.xy).r;
+    
+    // Get current depth
+    float currentDepth = projCoords.z;
+    
+    // Calculate bias based on surface angle
+    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
+    
+    // PCF (Percentage Closer Filtering)
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / vec2(textureSize(uShadowMap, 0));
+    for(int x = -1; x <= 1; ++x) {
+        for(int y = -1; y <= 1; ++y) {
+            float pcfDepth = texture(uShadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
+            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+        }
+    }
+    shadow /= 9.0;
+    
+    // Keep shadow at 0.0 when outside the far plane region of the light's frustum
+    if(projCoords.z > 1.0)
+        shadow = 0.0;
+        
+    return shadow;
+}
 
 // Function to calculate directional light
 vec3 calcDirectionalLight(int index, vec3 normal, vec3 viewDir, vec3 baseColor) {
@@ -98,6 +137,7 @@ void main() {
     vec3 baseColor = uUseTexture ? texture(uTexture, vTexCoord).rgb : vColor;
     
     vec3 result = vec3(0.0);
+    float shadow = ShadowCalculation(vFragPosLightSpace, normal, normalize(uLightPositions[0] - vFragPos));
     
     // Calculate contribution from each light
     for(int i = 0; i < uNumLights; i++) {
@@ -110,13 +150,16 @@ void main() {
             result += uLightColors[i] * uLightIntensities[i] * baseColor;
         }
         else if(uLightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {
-            result += calcDirectionalLight(i, normal, viewDir, baseColor);
+            vec3 lighting = calcDirectionalLight(i, normal, viewDir, baseColor);
+            result += lighting * (1.0 - shadow);
         }
         else if(uLightTypes[i] == LIGHT_TYPE_POINT) {
-            result += calcPointLight(i, normal, vFragPos, viewDir, baseColor);
+            vec3 lighting = calcPointLight(i, normal, vFragPos, viewDir, baseColor);
+            result += lighting * (1.0 - shadow);
         }
         else if(uLightTypes[i] == LIGHT_TYPE_SPOT) {
-            result += calcSpotLight(i, normal, vFragPos, viewDir, baseColor);
+            vec3 lighting = calcSpotLight(i, normal, vFragPos, viewDir, baseColor);
+            result += lighting * (1.0 - shadow);
         }
     }
     

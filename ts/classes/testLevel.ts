@@ -13,70 +13,68 @@ export class TestLevel extends Scene {
     protected clearColor: [number, number, number, number] = [0.2, 0, 0, 1];
 
     constructor() {
-        super(new Camera(v3(3, 1, 3), v3(0, 0, 0), 45), {
+        super(new Camera(v3(3, 3, 3), v3(0, 0, 0), 45), {
             ambientLightColor: v3(1, 1, 1),
-            ambientLightIntensity: 0
+            ambientLightIntensity: 0.1  // reduced from 0 to allow some ambient light
         });
         this.camera.setFov(45);
 
-        const rotation = new Quaternion(); // identity quaternion
-        rotation.setAxisAngle(v3(1, 0, 0), 0); // rotate 90 degrees around Y axis
+        const rotation = new Quaternion();
+        rotation.setAxisAngle(v3(1, 0, 0), 0);
 
-        // Add a ground plane
+        // Add a larger ground plane
         this.add(Plane.create({
-            position: v3(0, -0.7, 0),
-            scale: v3(3, 3, 3),
-            color: [1, 1, 1],
+            position: v3(0, -1, 0),
+            scale: v3(10, 10, 10),
+            color: [0.8, 0.8, 0.8],
             flipNormal: false
         }));
 
-        // Add a cube
+        // Add main cube slightly elevated
         this.add(this.cube = IcoSphere.create({
-            subdivisions: 0,
+            subdivisions: 1,
             smoothShading: false,
             rotation: rotation,
-            position: v3(0, 0, 0)
+            position: v3(0, 1, 0),
+            scale: v3(0.5, 0.5, 0.5)
         }));
 
-        // // Add directional light (sun-like)
-        // this.addLight(new DirectionalLight(
-        //     v3(-1, -1, -1).normalize(), // direction
-        //     v3(1, 1, 0.9), // warm sunlight color
-        //     0.8 // intensity
-        // ));
+        // Add some additional objects to cast shadows
+        this.add(IcoSphere.create({
+            subdivisions: 1,
+            smoothShading: false,
+            position: v3(2, 0.5, 2),
+            scale: v3(0.3, 0.3, 0.3)
+        }));
 
+        this.add(IcoSphere.create({
+            subdivisions: 1,
+            smoothShading: false,
+            position: v3(-1.5, 0.7, -1),
+            scale: v3(0.4, 0.4, 0.4)
+        }));
 
-        // Add point light (like a lamp)
+        // Add point light from a good angle to cast shadows
         this.addLight(new PointLight(
-            v3(0.5, 0.5, 1), // position
-            v3(0.2, 0.8, 1.0), // blue-ish color
-            1.0, // intensity
-            1.0, // constant
-            0.09, // linear
-            0.032, // quadratic,
-            this
-        ));
-        // Add point light (like a lamp)
-        this.addLight(new PointLight(
-            v3(1, 1, 0.5), // position
-            v3(0.2, 0.8, 1.0), // blue-ish color
-            1.0, // intensity
-            1.0, // constant
-            0.09, // linear
-            0.032, // quadratic,
+            v3(2, 4, 2),     // higher position to cast better shadows
+            v3(1, 1, 1),     // white light
+            1.5,             // increased intensity
+            1.0,             // constant
+            0.09,            // linear
+            0.032,           // quadratic
             this
         ));
 
-        // // Add spot light (like a flashlight)
-        // this.addLight(new SpotLight(
-        //     v3(0, 1, 1), // position
-        //     v3(0, -1, -1).normalize(), // direction
-        //     v3(1, 0.8, 0.6), // warm color
-        //     1.0, // intensity
-        //     0.5, // cutOff (30 degrees)
-        //     0.5, // outerCutOff (45 degrees),
-        //     this
-        // ));
+        // Add second point light for better illumination
+        this.addLight(new PointLight(
+            v3(-2, 3, -2),   // opposite position
+            v3(0.8, 0.8, 1.0), // slightly blue tint
+            1.0,             // intensity
+            1.0,             // constant
+            0.09,            // linear
+            0.032,           // quadratic
+            this
+        ));
     }
 
     tick(obj: TickerReturnData) {
@@ -85,7 +83,7 @@ export class TestLevel extends Scene {
         // Rotate the cube slowly
         if (this.cube) {
             const rotation = new Quaternion();
-            rotation.setAxisAngle(v3(0, 1, 0), 0.01); // Fixed rotation speed
+            rotation.setAxisAngle(v3(0, 1, 0), 0.01);
             this.cube.transform.setRotation(
                 rotation.multiply(this.cube.transform.getLocalRotation())
             );

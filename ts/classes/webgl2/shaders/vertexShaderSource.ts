@@ -11,12 +11,14 @@ uniform mat4 uModelMatrix;
 uniform mat4 uViewMatrix;
 uniform mat4 uProjectionMatrix;
 uniform mat3 uNormalMatrix; // Added for correct normal transformation
+uniform mat4 uLightSpaceMatrix; // Added for shadow mapping
 
 // Varyings (output to fragment shader)
 out vec3 vNormal;
 out vec2 vTexCoord;
 out vec3 vFragPos;
 out vec3 vColor;
+out vec4 vFragPosLightSpace; // Added for shadow mapping
 
 void main() {
     // Calculate world space position
@@ -29,6 +31,9 @@ void main() {
     // Pass texture coordinates and color to fragment shader
     vTexCoord = aTexCoord;
     vColor = aColor;
+    
+    // Calculate position in light space for shadow mapping
+    vFragPosLightSpace = uLightSpaceMatrix * worldPos;
     
     // Calculate final position
     gl_Position = uProjectionMatrix * uViewMatrix * worldPos;
