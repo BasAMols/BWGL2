@@ -47,33 +47,46 @@ export class SceneObject implements SceneObjectData {
     }
 
     public render(viewMatrix: Matrix4, projectionMatrix: Matrix4) {
-       // Set uniforms
-       this.shaderManager.setUniform('uModelMatrix', this.transform.getWorldMatrix().mat4 as Float32Array);
-       this.shaderManager.setUniform('uViewMatrix', viewMatrix.mat4 as Float32Array);
-       this.shaderManager.setUniform('uProjectionMatrix', projectionMatrix.mat4 as Float32Array);
+        const modelMatrix = this.transform.getWorldMatrix();
 
-       // Bind VAO
-       this.vao.bind();
+        // Set uniforms
+        this.shaderManager.setUniform('uModelMatrix', modelMatrix.mat4 as Float32Array);
+        this.shaderManager.setUniform('uViewMatrix', viewMatrix.mat4 as Float32Array);
+        this.shaderManager.setUniform('uProjectionMatrix', projectionMatrix.mat4 as Float32Array);
 
-       // Draw
-       if (this.indexBuffer) {
-           // Indexed drawing
-           glob.ctx.drawElements(
-               this.drawMode,
-               this.drawCount,
-               this.drawType || glob.ctx.UNSIGNED_SHORT,
-               0
-           );
-       } else {
-           // Non-indexed drawing
-           glob.ctx.drawArrays(
-               this.drawMode,
-               0,
-               this.drawCount
-           );
-       }
+        // Calculate and set normal matrix (inverse transpose of model matrix)
+        const normalMatrix = modelMatrix.clone();
+        normalMatrix.invert();
+        normalMatrix.transpose();
+        const normalMat3 = new Float32Array([
+            normalMatrix.mat4[0], normalMatrix.mat4[1], normalMatrix.mat4[2],
+            normalMatrix.mat4[4], normalMatrix.mat4[5], normalMatrix.mat4[6],
+            normalMatrix.mat4[8], normalMatrix.mat4[9], normalMatrix.mat4[10]
+        ]);
+        this.shaderManager.setUniform('uNormalMatrix', normalMat3);
 
-       // Cleanup
-       this.vao.unbind();
+        // Bind VAO
+        this.vao.bind();
+
+        // Draw
+        if (this.indexBuffer) {
+            // Indexed drawing
+            glob.ctx.drawElements(
+                this.drawMode,
+                this.drawCount,
+                this.drawType || glob.ctx.UNSIGNED_SHORT,
+                0
+            );
+        } else {
+            // Non-indexed drawing
+            glob.ctx.drawArrays(
+                this.drawMode,
+                0,
+                this.drawCount
+            );
+        }
+
+        // Cleanup
+        this.vao.unbind();
     }
 }

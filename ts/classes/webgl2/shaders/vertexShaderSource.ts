@@ -10,6 +10,7 @@ in vec3 aColor;
 uniform mat4 uModelMatrix;
 uniform mat4 uViewMatrix;
 uniform mat4 uProjectionMatrix;
+uniform mat3 uNormalMatrix; // Added for correct normal transformation
 
 // Varyings (output to fragment shader)
 out vec3 vNormal;
@@ -22,9 +23,8 @@ void main() {
     vec4 worldPos = uModelMatrix * vec4(aPosition, 1.0);
     vFragPos = worldPos.xyz;
     
-    // Transform normal to world space
-    // Note: This assumes uniform scaling. For non-uniform scaling, use the normal matrix
-    vNormal = mat3(uModelMatrix) * aNormal;
+    // Transform normal to world space using normal matrix
+    vNormal = normalize(uNormalMatrix * aNormal);
     
     // Pass texture coordinates and color to fragment shader
     vTexCoord = aTexCoord;

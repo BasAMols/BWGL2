@@ -1,8 +1,9 @@
-
 export interface ShaderUniformData {
     type: string;
     value: number | number[] | Float32Array | Int32Array;
     location?: WebGLUniformLocation;
+    isArray?: boolean;
+    arraySize?: number;
 }
 
 export interface ShaderAttributeData {
@@ -107,10 +108,15 @@ export class ShaderManager {
             const location = this.gl.getUniformLocation(program, info.name);
             if (!location) continue;
 
-            uniformMap.set(info.name, {
+            // For array uniforms, store with the base name (without array index)
+            const baseName = info.name.replace(/\[\d+\].*$/, '');
+            
+            uniformMap.set(baseName, {
                 type: this.getUniformTypeName(info.type),
                 value: this.getDefaultValueForType(info.type),
-                location
+                location,
+                isArray: info.size > 1,
+                arraySize: info.size
             });
         }
 
@@ -168,7 +174,11 @@ export class ShaderManager {
     ): void {
         switch (type) {
             case 'float':
-                this.gl.uniform1f(location, value as number);
+                if (Array.isArray(value) || value instanceof Float32Array) {
+                    this.gl.uniform1fv(location, value);
+                } else {
+                    this.gl.uniform1f(location, value as number);
+                }
                 break;
             case 'vec2':
                 this.gl.uniform2fv(location, value as Float32Array);
@@ -182,15 +192,28 @@ export class ShaderManager {
             case 'mat4':
                 this.gl.uniformMatrix4fv(location, false, value as Float32Array);
                 break;
+            case 'mat3':
+                this.gl.uniformMatrix3fv(location, false, value as Float32Array);
+                break;
             case 'int':
             case 'bool':
-                this.gl.uniform1i(location, value as number);
+                if (Array.isArray(value) || value instanceof Int32Array) {
+                    this.gl.uniform1iv(location, value);
+                } else {
+                    this.gl.uniform1i(location, value as number);
+                }
                 break;
             case 'sampler2D':
                 this.gl.uniform1i(location, value as number);
                 break;
+            case 'Light':
+                // Handle Light struct array
+                const data = value as Float32Array;
+                this.gl.uniform1fv(location, data);
+                break;
             default:
-                throw new Error(`Unsupported uniform type: ${type}`);
+                console.warn(`Unsupported uniform type: ${type}`);
+                break;
         }
     }
 
@@ -219,10 +242,15 @@ export class ShaderManager {
             case this.gl.FLOAT_VEC3: return 'vec3';
             case this.gl.FLOAT_VEC4: return 'vec4';
             case this.gl.FLOAT_MAT4: return 'mat4';
+            case this.gl.FLOAT_MAT3: return 'mat3';
             case this.gl.INT: return 'int';
             case this.gl.BOOL: return 'bool';
             case this.gl.SAMPLER_2D: return 'sampler2D';
-            default: return 'unknown';
+            case 0x8B52: // GL_STRUCT
+                return 'Light'; // Handle Light struct type
+            default:
+                console.warn(`Unknown uniform type: ${type}`);
+                return 'unknown';
         }
     }
 

@@ -29,29 +29,49 @@ export class WebGL2Initializer {
         this.shaderManager.loadShaderProgram('basic', vertexShaderSource, fragmentShaderSource);
         this.shaderManager.useProgram('basic');
 
+        // Initialize light arrays
+        const numLights = 10;
+        const types = new Int32Array(numLights);
+        const positions = new Float32Array(numLights * 3);
+        const directions = new Float32Array(numLights * 3);
+        const colors = new Float32Array(numLights * 3);
+        const intensities = new Float32Array(numLights);
+        const constants = new Float32Array(numLights);
+        const linears = new Float32Array(numLights);
+        const quadratics = new Float32Array(numLights);
+        const cutOffs = new Float32Array(numLights);
+        const outerCutOffs = new Float32Array(numLights);
+
+        // Initialize all lights as inactive
+        types.fill(-1);
+        constants.fill(1.0); // Default attenuation constant
+
         // Set default uniform values
-        this.shaderManager.setUniform('uLightPos', new Float32Array([5.0, 5.0, 5.0]));
-        this.shaderManager.setUniform('uLightColor', new Float32Array([1.0, 1.0, 1.0]));
+        this.shaderManager.setUniform('uNumLights', 0);
+        this.shaderManager.setUniform('uLightTypes', types);
+        this.shaderManager.setUniform('uLightPositions', positions);
+        this.shaderManager.setUniform('uLightDirections', directions);
+        this.shaderManager.setUniform('uLightColors', colors);
+        this.shaderManager.setUniform('uLightIntensities', intensities);
+        this.shaderManager.setUniform('uLightConstants', constants);
+        this.shaderManager.setUniform('uLightLinears', linears);
+        this.shaderManager.setUniform('uLightQuadratics', quadratics);
+        this.shaderManager.setUniform('uLightCutOffs', cutOffs);
+        this.shaderManager.setUniform('uLightOuterCutOffs', outerCutOffs);
+
+        this.shaderManager.setUniform('uViewPos', new Float32Array([3.0, 2.0, 3.0]));
         this.shaderManager.setUniform('uUseTexture', 0);
-        this.shaderManager.setUniform('uViewPos', new Float32Array([3.0, 2.0, 3.0]));  // Match camera position
+        this.shaderManager.setUniform('uShininess', 32.0);
+
+        // Enable depth testing and backface culling
+        this.ctx.enable(this.ctx.DEPTH_TEST);
+        this.ctx.enable(this.ctx.CULL_FACE);
     }
 
-    private initializeWebGL2(): WebGL2RenderingContext | null {
-        let ctx: WebGL2RenderingContext | null = null;
-        try {
-            ctx = this.canvas.getContext('webgl2');
-            if (!ctx) {
-                throw new Error('WebGL2 not supported');
-            }
-
-            // Enable common WebGL features
-            ctx.enable(ctx.DEPTH_TEST);
-            ctx.enable(ctx.CULL_FACE);
-            ctx.cullFace(ctx.BACK);
-            ctx.frontFace(ctx.CCW);
-        } catch (error) {
-            console.error('Failed to initialize WebGL2:', error);
-            throw error;
+    private initializeWebGL2(): WebGL2RenderingContext {
+        const ctx = this.canvas.getContext('webgl2');
+        if (!ctx) {
+            throw new Error('WebGL 2 not supported');
         }
         return ctx;
     }
