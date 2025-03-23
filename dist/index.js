@@ -2553,6 +2553,171 @@ var Matrix4 = class _Matrix4 {
   }
 };
 
+// ts/classes/util/math/quaternion.ts
+var Quaternion = class _Quaternion {
+  constructor(x = 0, y = 0, z = 0, w = 1) {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+    this.w = w;
+  }
+  clone() {
+    return new _Quaternion(this.x, this.y, this.z, this.w);
+  }
+  multiply(q) {
+    const x = this.w * q.x + this.x * q.w + this.y * q.z - this.z * q.y;
+    const y = this.w * q.y - this.x * q.z + this.y * q.w + this.z * q.x;
+    const z = this.w * q.z + this.x * q.y - this.y * q.x + this.z * q.w;
+    const w = this.w * q.w - this.x * q.x - this.y * q.y - this.z * q.z;
+    return new _Quaternion(x, y, z, w);
+  }
+  toMatrix4() {
+    const xx = this.x * this.x;
+    const xy = this.x * this.y;
+    const xz = this.x * this.z;
+    const xw = this.x * this.w;
+    const yy = this.y * this.y;
+    const yz = this.y * this.z;
+    const yw = this.y * this.w;
+    const zz = this.z * this.z;
+    const zw = this.z * this.w;
+    return new Matrix4([
+      1 - 2 * (yy + zz),
+      2 * (xy - zw),
+      2 * (xz + yw),
+      0,
+      2 * (xy + zw),
+      1 - 2 * (xx + zz),
+      2 * (yz - xw),
+      0,
+      2 * (xz - yw),
+      2 * (yz + xw),
+      1 - 2 * (xx + yy),
+      0,
+      0,
+      0,
+      0,
+      1
+    ]);
+  }
+  static fromEuler(x, y, z) {
+    const cx = Math.cos(x * 0.5);
+    const cy = Math.cos(y * 0.5);
+    const cz = Math.cos(z * 0.5);
+    const sx = Math.sin(x * 0.5);
+    const sy = Math.sin(y * 0.5);
+    const sz = Math.sin(z * 0.5);
+    return new _Quaternion(
+      sx * cy * cz + cx * sy * sz,
+      cx * sy * cz - sx * cy * sz,
+      cx * cy * sz + sx * sy * cz,
+      cx * cy * cz - sx * sy * sz
+    );
+  }
+  static fromMatrix(matrix) {
+    return new _Quaternion();
+  }
+  static f(x, y = x, z = x, w = 1) {
+    return new _Quaternion(x, y, z, w);
+  }
+  setAxisAngle(axis, angle) {
+    const halfAngle = angle * 0.5;
+    const s = Math.sin(halfAngle);
+    this.x = axis.x * s;
+    this.y = axis.y * s;
+    this.z = axis.z * s;
+    this.w = Math.cos(halfAngle);
+    return this;
+  }
+};
+
+// ts/classes/util/math/transform.ts
+var Transform = class {
+  constructor() {
+    this._localPosition = v3(0);
+    this._localRotation = new Quaternion();
+    this._localScale = v3(1);
+    this._anchor = v3(0);
+    this._worldMatrix = m4();
+    this._localMatrix = m4();
+    this._isDirty = true;
+    this._parent = null;
+    this._children = [];
+  }
+  // Position methods
+  setPosition(position) {
+    this._localPosition = position;
+    this._isDirty = true;
+  }
+  getLocalPosition() {
+    return this._localPosition.clone();
+  }
+  getWorldPosition() {
+    return this.getWorldMatrix().position;
+  }
+  // Rotation methods
+  setRotation(rotation) {
+    this._localRotation = rotation;
+    this._isDirty = true;
+  }
+  getLocalRotation() {
+    return this._localRotation.clone();
+  }
+  getWorldRotation() {
+    return Quaternion.fromMatrix(this.getWorldMatrix());
+  }
+  // Scale methods
+  setScale(scale2) {
+    this._localScale = scale2;
+    this._isDirty = true;
+  }
+  // Anchor point methods
+  setAnchor(anchor) {
+    this._anchor = anchor;
+    this._isDirty = true;
+  }
+  // Hierarchy methods
+  setParent(parent) {
+    if (this._parent) {
+      const index = this._parent._children.indexOf(this);
+      if (index !== -1)
+        this._parent._children.splice(index, 1);
+    }
+    this._parent = parent;
+    if (parent) {
+      parent._children.push(this);
+    }
+    this._isDirty = true;
+  }
+  // Matrix calculations
+  updateLocalMatrix() {
+    if (!this._isDirty)
+      return;
+    this._localMatrix = m4();
+    if (!this._anchor.equals(v3(0))) {
+      this._localMatrix.translate(this._anchor.scale(-1));
+    }
+    this._localMatrix.translate(this._localPosition);
+    this._localMatrix.multiply(this._localRotation.toMatrix4());
+    this._localMatrix.scale(this._localScale);
+    if (!this._anchor.equals(v3(0))) {
+      this._localMatrix.translate(this._anchor);
+    }
+    this._isDirty = false;
+  }
+  getLocalMatrix() {
+    this.updateLocalMatrix();
+    return this._localMatrix.clone();
+  }
+  getWorldMatrix() {
+    this.updateLocalMatrix();
+    if (this._parent) {
+      return this._parent.getWorldMatrix().multiply(this._localMatrix);
+    }
+    return this._localMatrix.clone();
+  }
+};
+
 // ts/classes/webgl2/meshes/sceneObject.ts
 var SceneObject = class {
   constructor(data, props = {}) {
@@ -2562,13 +2727,19 @@ var SceneObject = class {
     this.indexBuffer = data.indexBuffer;
     this.shaderManager = glob.shaderManager;
     this.drawCount = data.drawCount;
-    this.modelMatrix = m4();
-    this.modelMatrix.translate(props.position || v3(0));
-    this.modelMatrix.rotate(props.rotation || v3(0));
-    this.modelMatrix.scale(props.scale || v3(1));
+    this.transform = new Transform();
+    if (props.position)
+      this.transform.setPosition(props.position);
+    if (props.scale)
+      this.transform.setScale(props.scale);
+    if (props.rotation)
+      this.transform.setRotation(props.rotation);
+    if (props.parent) {
+      this.transform.setParent(props.parent.transform);
+    }
   }
   render(viewMatrix, projectionMatrix) {
-    this.shaderManager.setUniform("uModelMatrix", this.modelMatrix.mat4);
+    this.shaderManager.setUniform("uModelMatrix", this.transform.getWorldMatrix().mat4);
     this.shaderManager.setUniform("uViewMatrix", viewMatrix.mat4);
     this.shaderManager.setUniform("uProjectionMatrix", projectionMatrix.mat4);
     this.vao.bind();
@@ -3034,6 +3205,7 @@ var Camera = class {
 var Scene = class {
   constructor(camera) {
     this.objects = [];
+    this.clearColor = [0, 0, 0, 1];
     this.camera = camera || new Camera();
     glob.events.resize.subscribe("resize", this.resize.bind(this));
   }
@@ -3048,6 +3220,7 @@ var Scene = class {
   }
   render() {
     glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT | glob.ctx.DEPTH_BUFFER_BIT);
+    glob.ctx.clearColor(...this.clearColor);
     const viewMatrix = this.camera.getViewMatrix();
     const projectionMatrix = this.camera.getProjectionMatrix();
     for (const object of this.objects) {
@@ -3076,9 +3249,13 @@ var Scene = class {
 var TestLevel = class extends Scene {
   constructor() {
     super(new Camera(v3(3, 2, 3), v3(0, 0, 0), 45));
+    this.clearColor = [1, 0, 0, 1];
     this.camera.setFov(45);
+    const rotation = new Quaternion();
+    rotation.setAxisAngle(v3(0, 1, 0), Math.PI / 2);
     this.add(this.cube1 = Cube.create({
-      rotation: v3(0, 0, 0)
+      position: v3(0, 0, 0),
+      rotation
     }));
     this.add(Cube.create({
       position: v3(1.5, 0, 0)

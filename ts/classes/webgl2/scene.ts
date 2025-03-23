@@ -7,6 +7,7 @@ import { SceneObject } from './meshes/sceneObject';
 export class Scene {
     public camera: Camera;
     private objects: SceneObject[] = [];
+    protected clearColor: [number, number, number, number] = [0, 0, 0, 1];
 
     constructor(camera?: Camera) {
         this.camera = camera || new Camera();
@@ -26,6 +27,7 @@ export class Scene {
 
     public render(): void {
         glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT | glob.ctx.DEPTH_BUFFER_BIT);
+        glob.ctx.clearColor(...this.clearColor);
 
         const viewMatrix = this.camera.getViewMatrix();
         const projectionMatrix = this.camera.getProjectionMatrix();

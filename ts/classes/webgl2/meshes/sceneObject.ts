@@ -1,14 +1,15 @@
-    import { VertexArray, IndexBuffer } from '../buffer';
+import { VertexArray, IndexBuffer } from '../buffer';
 import { ShaderManager } from '../shaderManager';
 import { glob } from '../../../game';
-import { m4, Matrix4 } from '../../util/math/matrix4';
-import { Vector3, v3 } from '../../util/math/vector3';
+import { Matrix4 } from '../../util/math/matrix4';
+import { Vector3 } from '../../util/math/vector3';
+import { Transform } from '../../util/math/transform';
+import { Quaternion } from '../../util/math/quaternion';
 
 export interface SceneObjectData {
     vao: VertexArray;
     indexBuffer: IndexBuffer;
     shaderManager: ShaderManager;
-    modelMatrix: Matrix4;
     drawMode: number;
     drawCount: number;
     drawType: number;
@@ -17,33 +18,37 @@ export interface SceneObjectData {
 export interface SceneObjectProps {
     position?: Vector3;
     scale?: Vector3;
-    rotation?: Vector3;
+    rotation?: Quaternion;
+    parent?: SceneObject;
 }
 
 export class SceneObject implements SceneObjectData {
     public readonly vao: VertexArray;
     public readonly indexBuffer: IndexBuffer;
     public readonly shaderManager: ShaderManager;
-    public readonly modelMatrix: Matrix4;
+    public readonly transform: Transform;
     public readonly drawMode: number = glob.ctx.TRIANGLES;
     public readonly drawCount: number;
     public readonly drawType: number = glob.ctx.UNSIGNED_SHORT;
 
-    constructor(data: Omit<SceneObjectData, 'modelMatrix' | 'shaderManager' | 'drawMode' |'drawType'>, props: SceneObjectProps = {}) {
+    constructor(data: Omit<SceneObjectData, 'shaderManager' | 'drawMode' |'drawType'>, props: SceneObjectProps = {}) {
         this.vao = data.vao;
         this.indexBuffer = data.indexBuffer;
         this.shaderManager = glob.shaderManager;
         this.drawCount = data.drawCount;
 
-        this.modelMatrix = m4();
-        this.modelMatrix.translate(props.position || v3(0));
-        this.modelMatrix.rotate(props.rotation || v3(0));
-        this.modelMatrix.scale(props.scale || v3(1));
+        this.transform = new Transform();
+        if (props.position) this.transform.setPosition(props.position);
+        if (props.scale) this.transform.setScale(props.scale);
+        if (props.rotation) this.transform.setRotation(props.rotation);
+        if (props.parent) {
+            this.transform.setParent(props.parent.transform);
+        }
     }
 
     public render(viewMatrix: Matrix4, projectionMatrix: Matrix4) {
        // Set uniforms
-       this.shaderManager.setUniform('uModelMatrix', this.modelMatrix.mat4 as Float32Array);
+       this.shaderManager.setUniform('uModelMatrix', this.transform.getWorldMatrix().mat4 as Float32Array);
        this.shaderManager.setUniform('uViewMatrix', viewMatrix.mat4 as Float32Array);
        this.shaderManager.setUniform('uProjectionMatrix', projectionMatrix.mat4 as Float32Array);
 
