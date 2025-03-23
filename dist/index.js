@@ -2553,6 +2553,97 @@ var Matrix4 = class _Matrix4 {
   }
 };
 
+// ts/classes/webgl2/camera.ts
+var Camera = class {
+  constructor(position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 45, near = 0.1, far = 1e3) {
+    this.position = position;
+    this.target = target;
+    this.fov = fov;
+    this.near = near;
+    this.far = far;
+    this.updateViewMatrix();
+    this.updateProjectionMatrix();
+  }
+  updateViewMatrix() {
+    this.viewMatrix = Matrix4.lookAt(this.position, this.target);
+  }
+  updateProjectionMatrix() {
+    this.projectionMatrix = m4().perspective(
+      this.fov * Math.PI / 180,
+      this.near,
+      this.far
+    );
+  }
+  setPosition(position) {
+    this.position = position;
+    this.updateViewMatrix();
+  }
+  setTarget(target) {
+    this.target = target;
+    this.updateViewMatrix();
+  }
+  setFov(fov) {
+    this.fov = fov;
+    this.updateProjectionMatrix();
+  }
+  getViewMatrix() {
+    return this.viewMatrix;
+  }
+  getProjectionMatrix() {
+    return this.projectionMatrix;
+  }
+  getPosition() {
+    return this.position;
+  }
+  getTarget() {
+    return this.target;
+  }
+};
+
+// ts/classes/webgl2/scene.ts
+var Scene = class {
+  constructor(camera) {
+    this.objects = [];
+    this.clearColor = [0, 0, 0, 1];
+    this.camera = camera || new Camera();
+    glob.events.resize.subscribe("resize", this.resize.bind(this));
+  }
+  add(object) {
+    this.objects.push(object);
+  }
+  remove(object) {
+    const index = this.objects.indexOf(object);
+    if (index !== -1) {
+      this.objects.splice(index, 1);
+    }
+  }
+  render() {
+    glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT | glob.ctx.DEPTH_BUFFER_BIT);
+    glob.ctx.clearColor(...this.clearColor);
+    const viewMatrix = this.camera.getViewMatrix();
+    const projectionMatrix = this.camera.getProjectionMatrix();
+    for (const object of this.objects) {
+      object.render(viewMatrix, projectionMatrix);
+    }
+  }
+  dispose() {
+    var _a;
+    for (const object of this.objects) {
+      object.vao.dispose();
+      (_a = object.indexBuffer) == null ? void 0 : _a.dispose();
+    }
+    this.objects = [];
+  }
+  tick(obj) {
+  }
+  afterTick(obj) {
+    this.render();
+  }
+  resize() {
+    this.camera.updateProjectionMatrix();
+  }
+};
+
 // ts/classes/util/math/quaternion.ts
 var Quaternion = class _Quaternion {
   constructor(x = 0, y = 0, z = 0, w = 1) {
@@ -3109,808 +3200,6 @@ Cube.texCoords = new Float32Array([
   1
 ]);
 
-// ts/classes/webgl2/camera.ts
-var Camera = class {
-  constructor(position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 45, near = 0.1, far = 1e3) {
-    this.position = position;
-    this.target = target;
-    this.fov = fov;
-    this.near = near;
-    this.far = far;
-    this.updateViewMatrix();
-    this.updateProjectionMatrix();
-  }
-  updateViewMatrix() {
-    this.viewMatrix = Matrix4.lookAt(this.position, this.target);
-  }
-  updateProjectionMatrix() {
-    this.projectionMatrix = m4().perspective(
-      this.fov * Math.PI / 180,
-      this.near,
-      this.far
-    );
-  }
-  setPosition(position) {
-    this.position = position;
-    this.updateViewMatrix();
-  }
-  setTarget(target) {
-    this.target = target;
-    this.updateViewMatrix();
-  }
-  setFov(fov) {
-    this.fov = fov;
-    this.updateProjectionMatrix();
-  }
-  getViewMatrix() {
-    return this.viewMatrix;
-  }
-  getProjectionMatrix() {
-    return this.projectionMatrix;
-  }
-  getPosition() {
-    return this.position;
-  }
-  getTarget() {
-    return this.target;
-  }
-};
-
-// ts/classes/webgl2/scene.ts
-var Scene = class {
-  constructor(camera) {
-    this.objects = [];
-    this.clearColor = [0, 0, 0, 1];
-    this.camera = camera || new Camera();
-    glob.events.resize.subscribe("resize", this.resize.bind(this));
-  }
-  add(object) {
-    this.objects.push(object);
-  }
-  remove(object) {
-    const index = this.objects.indexOf(object);
-    if (index !== -1) {
-      this.objects.splice(index, 1);
-    }
-  }
-  render() {
-    glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT | glob.ctx.DEPTH_BUFFER_BIT);
-    glob.ctx.clearColor(...this.clearColor);
-    const viewMatrix = this.camera.getViewMatrix();
-    const projectionMatrix = this.camera.getProjectionMatrix();
-    for (const object of this.objects) {
-      object.render(viewMatrix, projectionMatrix);
-    }
-  }
-  dispose() {
-    var _a;
-    for (const object of this.objects) {
-      object.vao.dispose();
-      (_a = object.indexBuffer) == null ? void 0 : _a.dispose();
-    }
-    this.objects = [];
-  }
-  tick(obj) {
-  }
-  afterTick(obj) {
-    this.render();
-  }
-  resize() {
-    this.camera.updateProjectionMatrix();
-  }
-};
-
-// ts/classes/webgl2/meshes/cylinder.ts
-var Cylinder = class {
-  static generateMeshData(sides = 32, smoothShading = true, colors) {
-    const vertices = [];
-    const indices = [];
-    const normals = [];
-    const generatedColors = [];
-    const texCoords = [];
-    const defaultColors = [
-      [0.8, 0.2, 0.2],
-      // sides
-      [0.2, 0.2, 0.8],
-      // top
-      [0.8, 0.8, 0.2]
-      // bottom
-    ];
-    let [sideColor, topColor, bottomColor] = defaultColors;
-    if (colors) {
-      if (Array.isArray(colors[0])) {
-        [sideColor, topColor, bottomColor] = colors;
-      } else {
-        sideColor = topColor = bottomColor = colors;
-      }
-    }
-    if (smoothShading) {
-      for (let i = 0; i <= sides; i++) {
-        const angle = i * Math.PI * 2 / sides;
-        const x = Math.cos(angle);
-        const z = Math.sin(angle);
-        vertices.push(x * 0.5, 0.5, z * 0.5);
-        vertices.push(x * 0.5, -0.5, z * 0.5);
-        normals.push(x, 0, z);
-        normals.push(x, 0, z);
-        generatedColors.push(...sideColor);
-        generatedColors.push(...sideColor);
-        texCoords.push(i / sides, 1);
-        texCoords.push(i / sides, 0);
-      }
-      for (let i = 0; i < sides; i++) {
-        const topFirst = i * 2;
-        const bottomFirst = topFirst + 1;
-        const topSecond = (i + 1) * 2;
-        const bottomSecond = topSecond + 1;
-        indices.push(topFirst, topSecond, bottomFirst);
-        indices.push(bottomFirst, topSecond, bottomSecond);
-      }
-    } else {
-      for (let i = 0; i < sides; i++) {
-        const angle1 = i * Math.PI * 2 / sides;
-        const angle2 = (i + 1) * Math.PI * 2 / sides;
-        const x1 = Math.cos(angle1);
-        const z1 = Math.sin(angle1);
-        const x2 = Math.cos(angle2);
-        const z2 = Math.sin(angle2);
-        vertices.push(
-          x1 * 0.5,
-          0.5,
-          z1 * 0.5,
-          // top-left
-          x2 * 0.5,
-          0.5,
-          z2 * 0.5,
-          // top-right
-          x1 * 0.5,
-          -0.5,
-          z1 * 0.5,
-          // bottom-left
-          x1 * 0.5,
-          -0.5,
-          z1 * 0.5,
-          // bottom-left
-          x2 * 0.5,
-          0.5,
-          z2 * 0.5,
-          // top-right
-          x2 * 0.5,
-          -0.5,
-          z2 * 0.5
-          // bottom-right
-        );
-        const nx = (x1 + x2) / 2;
-        const nz = (z1 + z2) / 2;
-        const length = Math.sqrt(nx * nx + nz * nz);
-        const normalX = nx / length;
-        const normalZ = nz / length;
-        for (let j = 0; j < 6; j++) {
-          normals.push(normalX, 0, normalZ);
-          generatedColors.push(...sideColor);
-        }
-        texCoords.push(
-          i / sides,
-          1,
-          (i + 1) / sides,
-          1,
-          i / sides,
-          0,
-          i / sides,
-          0,
-          (i + 1) / sides,
-          1,
-          (i + 1) / sides,
-          0
-        );
-        const baseIndex = i * 6;
-        indices.push(
-          baseIndex,
-          baseIndex + 1,
-          baseIndex + 2,
-          baseIndex + 3,
-          baseIndex + 4,
-          baseIndex + 5
-        );
-      }
-      const sideVertexCount = vertices.length / 3;
-      for (let i = 0; i < sides; i++) {
-        const angle1 = i * Math.PI * 2 / sides;
-        const angle2 = (i + 1) * Math.PI * 2 / sides;
-        const x1 = Math.cos(angle1) * 0.5;
-        const z1 = Math.sin(angle1) * 0.5;
-        const x2 = Math.cos(angle2) * 0.5;
-        const z2 = Math.sin(angle2) * 0.5;
-        vertices.push(
-          0,
-          0.5,
-          0,
-          // center
-          x2,
-          0.5,
-          z2,
-          // point2 (reversed order)
-          x1,
-          0.5,
-          z1
-          // point1
-        );
-        for (let j = 0; j < 3; j++) {
-          normals.push(0, 1, 0);
-          generatedColors.push(...topColor);
-        }
-        texCoords.push(
-          0.5,
-          0.5,
-          x2 + 0.5,
-          z2 + 0.5,
-          x1 + 0.5,
-          z1 + 0.5
-        );
-        const topOffset = sideVertexCount + i * 3;
-        indices.push(
-          topOffset,
-          // center
-          topOffset + 1,
-          // point2
-          topOffset + 2
-          // point1
-        );
-      }
-      const topCapVertexCount = vertices.length / 3;
-      for (let i = 0; i < sides; i++) {
-        const angle1 = i * Math.PI * 2 / sides;
-        const angle2 = (i + 1) * Math.PI * 2 / sides;
-        const x1 = Math.cos(angle1) * 0.5;
-        const z1 = Math.sin(angle1) * 0.5;
-        const x2 = Math.cos(angle2) * 0.5;
-        const z2 = Math.sin(angle2) * 0.5;
-        vertices.push(
-          0,
-          -0.5,
-          0,
-          // center
-          x1,
-          -0.5,
-          z1,
-          // point1
-          x2,
-          -0.5,
-          z2
-          // point2
-        );
-        for (let j = 0; j < 3; j++) {
-          normals.push(0, -1, 0);
-          generatedColors.push(...bottomColor);
-        }
-        texCoords.push(
-          0.5,
-          0.5,
-          x1 + 0.5,
-          z1 + 0.5,
-          x2 + 0.5,
-          z2 + 0.5
-        );
-        const bottomOffset = topCapVertexCount + i * 3;
-        indices.push(
-          bottomOffset,
-          // center
-          bottomOffset + 1,
-          // point1
-          bottomOffset + 2
-          // point2
-        );
-      }
-    }
-    return {
-      vertices: new Float32Array(vertices),
-      indices: new Uint16Array(indices),
-      normals: new Float32Array(normals),
-      colors: new Float32Array(generatedColors),
-      texCoords: new Float32Array(texCoords)
-    };
-  }
-  static create(props = {}) {
-    var _a;
-    const meshData = this.generateMeshData(props.sides || 32, (_a = props.smoothShading) != null ? _a : true, props.colors);
-    const vao = new VertexArray(glob.ctx);
-    vao.bind();
-    const vertexBuffer = new VertexBuffer(glob.ctx);
-    vertexBuffer.setData(meshData.vertices);
-    vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aPosition"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const colorBuffer = new VertexBuffer(glob.ctx);
-    colorBuffer.setData(meshData.colors);
-    vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aColor"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const normalBuffer = new VertexBuffer(glob.ctx);
-    normalBuffer.setData(meshData.normals);
-    vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aNormal"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const texCoordBuffer = new VertexBuffer(glob.ctx);
-    texCoordBuffer.setData(meshData.texCoords);
-    vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aTexCoord"),
-      2,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const indexBuffer = new IndexBuffer(glob.ctx);
-    indexBuffer.setData(meshData.indices);
-    return new SceneObject({
-      vao,
-      indexBuffer,
-      drawCount: meshData.indices.length
-    }, props);
-  }
-};
-
-// ts/classes/webgl2/meshes/cone.ts
-var Cone = class {
-  static generateMeshData(sides = 32, smoothShading = true, colors) {
-    const vertices = [];
-    const indices = [];
-    const normals = [];
-    const generatedColors = [];
-    const texCoords = [];
-    const defaultColors = [
-      [0.8, 0.2, 0.2],
-      // sides
-      [0.2, 0.2, 0.8]
-      // bottom
-    ];
-    let [sideColor, bottomColor] = defaultColors;
-    if (colors) {
-      if (Array.isArray(colors[0])) {
-        [sideColor, bottomColor] = colors;
-      } else {
-        sideColor = bottomColor = colors;
-      }
-    }
-    if (smoothShading) {
-      vertices.push(0, 0.5, 0);
-      normals.push(0, 1, 0);
-      generatedColors.push(...sideColor);
-      texCoords.push(0.5, 1);
-      for (let i = 0; i <= sides; i++) {
-        const angle = i * Math.PI * 2 / sides;
-        const x = Math.cos(angle);
-        const z = Math.sin(angle);
-        vertices.push(x * 0.5, -0.5, z * 0.5);
-        const dx = x * 0.5;
-        const dy = -0.5;
-        const dz = z * 0.5;
-        const length = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        normals.push(dx / length, dy / length, dz / length);
-        generatedColors.push(...sideColor);
-        texCoords.push(i / sides, 0);
-      }
-      for (let i = 0; i < sides; i++) {
-        indices.push(
-          0,
-          // apex
-          i + 2,
-          // next base vertex
-          i + 1
-          // current base vertex
-        );
-      }
-    } else {
-      for (let i = 0; i < sides; i++) {
-        const angle1 = i * Math.PI * 2 / sides;
-        const angle2 = (i + 1) * Math.PI * 2 / sides;
-        const x1 = Math.cos(angle1) * 0.5;
-        const z1 = Math.sin(angle1) * 0.5;
-        const x2 = Math.cos(angle2) * 0.5;
-        const z2 = Math.sin(angle2) * 0.5;
-        vertices.push(
-          0,
-          0.5,
-          0,
-          // apex
-          x1,
-          -0.5,
-          z1,
-          // base point 1
-          x2,
-          -0.5,
-          z2
-          // base point 2
-        );
-        const v1x = x1;
-        const v1y = -1;
-        const v1z = z1;
-        const v2x = x2;
-        const v2y = -1;
-        const v2z = z2;
-        const nx = v2y * v1z - v2z * v1y;
-        const ny = v2z * v1x - v2x * v1z;
-        const nz = v2x * v1y - v2y * v1x;
-        const length = Math.sqrt(nx * nx + ny * ny + nz * nz);
-        const normalX = nx / length;
-        const normalY = ny / length;
-        const normalZ = nz / length;
-        for (let j = 0; j < 3; j++) {
-          normals.push(normalX, normalY, normalZ);
-          generatedColors.push(...sideColor);
-        }
-        texCoords.push(
-          0.5,
-          1,
-          i / sides,
-          0,
-          (i + 1) / sides,
-          0
-        );
-        const baseIndex = i * 3;
-        indices.push(baseIndex, baseIndex + 2, baseIndex + 1);
-      }
-    }
-    const baseVertexCount = vertices.length / 3;
-    vertices.push(0, -0.5, 0);
-    normals.push(0, -1, 0);
-    generatedColors.push(...bottomColor);
-    texCoords.push(0.5, 0.5);
-    for (let i = 0; i < sides; i++) {
-      const angle1 = i * Math.PI * 2 / sides;
-      const angle2 = (i + 1) * Math.PI * 2 / sides;
-      const x1 = Math.cos(angle1) * 0.5;
-      const z1 = Math.sin(angle1) * 0.5;
-      const x2 = Math.cos(angle2) * 0.5;
-      const z2 = Math.sin(angle2) * 0.5;
-      vertices.push(
-        x1,
-        -0.5,
-        z1,
-        x2,
-        -0.5,
-        z2
-      );
-      normals.push(0, -1, 0, 0, -1, 0);
-      generatedColors.push(...bottomColor, ...bottomColor);
-      texCoords.push(
-        x1 + 0.5,
-        z1 + 0.5,
-        x2 + 0.5,
-        z2 + 0.5
-      );
-      const offset = baseVertexCount + 1 + i * 2;
-      indices.push(
-        baseVertexCount,
-        // center
-        offset,
-        // current point
-        offset + 1
-        // next point
-      );
-    }
-    return {
-      vertices: new Float32Array(vertices),
-      indices: new Uint16Array(indices),
-      normals: new Float32Array(normals),
-      colors: new Float32Array(generatedColors),
-      texCoords: new Float32Array(texCoords)
-    };
-  }
-  static create(props = {}) {
-    var _a;
-    const meshData = this.generateMeshData(props.sides || 32, (_a = props.smoothShading) != null ? _a : true, props.colors);
-    const vao = new VertexArray(glob.ctx);
-    vao.bind();
-    const vertexBuffer = new VertexBuffer(glob.ctx);
-    vertexBuffer.setData(meshData.vertices);
-    vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aPosition"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const colorBuffer = new VertexBuffer(glob.ctx);
-    colorBuffer.setData(meshData.colors);
-    vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aColor"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const normalBuffer = new VertexBuffer(glob.ctx);
-    normalBuffer.setData(meshData.normals);
-    vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aNormal"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const texCoordBuffer = new VertexBuffer(glob.ctx);
-    texCoordBuffer.setData(meshData.texCoords);
-    vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aTexCoord"),
-      2,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const indexBuffer = new IndexBuffer(glob.ctx);
-    indexBuffer.setData(meshData.indices);
-    return new SceneObject({
-      vao,
-      indexBuffer,
-      drawCount: meshData.indices.length
-    }, props);
-  }
-};
-
-// ts/classes/webgl2/meshes/icoSphere.ts
-var _IcoSphere = class _IcoSphere {
-  static normalize(v) {
-    const length = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-    return [v[0] / length, v[1] / length, v[2] / length];
-  }
-  static midpoint(v1, v22) {
-    return this.normalize([
-      (v1[0] + v22[0]) / 2,
-      (v1[1] + v22[1]) / 2,
-      (v1[2] + v22[2]) / 2
-    ]);
-  }
-  static generateMeshData(subdivisions = 2, smoothShading = true, color = [0.8, 0.2, 0.2]) {
-    let vertices = [...this.baseVertices];
-    let indices = [...this.baseIndices];
-    const vertexMap = /* @__PURE__ */ new Map();
-    const getMiddlePoint = (v1Index, v2Index) => {
-      const key = "".concat(Math.min(v1Index, v2Index), "_").concat(Math.max(v1Index, v2Index));
-      if (vertexMap.has(key)) {
-        return vertexMap.get(key);
-      }
-      const p1 = vertices[v1Index];
-      const p2 = vertices[v2Index];
-      const middle = this.midpoint(p1, p2);
-      const i = vertices.length;
-      vertices.push(middle);
-      vertexMap.set(key, i);
-      return i;
-    };
-    for (let i = 0; i < subdivisions; i++) {
-      const newIndices = [];
-      for (let j = 0; j < indices.length; j += 3) {
-        const a = indices[j];
-        const b = indices[j + 1];
-        const c = indices[j + 2];
-        const ab = getMiddlePoint(a, b);
-        const bc = getMiddlePoint(b, c);
-        const ca = getMiddlePoint(c, a);
-        newIndices.push(
-          a,
-          ab,
-          ca,
-          b,
-          bc,
-          ab,
-          c,
-          ca,
-          bc,
-          ab,
-          bc,
-          ca
-        );
-      }
-      indices = newIndices;
-    }
-    vertices = vertices.map((v) => [v[0] * 0.5, v[1] * 0.5, v[2] * 0.5]);
-    const flatVertices = [];
-    const normals = [];
-    const generatedColors = [];
-    const texCoords = [];
-    if (smoothShading) {
-      vertices.forEach((v) => {
-        flatVertices.push(...v);
-        normals.push(...this.normalize(v));
-        generatedColors.push(...color);
-        const u = 0.5 + Math.atan2(v[2], v[0]) / (2 * Math.PI);
-        const vCoord = 0.5 - Math.asin(v[1]) / Math.PI;
-        texCoords.push(u, vCoord);
-      });
-    } else {
-      const newIndices = [];
-      for (let i = 0; i < indices.length; i += 3) {
-        const v1 = vertices[indices[i]];
-        const v22 = vertices[indices[i + 1]];
-        const v32 = vertices[indices[i + 2]];
-        const dx1 = v22[0] - v1[0], dy1 = v22[1] - v1[1], dz1 = v22[2] - v1[2];
-        const dx2 = v32[0] - v1[0], dy2 = v32[1] - v1[1], dz2 = v32[2] - v1[2];
-        const normal = this.normalize([
-          dy1 * dz2 - dz1 * dy2,
-          dz1 * dx2 - dx1 * dz2,
-          dx1 * dy2 - dy1 * dx2
-        ]);
-        const baseIndex = flatVertices.length / 3;
-        [v1, v22, v32].forEach((vertex) => {
-          flatVertices.push(...vertex);
-          normals.push(...normal);
-          generatedColors.push(...color);
-          const u = 0.5 + Math.atan2(vertex[2], vertex[0]) / (2 * Math.PI);
-          const vCoord = 0.5 - Math.asin(vertex[1]) / Math.PI;
-          texCoords.push(u, vCoord);
-        });
-        newIndices.push(baseIndex, baseIndex + 1, baseIndex + 2);
-      }
-      indices = newIndices;
-    }
-    return {
-      vertices: new Float32Array(flatVertices),
-      indices: new Uint16Array(indices),
-      normals: new Float32Array(normals),
-      colors: new Float32Array(generatedColors),
-      texCoords: new Float32Array(texCoords)
-    };
-  }
-  static create(props = {}) {
-    var _a, _b;
-    const meshData = this.generateMeshData(
-      (_a = props.subdivisions) != null ? _a : 2,
-      (_b = props.smoothShading) != null ? _b : true,
-      props.color || [0.8, 0.2, 0.2]
-    );
-    const vao = new VertexArray(glob.ctx);
-    vao.bind();
-    const vertexBuffer = new VertexBuffer(glob.ctx);
-    vertexBuffer.setData(meshData.vertices);
-    vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aPosition"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const colorBuffer = new VertexBuffer(glob.ctx);
-    colorBuffer.setData(meshData.colors);
-    vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aColor"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const normalBuffer = new VertexBuffer(glob.ctx);
-    normalBuffer.setData(meshData.normals);
-    vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aNormal"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const texCoordBuffer = new VertexBuffer(glob.ctx);
-    texCoordBuffer.setData(meshData.texCoords);
-    vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aTexCoord"),
-      2,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const indexBuffer = new IndexBuffer(glob.ctx);
-    indexBuffer.setData(meshData.indices);
-    return new SceneObject({
-      vao,
-      indexBuffer,
-      drawCount: meshData.indices.length
-    }, props);
-  }
-};
-_IcoSphere.X = 0.5257311121191336;
-_IcoSphere.Z = 0.8506508083520399;
-// Initial icosahedron vertices
-_IcoSphere.baseVertices = [
-  [-_IcoSphere.X, 0, _IcoSphere.Z],
-  [_IcoSphere.X, 0, _IcoSphere.Z],
-  [-_IcoSphere.X, 0, -_IcoSphere.Z],
-  [_IcoSphere.X, 0, -_IcoSphere.Z],
-  [0, _IcoSphere.Z, _IcoSphere.X],
-  [0, _IcoSphere.Z, -_IcoSphere.X],
-  [0, -_IcoSphere.Z, _IcoSphere.X],
-  [0, -_IcoSphere.Z, -_IcoSphere.X],
-  [_IcoSphere.Z, _IcoSphere.X, 0],
-  [-_IcoSphere.Z, _IcoSphere.X, 0],
-  [_IcoSphere.Z, -_IcoSphere.X, 0],
-  [-_IcoSphere.Z, -_IcoSphere.X, 0]
-];
-// Initial icosahedron indices
-_IcoSphere.baseIndices = [
-  1,
-  4,
-  0,
-  4,
-  9,
-  0,
-  4,
-  5,
-  9,
-  8,
-  5,
-  4,
-  1,
-  8,
-  4,
-  1,
-  10,
-  8,
-  10,
-  3,
-  8,
-  8,
-  3,
-  5,
-  3,
-  2,
-  5,
-  3,
-  7,
-  2,
-  3,
-  10,
-  7,
-  10,
-  6,
-  7,
-  6,
-  11,
-  7,
-  6,
-  0,
-  11,
-  6,
-  1,
-  0,
-  10,
-  1,
-  6,
-  11,
-  0,
-  9,
-  2,
-  11,
-  9,
-  5,
-  2,
-  9,
-  11,
-  2,
-  7
-];
-var IcoSphere = _IcoSphere;
-
 // ts/classes/testLevel.ts
 var TestLevel = class extends Scene {
   constructor() {
@@ -3918,39 +3207,9 @@ var TestLevel = class extends Scene {
     this.clearColor = [0.2, 0, 0, 1];
     this.camera.setFov(45);
     const rotation = new Quaternion();
-    rotation.setAxisAngle(v3(0, 1, 0), Math.PI / 2);
+    rotation.setAxisAngle(v3(1, 0, 0), 0);
     this.add(this.cube1 = Cube.create({
-      position: v3(0, 0, 0),
       rotation
-    }));
-    this.add(Cylinder.create({
-      position: v3(1.5, 0, 0),
-      sides: 32,
-      smoothShading: false,
-      colors: [
-        [1, 0, 0],
-        // sides - red
-        [0, 1, 0],
-        // top - green
-        [0, 0, 1]
-        // bottom - blue
-      ]
-    }));
-    this.add(Cone.create({
-      position: v3(0, 0, 1.5),
-      smoothShading: false,
-      colors: [
-        [1, 0, 0],
-        // sides - red
-        [0, 1, 0]
-        // bottom - green
-      ]
-    }));
-    this.add(IcoSphere.create({
-      position: v3(1.5, 0, 1.5),
-      subdivisions: 0,
-      smoothShading: false,
-      color: [0, 1, 0]
     }));
   }
   tick(obj) {
