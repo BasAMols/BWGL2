@@ -16,7 +16,16 @@ in vec3 vNormal;
 in vec2 vTexCoord;
 in vec3 vFragPos;
 in vec3 vColor;
-in vec4 vFragPosLightSpace;  // Added for shadow mapping
+in vec4 vFragPosLightSpace;
+
+// Material structure
+struct Material {
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+    float shininess;
+    sampler2D diffuseMap;
+};
 
 // Light uniforms
 uniform int uLightTypes[MAX_LIGHTS];
@@ -31,15 +40,16 @@ uniform float uLightCutOffs[MAX_LIGHTS];
 uniform float uLightOuterCutOffs[MAX_LIGHTS];
 uniform int uNumLights;
 
+// Material uniforms
+uniform Material uMaterial;
+uniform bool uUseTexture;
+
 // Shadow mapping uniforms
 uniform sampler2D uShadowMap;
 uniform mat4 uLightSpaceMatrix;
 
 // Other uniforms
 uniform vec3 uViewPos;
-uniform sampler2D uTexture;
-uniform bool uUseTexture;
-uniform float uShininess;
 
 // Output
 out vec4 fragColor;
@@ -87,13 +97,13 @@ vec3 calcDirectionalLight(int index, vec3 normal, vec3 viewDir, vec3 baseColor) 
     
     // Specular
     vec3 reflectDir = reflect(-lightDir, normal);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), uShininess);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), uMaterial.shininess);
     
-    vec3 ambient = uLightColors[index] * 0.1;
-    vec3 diffuse = uLightColors[index] * diff;
-    vec3 specular = uLightColors[index] * spec * 0.5;
+    vec3 ambient = uLightColors[index] * uMaterial.ambient;
+    vec3 diffuse = uLightColors[index] * diff * baseColor;
+    vec3 specular = uLightColors[index] * spec * uMaterial.specular;
     
-    return (ambient + diffuse + specular) * uLightIntensities[index] * baseColor;
+    return (ambient + diffuse + specular) * uLightIntensities[index];
 }
 
 // Function to calculate point light
@@ -105,17 +115,17 @@ vec3 calcPointLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 bas
     
     // Specular
     vec3 reflectDir = reflect(-lightDir, normal);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), uShininess);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), uMaterial.shininess);
     
     // Attenuation
     float distance = length(uLightPositions[index] - fragPos);
     float attenuation = 1.0 / (uLightConstants[index] + uLightLinears[index] * distance + uLightQuadratics[index] * distance * distance);
     
-    vec3 ambient = uLightColors[index] * 0.1;
-    vec3 diffuse = uLightColors[index] * diff;
-    vec3 specular = uLightColors[index] * spec * 0.5;
+    vec3 ambient = uLightColors[index] * uMaterial.ambient;
+    vec3 diffuse = uLightColors[index] * diff * baseColor;
+    vec3 specular = uLightColors[index] * spec * uMaterial.specular;
     
-    return (ambient + diffuse + specular) * attenuation * uLightIntensities[index] * baseColor;
+    return (ambient + diffuse + specular) * attenuation * uLightIntensities[index];
 }
 
 // Function to calculate spot light
@@ -134,7 +144,14 @@ vec3 calcSpotLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 base
 void main() {
     vec3 normal = normalize(vNormal);
     vec3 viewDir = normalize(uViewPos - vFragPos);
-    vec3 baseColor = uUseTexture ? texture(uTexture, vTexCoord).rgb : vColor;
+    
+    // Get base color from texture or vertex color
+    vec3 baseColor;
+    if (uUseTexture) {
+        baseColor = texture(uMaterial.diffuseMap, vTexCoord).rgb;
+    } else {
+        baseColor = vColor;
+    }
     
     vec3 result = vec3(0.0);
     float shadow = ShadowCalculation(vFragPosLightSpace, normal, normalize(uLightPositions[0] - vFragPos));

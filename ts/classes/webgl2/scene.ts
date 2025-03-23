@@ -27,6 +27,8 @@ export class Scene {
         const ambientIntensity = options.ambientLightIntensity ?? 0.1;
         this.ambientLight = new AmbientLight(ambientColor, ambientIntensity);
         this.lightManager.setAmbientLight(this.ambientLight);
+
+        glob.events.resize.subscribe('level', this.resize.bind(this));
     }
 
     public setAmbientLight(color: Vector3, intensity: number): void {

@@ -67,9 +67,14 @@ export class WebGL2Initializer {
         this.shaderManager.setUniform('uLightCutOffs', cutOffs);
         this.shaderManager.setUniform('uLightOuterCutOffs', outerCutOffs);
 
-        this.shaderManager.setUniform('uViewPos', new Float32Array([3.0, 2.0, 3.0]));
+        // Set default material values
+        this.shaderManager.setUniform('uMaterial.ambient', new Float32Array([0.2, 0.2, 0.2]));
+        this.shaderManager.setUniform('uMaterial.diffuse', new Float32Array([0.8, 0.8, 0.8]));
+        this.shaderManager.setUniform('uMaterial.specular', new Float32Array([1.0, 1.0, 1.0]));
+        this.shaderManager.setUniform('uMaterial.shininess', 32.0);
         this.shaderManager.setUniform('uUseTexture', 0);
-        this.shaderManager.setUniform('uShininess', 32.0);
+
+        this.shaderManager.setUniform('uViewPos', new Float32Array([3.0, 2.0, 3.0]));
 
         // Enable depth testing and backface culling
         this.ctx.enable(this.ctx.DEPTH_TEST);

@@ -6,7 +6,8 @@ import { Camera } from './webgl2/camera';
 import { Quaternion } from './util/math/quaternion';
 import { Plane } from './webgl2/meshes/plane';
 import { PointLight } from './webgl2/lights/light';
-import { IcoSphere } from './webgl2/meshes/icoSphere';
+import { Cone } from './webgl2/meshes/cone';
+import { Material } from './webgl2/material';
 
 export class TestLevel extends Scene {
     private cube: SceneObject;
@@ -26,32 +27,26 @@ export class TestLevel extends Scene {
         this.add(Plane.create({
             position: v3(0, -1, 0),
             scale: v3(10, 10, 10),
-            color: [0.8, 0.8, 0.8],
-            flipNormal: false
+            material: new Material({
+                ambient: v3(1,0,0).scale(0.2).vec,
+                diffuse: v3(1,0,0).vec,
+                specular: v3(1,1,1).vec
+            })
         }));
 
+        // // Add a larger ground plane
+        // this.add(Plane.create({
+        //     position: v3(0, -1, 0),
+        //     scale: v3(10, 10, 10),
+        // }));
+
         // Add main cube slightly elevated
-        this.add(this.cube = IcoSphere.create({
-            subdivisions: 1,
+        this.add(this.cube = Cone.create({
+            sides: 4, 
             smoothShading: false,
             rotation: rotation,
             position: v3(0, 1, 0),
-            scale: v3(0.5, 0.5, 0.5)
-        }));
-
-        // Add some additional objects to cast shadows
-        this.add(IcoSphere.create({
-            subdivisions: 1,
-            smoothShading: false,
-            position: v3(2, 0.5, 2),
-            scale: v3(0.3, 0.3, 0.3)
-        }));
-
-        this.add(IcoSphere.create({
-            subdivisions: 1,
-            smoothShading: false,
-            position: v3(-1.5, 0.7, -1),
-            scale: v3(0.4, 0.4, 0.4)
+            scale: v3(1, 0.8, 1),
         }));
 
         // Add point light from a good angle to cast shadows

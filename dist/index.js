@@ -72,10 +72,10 @@ var Vector2 = class _Vector2 {
   magnitudeSqr() {
     return this.x * this.x + this.y * this.y;
   }
-  clampMagnitude(max = 1) {
+  clampMagnitude(max2 = 1) {
     if (this.magnitude() === 0)
       return v2(0);
-    return this.scale(1 / this.magnitude() || 1).scale(Math.min(max, this.magnitude()));
+    return this.scale(1 / this.magnitude() || 1).scale(Math.min(max2, this.magnitude()));
   }
   distance(vector) {
     return Math.sqrt(this.distanceSqr(vector));
@@ -121,8 +121,8 @@ var Vector2 = class _Vector2 {
     var vector = this.toPrecision(1);
     return "[" + vector.x + "; " + vector.y + "]";
   }
-  clamp(min, max) {
-    return _Vector2.clamp(this, min, max);
+  clamp(min2, max2) {
+    return _Vector2.clamp(this, min2, max2);
   }
   static min(a, b) {
     return new _Vector2(
@@ -136,8 +136,8 @@ var Vector2 = class _Vector2 {
       Math.max(a.y, b.y)
     );
   }
-  static clamp(value, min, max) {
-    return _Vector2.max(_Vector2.min(value, min), max);
+  static clamp(value, min2, max2) {
+    return _Vector2.max(_Vector2.min(value, min2), max2);
   }
   clampMagnitute(mag) {
     return _Vector2.clampMagnitute(this, mag);
@@ -638,10 +638,10 @@ var ShaderManager = class {
 };
 
 // ts/classes/webgl2/shaders/fragmentShaderSource.ts
-var fragmentShaderSource = "#version 300 es\nprecision highp float;\n\n// Maximum number of lights\n#define MAX_LIGHTS 10\n\n// Light types\n#define LIGHT_TYPE_INACTIVE -1\n#define LIGHT_TYPE_AMBIENT 0\n#define LIGHT_TYPE_DIRECTIONAL 1\n#define LIGHT_TYPE_POINT 2\n#define LIGHT_TYPE_SPOT 3\n\n// Input from vertex shader\nin vec3 vNormal;\nin vec2 vTexCoord;\nin vec3 vFragPos;\nin vec3 vColor;\nin vec4 vFragPosLightSpace;  // Added for shadow mapping\n\n// Light uniforms\nuniform int uLightTypes[MAX_LIGHTS];\nuniform vec3 uLightPositions[MAX_LIGHTS];\nuniform vec3 uLightDirections[MAX_LIGHTS];\nuniform vec3 uLightColors[MAX_LIGHTS];\nuniform float uLightIntensities[MAX_LIGHTS];\nuniform float uLightConstants[MAX_LIGHTS];\nuniform float uLightLinears[MAX_LIGHTS];\nuniform float uLightQuadratics[MAX_LIGHTS];\nuniform float uLightCutOffs[MAX_LIGHTS];\nuniform float uLightOuterCutOffs[MAX_LIGHTS];\nuniform int uNumLights;\n\n// Shadow mapping uniforms\nuniform sampler2D uShadowMap;\nuniform mat4 uLightSpaceMatrix;\n\n// Other uniforms\nuniform vec3 uViewPos;\nuniform sampler2D uTexture;\nuniform bool uUseTexture;\nuniform float uShininess;\n\n// Output\nout vec4 fragColor;\n\nfloat ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir) {\n    // Perform perspective divide\n    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;\n    \n    // Transform to [0,1] range\n    projCoords = projCoords * 0.5 + 0.5;\n    \n    // Get closest depth value from light's perspective\n    float closestDepth = texture(uShadowMap, projCoords.xy).r;\n    \n    // Get current depth\n    float currentDepth = projCoords.z;\n    \n    // Calculate bias based on surface angle\n    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);\n    \n    // PCF (Percentage Closer Filtering)\n    float shadow = 0.0;\n    vec2 texelSize = 1.0 / vec2(textureSize(uShadowMap, 0));\n    for(int x = -1; x <= 1; ++x) {\n        for(int y = -1; y <= 1; ++y) {\n            float pcfDepth = texture(uShadowMap, projCoords.xy + vec2(x, y) * texelSize).r;\n            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;\n        }\n    }\n    shadow /= 9.0;\n    \n    // Keep shadow at 0.0 when outside the far plane region of the light's frustum\n    if(projCoords.z > 1.0)\n        shadow = 0.0;\n        \n    return shadow;\n}\n\n// Function to calculate directional light\nvec3 calcDirectionalLight(int index, vec3 normal, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(-uLightDirections[index]);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), uShininess);\n    \n    vec3 ambient = uLightColors[index] * 0.1;\n    vec3 diffuse = uLightColors[index] * diff;\n    vec3 specular = uLightColors[index] * spec * 0.5;\n    \n    return (ambient + diffuse + specular) * uLightIntensities[index] * baseColor;\n}\n\n// Function to calculate point light\nvec3 calcPointLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(uLightPositions[index] - fragPos);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), uShininess);\n    \n    // Attenuation\n    float distance = length(uLightPositions[index] - fragPos);\n    float attenuation = 1.0 / (uLightConstants[index] + uLightLinears[index] * distance + uLightQuadratics[index] * distance * distance);\n    \n    vec3 ambient = uLightColors[index] * 0.1;\n    vec3 diffuse = uLightColors[index] * diff;\n    vec3 specular = uLightColors[index] * spec * 0.5;\n    \n    return (ambient + diffuse + specular) * attenuation * uLightIntensities[index] * baseColor;\n}\n\n// Function to calculate spot light\nvec3 calcSpotLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(uLightPositions[index] - fragPos);\n    \n    // Spot light intensity\n    float theta = dot(lightDir, normalize(-uLightDirections[index]));\n    float epsilon = uLightCutOffs[index] - uLightOuterCutOffs[index];\n    float intensity = clamp((theta - uLightOuterCutOffs[index]) / epsilon, 0.0, 1.0);\n    \n    // Use point light calculation and multiply by spot intensity\n    return calcPointLight(index, normal, fragPos, viewDir, baseColor) * intensity;\n}\n\nvoid main() {\n    vec3 normal = normalize(vNormal);\n    vec3 viewDir = normalize(uViewPos - vFragPos);\n    vec3 baseColor = uUseTexture ? texture(uTexture, vTexCoord).rgb : vColor;\n    \n    vec3 result = vec3(0.0);\n    float shadow = ShadowCalculation(vFragPosLightSpace, normal, normalize(uLightPositions[0] - vFragPos));\n    \n    // Calculate contribution from each light\n    for(int i = 0; i < uNumLights; i++) {\n        if(i >= MAX_LIGHTS) break;\n        \n        // Skip inactive lights\n        if(uLightTypes[i] == LIGHT_TYPE_INACTIVE) continue;\n        \n        if(uLightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            result += uLightColors[i] * uLightIntensities[i] * baseColor;\n        }\n        else if(uLightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            vec3 lighting = calcDirectionalLight(i, normal, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(uLightTypes[i] == LIGHT_TYPE_POINT) {\n            vec3 lighting = calcPointLight(i, normal, vFragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(uLightTypes[i] == LIGHT_TYPE_SPOT) {\n            vec3 lighting = calcSpotLight(i, normal, vFragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n    }\n    \n    fragColor = vec4(result, 1.0);\n}";
+var fragmentShaderSource = "#version 300 es\nprecision highp float;\n\n// Maximum number of lights\n#define MAX_LIGHTS 10\n\n// Light types\n#define LIGHT_TYPE_INACTIVE -1\n#define LIGHT_TYPE_AMBIENT 0\n#define LIGHT_TYPE_DIRECTIONAL 1\n#define LIGHT_TYPE_POINT 2\n#define LIGHT_TYPE_SPOT 3\n\n// Input from vertex shader\nin vec3 vNormal;\nin vec2 vTexCoord;\nin vec3 vFragPos;\nin vec3 vColor;\nin vec4 vFragPosLightSpace;\n\n// Material structure\nstruct Material {\n    vec3 ambient;\n    vec3 diffuse;\n    vec3 specular;\n    float shininess;\n    sampler2D diffuseMap;\n};\n\n// Light uniforms\nuniform int uLightTypes[MAX_LIGHTS];\nuniform vec3 uLightPositions[MAX_LIGHTS];\nuniform vec3 uLightDirections[MAX_LIGHTS];\nuniform vec3 uLightColors[MAX_LIGHTS];\nuniform float uLightIntensities[MAX_LIGHTS];\nuniform float uLightConstants[MAX_LIGHTS];\nuniform float uLightLinears[MAX_LIGHTS];\nuniform float uLightQuadratics[MAX_LIGHTS];\nuniform float uLightCutOffs[MAX_LIGHTS];\nuniform float uLightOuterCutOffs[MAX_LIGHTS];\nuniform int uNumLights;\n\n// Material uniforms\nuniform Material uMaterial;\nuniform bool uUseTexture;\n\n// Shadow mapping uniforms\nuniform sampler2D uShadowMap;\nuniform mat4 uLightSpaceMatrix;\n\n// Other uniforms\nuniform vec3 uViewPos;\n\n// Output\nout vec4 fragColor;\n\nfloat ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir) {\n    // Perform perspective divide\n    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;\n    \n    // Transform to [0,1] range\n    projCoords = projCoords * 0.5 + 0.5;\n    \n    // Get closest depth value from light's perspective\n    float closestDepth = texture(uShadowMap, projCoords.xy).r;\n    \n    // Get current depth\n    float currentDepth = projCoords.z;\n    \n    // Calculate bias based on surface angle\n    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);\n    \n    // PCF (Percentage Closer Filtering)\n    float shadow = 0.0;\n    vec2 texelSize = 1.0 / vec2(textureSize(uShadowMap, 0));\n    for(int x = -1; x <= 1; ++x) {\n        for(int y = -1; y <= 1; ++y) {\n            float pcfDepth = texture(uShadowMap, projCoords.xy + vec2(x, y) * texelSize).r;\n            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;\n        }\n    }\n    shadow /= 9.0;\n    \n    // Keep shadow at 0.0 when outside the far plane region of the light's frustum\n    if(projCoords.z > 1.0)\n        shadow = 0.0;\n        \n    return shadow;\n}\n\n// Function to calculate directional light\nvec3 calcDirectionalLight(int index, vec3 normal, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(-uLightDirections[index]);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), uMaterial.shininess);\n    \n    vec3 ambient = uLightColors[index] * uMaterial.ambient;\n    vec3 diffuse = uLightColors[index] * diff * baseColor;\n    vec3 specular = uLightColors[index] * spec * uMaterial.specular;\n    \n    return (ambient + diffuse + specular) * uLightIntensities[index];\n}\n\n// Function to calculate point light\nvec3 calcPointLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(uLightPositions[index] - fragPos);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), uMaterial.shininess);\n    \n    // Attenuation\n    float distance = length(uLightPositions[index] - fragPos);\n    float attenuation = 1.0 / (uLightConstants[index] + uLightLinears[index] * distance + uLightQuadratics[index] * distance * distance);\n    \n    vec3 ambient = uLightColors[index] * uMaterial.ambient;\n    vec3 diffuse = uLightColors[index] * diff * baseColor;\n    vec3 specular = uLightColors[index] * spec * uMaterial.specular;\n    \n    return (ambient + diffuse + specular) * attenuation * uLightIntensities[index];\n}\n\n// Function to calculate spot light\nvec3 calcSpotLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(uLightPositions[index] - fragPos);\n    \n    // Spot light intensity\n    float theta = dot(lightDir, normalize(-uLightDirections[index]));\n    float epsilon = uLightCutOffs[index] - uLightOuterCutOffs[index];\n    float intensity = clamp((theta - uLightOuterCutOffs[index]) / epsilon, 0.0, 1.0);\n    \n    // Use point light calculation and multiply by spot intensity\n    return calcPointLight(index, normal, fragPos, viewDir, baseColor) * intensity;\n}\n\nvoid main() {\n    vec3 normal = normalize(vNormal);\n    vec3 viewDir = normalize(uViewPos - vFragPos);\n    \n    // Get base color from texture or vertex color\n    vec3 baseColor;\n    if (uUseTexture) {\n        baseColor = texture(uMaterial.diffuseMap, vTexCoord).rgb;\n    } else {\n        baseColor = vColor;\n    }\n    \n    vec3 result = vec3(0.0);\n    float shadow = ShadowCalculation(vFragPosLightSpace, normal, normalize(uLightPositions[0] - vFragPos));\n    \n    // Calculate contribution from each light\n    for(int i = 0; i < uNumLights; i++) {\n        if(i >= MAX_LIGHTS) break;\n        \n        // Skip inactive lights\n        if(uLightTypes[i] == LIGHT_TYPE_INACTIVE) continue;\n        \n        if(uLightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            result += uLightColors[i] * uLightIntensities[i] * baseColor;\n        }\n        else if(uLightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            vec3 lighting = calcDirectionalLight(i, normal, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(uLightTypes[i] == LIGHT_TYPE_POINT) {\n            vec3 lighting = calcPointLight(i, normal, vFragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(uLightTypes[i] == LIGHT_TYPE_SPOT) {\n            vec3 lighting = calcSpotLight(i, normal, vFragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n    }\n    \n    fragColor = vec4(result, 1.0);\n}";
 
 // ts/classes/webgl2/shaders/vertexShaderSource.ts
-var vertexShaderSource = "#version 300 es\n\n// Attributes\nin vec3 aPosition;\nin vec3 aNormal;\nin vec2 aTexCoord;\nin vec3 aColor;\n\n// Uniforms\nuniform mat4 uModelMatrix;\nuniform mat4 uViewMatrix;\nuniform mat4 uProjectionMatrix;\nuniform mat3 uNormalMatrix; // Added for correct normal transformation\nuniform mat4 uLightSpaceMatrix; // Added for shadow mapping\n\n// Varyings (output to fragment shader)\nout vec3 vNormal;\nout vec2 vTexCoord;\nout vec3 vFragPos;\nout vec3 vColor;\nout vec4 vFragPosLightSpace; // Added for shadow mapping\n\nvoid main() {\n    // Calculate world space position\n    vec4 worldPos = uModelMatrix * vec4(aPosition, 1.0);\n    vFragPos = worldPos.xyz;\n    \n    // Transform normal to world space using normal matrix\n    vNormal = normalize(uNormalMatrix * aNormal);\n    \n    // Pass texture coordinates and color to fragment shader\n    vTexCoord = aTexCoord;\n    vColor = aColor;\n    \n    // Calculate position in light space for shadow mapping\n    vFragPosLightSpace = uLightSpaceMatrix * worldPos;\n    \n    // Calculate final position\n    gl_Position = uProjectionMatrix * uViewMatrix * worldPos;\n}";
+var vertexShaderSource = "#version 300 es\n\n// Attributes\nin vec3 aPosition;\nin vec3 aNormal;\nin vec2 aTexCoord;\nin vec3 aColor;\n\n// Uniforms\nuniform mat4 uModelMatrix;\nuniform mat4 uViewMatrix;\nuniform mat4 uProjectionMatrix;\nuniform mat3 uNormalMatrix; // Added for correct normal transformation\nuniform mat4 uLightSpaceMatrix; // Added for shadow mapping\n\n// Material uniforms\nstruct Material {\n    vec3 ambient;\n    vec3 diffuse;\n    vec3 specular;\n    float shininess;\n    sampler2D diffuseMap;\n};\nuniform Material uMaterial;\nuniform bool uUseTexture;\n\n// Varyings (output to fragment shader)\nout vec3 vNormal;\nout vec2 vTexCoord;\nout vec3 vFragPos;\nout vec3 vColor;\nout vec4 vFragPosLightSpace; // Added for shadow mapping\n\nvoid main() {\n    // Calculate world space position\n    vec4 worldPos = uModelMatrix * vec4(aPosition, 1.0);\n    vFragPos = worldPos.xyz;\n    \n    // Transform normal to world space using normal matrix\n    vNormal = normalize(uNormalMatrix * aNormal);\n    \n    // Pass texture coordinates and color to fragment shader\n    vTexCoord = aTexCoord;\n    vColor = uUseTexture ? vec3(1.0) : (aColor * uMaterial.diffuse);\n    \n    // Calculate position in light space for shadow mapping\n    vFragPosLightSpace = uLightSpaceMatrix * worldPos;\n    \n    // Calculate final position\n    gl_Position = uProjectionMatrix * uViewMatrix * worldPos;\n}";
 
 // ts/classes/webgl2/shaders/shadowVertexShader.ts
 var shadowVertexShaderSource = "#version 300 es\nprecision highp float;\n\nin vec3 aPosition;\nuniform mat4 u_lightSpaceMatrix;\nuniform mat4 u_model;\n\nvoid main() {\n    gl_Position = u_lightSpaceMatrix * u_model * vec4(aPosition, 1.0);\n}\n";
@@ -686,9 +686,12 @@ var WebGL2Initializer = class {
     this.shaderManager.setUniform("uLightQuadratics", quadratics);
     this.shaderManager.setUniform("uLightCutOffs", cutOffs);
     this.shaderManager.setUniform("uLightOuterCutOffs", outerCutOffs);
-    this.shaderManager.setUniform("uViewPos", new Float32Array([3, 2, 3]));
+    this.shaderManager.setUniform("uMaterial.ambient", new Float32Array([0.2, 0.2, 0.2]));
+    this.shaderManager.setUniform("uMaterial.diffuse", new Float32Array([0.8, 0.8, 0.8]));
+    this.shaderManager.setUniform("uMaterial.specular", new Float32Array([1, 1, 1]));
+    this.shaderManager.setUniform("uMaterial.shininess", 32);
     this.shaderManager.setUniform("uUseTexture", 0);
-    this.shaderManager.setUniform("uShininess", 32);
+    this.shaderManager.setUniform("uViewPos", new Float32Array([3, 2, 3]));
     this.ctx.enable(this.ctx.DEPTH_TEST);
     this.ctx.enable(this.ctx.CULL_FACE);
   }
@@ -890,8 +893,8 @@ var InputDevices = class {
 
 // ts/classes/util/utils.ts
 var Util = class {
-  static clamp(value, min, max) {
-    return Math.max(Math.min(value, max), min);
+  static clamp(value, min2, max2) {
+    return Math.max(Math.min(value, max2), min2);
   }
   static to0(value, tolerance = 0.1) {
     return Math.abs(value) < tolerance ? 0 : value;
@@ -903,8 +906,8 @@ var Util = class {
     }
     return output;
   }
-  static padArray(ar, b, len) {
-    return ar.concat(Array.from(Array(len).fill(b))).slice(0, len);
+  static padArray(ar, b, len2) {
+    return ar.concat(Array.from(Array(len2).fill(b))).slice(0, len2);
   }
   static addArrays(ar, br) {
     return ar.map((a, i) => a + br[i]);
@@ -1201,29 +1204,29 @@ var Vector3 = class _Vector3 {
   magnitudeSqr() {
     return this.x * this.x + this.y * this.y + this.z * this.z;
   }
-  mod(max) {
+  mod(max2) {
     return new _Vector3(
-      this.x % max.x,
-      this.y % max.y,
-      this.z % max.z
+      this.x % max2.x,
+      this.y % max2.y,
+      this.z % max2.z
     );
   }
-  clamp(min, max) {
+  clamp(min2, max2) {
     return new _Vector3(
-      Util.clamp(this.x, min.x, max.x),
-      Util.clamp(this.y, min.y, max.y),
-      Util.clamp(this.z, min.z, max.z)
+      Util.clamp(this.x, min2.x, max2.x),
+      Util.clamp(this.y, min2.y, max2.y),
+      Util.clamp(this.z, min2.z, max2.z)
     );
   }
   normalize() {
-    let len = this.x * this.x + this.y * this.y + this.z * this.z;
-    if (len > 0) {
-      len = 1 / Math.sqrt(len);
+    let len2 = this.x * this.x + this.y * this.y + this.z * this.z;
+    if (len2 > 0) {
+      len2 = 1 / Math.sqrt(len2);
     }
     return v3(
-      this.x * len,
-      this.y * len,
-      this.z * len
+      this.x * len2,
+      this.y * len2,
+      this.z * len2
     );
   }
 };
@@ -1231,6 +1234,7 @@ var Vector3 = class _Vector3 {
 // node_modules/gl-matrix/esm/common.js
 var EPSILON = 1e-6;
 var ARRAY_TYPE = typeof Float32Array !== "undefined" ? Float32Array : Array;
+var RANDOM = Math.random;
 var degree = Math.PI / 180;
 if (!Math.hypot)
   Math.hypot = function() {
@@ -1634,7 +1638,7 @@ function scale(out, a, v) {
 }
 function rotate(out, a, rad, axis) {
   var x = axis[0], y = axis[1], z = axis[2];
-  var len = Math.hypot(x, y, z);
+  var len2 = Math.hypot(x, y, z);
   var s, c, t;
   var a00, a01, a02, a03;
   var a10, a11, a12, a13;
@@ -1642,13 +1646,13 @@ function rotate(out, a, rad, axis) {
   var b00, b01, b02;
   var b10, b11, b12;
   var b20, b21, b22;
-  if (len < EPSILON) {
+  if (len2 < EPSILON) {
     return null;
   }
-  len = 1 / len;
-  x *= len;
-  y *= len;
-  z *= len;
+  len2 = 1 / len2;
+  x *= len2;
+  y *= len2;
+  z *= len2;
   s = Math.sin(rad);
   c = Math.cos(rad);
   t = 1 - c;
@@ -1826,15 +1830,15 @@ function fromScaling(out, v) {
 }
 function fromRotation(out, rad, axis) {
   var x = axis[0], y = axis[1], z = axis[2];
-  var len = Math.hypot(x, y, z);
+  var len2 = Math.hypot(x, y, z);
   var s, c, t;
-  if (len < EPSILON) {
+  if (len2 < EPSILON) {
     return null;
   }
-  len = 1 / len;
-  x *= len;
-  y *= len;
-  z *= len;
+  len2 = 1 / len2;
+  x *= len2;
+  y *= len2;
+  z *= len2;
   s = Math.sin(rad);
   c = Math.cos(rad);
   t = 1 - c;
@@ -2292,7 +2296,7 @@ function orthoZO(out, left, right, bottom, top, near, far) {
   return out;
 }
 function lookAt(out, eye, center, up) {
-  var x0, x1, x2, y0, y1, y2, z0, z1, z2, len;
+  var x0, x1, x2, y0, y1, y2, z0, z1, z2, len2;
   var eyex = eye[0];
   var eyey = eye[1];
   var eyez = eye[2];
@@ -2308,37 +2312,37 @@ function lookAt(out, eye, center, up) {
   z0 = eyex - centerx;
   z1 = eyey - centery;
   z2 = eyez - centerz;
-  len = 1 / Math.hypot(z0, z1, z2);
-  z0 *= len;
-  z1 *= len;
-  z2 *= len;
+  len2 = 1 / Math.hypot(z0, z1, z2);
+  z0 *= len2;
+  z1 *= len2;
+  z2 *= len2;
   x0 = upy * z2 - upz * z1;
   x1 = upz * z0 - upx * z2;
   x2 = upx * z1 - upy * z0;
-  len = Math.hypot(x0, x1, x2);
-  if (!len) {
+  len2 = Math.hypot(x0, x1, x2);
+  if (!len2) {
     x0 = 0;
     x1 = 0;
     x2 = 0;
   } else {
-    len = 1 / len;
-    x0 *= len;
-    x1 *= len;
-    x2 *= len;
+    len2 = 1 / len2;
+    x0 *= len2;
+    x1 *= len2;
+    x2 *= len2;
   }
   y0 = z1 * x2 - z2 * x1;
   y1 = z2 * x0 - z0 * x2;
   y2 = z0 * x1 - z1 * x0;
-  len = Math.hypot(y0, y1, y2);
-  if (!len) {
+  len2 = Math.hypot(y0, y1, y2);
+  if (!len2) {
     y0 = 0;
     y1 = 0;
     y2 = 0;
   } else {
-    len = 1 / len;
-    y0 *= len;
-    y1 *= len;
-    y2 *= len;
+    len2 = 1 / len2;
+    y0 *= len2;
+    y1 *= len2;
+    y2 *= len2;
   }
   out[0] = x0;
   out[1] = y0;
@@ -2361,20 +2365,20 @@ function lookAt(out, eye, center, up) {
 function targetTo(out, eye, target, up) {
   var eyex = eye[0], eyey = eye[1], eyez = eye[2], upx = up[0], upy = up[1], upz = up[2];
   var z0 = eyex - target[0], z1 = eyey - target[1], z2 = eyez - target[2];
-  var len = z0 * z0 + z1 * z1 + z2 * z2;
-  if (len > 0) {
-    len = 1 / Math.sqrt(len);
-    z0 *= len;
-    z1 *= len;
-    z2 *= len;
+  var len2 = z0 * z0 + z1 * z1 + z2 * z2;
+  if (len2 > 0) {
+    len2 = 1 / Math.sqrt(len2);
+    z0 *= len2;
+    z1 *= len2;
+    z2 *= len2;
   }
   var x0 = upy * z2 - upz * z1, x1 = upz * z0 - upx * z2, x2 = upx * z1 - upy * z0;
-  len = x0 * x0 + x1 * x1 + x2 * x2;
-  if (len > 0) {
-    len = 1 / Math.sqrt(len);
-    x0 *= len;
-    x1 *= len;
-    x2 *= len;
+  len2 = x0 * x0 + x1 * x1 + x2 * x2;
+  if (len2 > 0) {
+    len2 = 1 / Math.sqrt(len2);
+    x0 *= len2;
+    x1 *= len2;
+    x2 *= len2;
   }
   out[0] = x0;
   out[1] = x1;
@@ -2457,23 +2461,23 @@ function multiplyScalar(out, a, b) {
   out[15] = a[15] * b;
   return out;
 }
-function multiplyScalarAndAdd(out, a, b, scale2) {
-  out[0] = a[0] + b[0] * scale2;
-  out[1] = a[1] + b[1] * scale2;
-  out[2] = a[2] + b[2] * scale2;
-  out[3] = a[3] + b[3] * scale2;
-  out[4] = a[4] + b[4] * scale2;
-  out[5] = a[5] + b[5] * scale2;
-  out[6] = a[6] + b[6] * scale2;
-  out[7] = a[7] + b[7] * scale2;
-  out[8] = a[8] + b[8] * scale2;
-  out[9] = a[9] + b[9] * scale2;
-  out[10] = a[10] + b[10] * scale2;
-  out[11] = a[11] + b[11] * scale2;
-  out[12] = a[12] + b[12] * scale2;
-  out[13] = a[13] + b[13] * scale2;
-  out[14] = a[14] + b[14] * scale2;
-  out[15] = a[15] + b[15] * scale2;
+function multiplyScalarAndAdd(out, a, b, scale3) {
+  out[0] = a[0] + b[0] * scale3;
+  out[1] = a[1] + b[1] * scale3;
+  out[2] = a[2] + b[2] * scale3;
+  out[3] = a[3] + b[3] * scale3;
+  out[4] = a[4] + b[4] * scale3;
+  out[5] = a[5] + b[5] * scale3;
+  out[6] = a[6] + b[6] * scale3;
+  out[7] = a[7] + b[7] * scale3;
+  out[8] = a[8] + b[8] * scale3;
+  out[9] = a[9] + b[9] * scale3;
+  out[10] = a[10] + b[10] * scale3;
+  out[11] = a[11] + b[11] * scale3;
+  out[12] = a[12] + b[12] * scale3;
+  out[13] = a[13] + b[13] * scale3;
+  out[14] = a[14] + b[14] * scale3;
+  out[15] = a[15] + b[15] * scale3;
   return out;
 }
 function exactEquals(a, b) {
@@ -2492,6 +2496,390 @@ function equals(a, b) {
 }
 var mul = multiply;
 var sub = subtract;
+
+// node_modules/gl-matrix/esm/vec3.js
+var vec3_exports = {};
+__export(vec3_exports, {
+  add: () => add2,
+  angle: () => angle,
+  bezier: () => bezier,
+  ceil: () => ceil,
+  clone: () => clone2,
+  copy: () => copy2,
+  create: () => create2,
+  cross: () => cross,
+  dist: () => dist,
+  distance: () => distance,
+  div: () => div,
+  divide: () => divide,
+  dot: () => dot,
+  equals: () => equals2,
+  exactEquals: () => exactEquals2,
+  floor: () => floor,
+  forEach: () => forEach,
+  fromValues: () => fromValues2,
+  hermite: () => hermite,
+  inverse: () => inverse,
+  len: () => len,
+  length: () => length,
+  lerp: () => lerp,
+  max: () => max,
+  min: () => min,
+  mul: () => mul2,
+  multiply: () => multiply2,
+  negate: () => negate,
+  normalize: () => normalize,
+  random: () => random,
+  rotateX: () => rotateX2,
+  rotateY: () => rotateY2,
+  rotateZ: () => rotateZ2,
+  round: () => round,
+  scale: () => scale2,
+  scaleAndAdd: () => scaleAndAdd,
+  set: () => set2,
+  sqrDist: () => sqrDist,
+  sqrLen: () => sqrLen,
+  squaredDistance: () => squaredDistance,
+  squaredLength: () => squaredLength,
+  str: () => str2,
+  sub: () => sub2,
+  subtract: () => subtract2,
+  transformMat3: () => transformMat3,
+  transformMat4: () => transformMat4,
+  transformQuat: () => transformQuat,
+  zero: () => zero
+});
+function create2() {
+  var out = new ARRAY_TYPE(3);
+  if (ARRAY_TYPE != Float32Array) {
+    out[0] = 0;
+    out[1] = 0;
+    out[2] = 0;
+  }
+  return out;
+}
+function clone2(a) {
+  var out = new ARRAY_TYPE(3);
+  out[0] = a[0];
+  out[1] = a[1];
+  out[2] = a[2];
+  return out;
+}
+function length(a) {
+  var x = a[0];
+  var y = a[1];
+  var z = a[2];
+  return Math.hypot(x, y, z);
+}
+function fromValues2(x, y, z) {
+  var out = new ARRAY_TYPE(3);
+  out[0] = x;
+  out[1] = y;
+  out[2] = z;
+  return out;
+}
+function copy2(out, a) {
+  out[0] = a[0];
+  out[1] = a[1];
+  out[2] = a[2];
+  return out;
+}
+function set2(out, x, y, z) {
+  out[0] = x;
+  out[1] = y;
+  out[2] = z;
+  return out;
+}
+function add2(out, a, b) {
+  out[0] = a[0] + b[0];
+  out[1] = a[1] + b[1];
+  out[2] = a[2] + b[2];
+  return out;
+}
+function subtract2(out, a, b) {
+  out[0] = a[0] - b[0];
+  out[1] = a[1] - b[1];
+  out[2] = a[2] - b[2];
+  return out;
+}
+function multiply2(out, a, b) {
+  out[0] = a[0] * b[0];
+  out[1] = a[1] * b[1];
+  out[2] = a[2] * b[2];
+  return out;
+}
+function divide(out, a, b) {
+  out[0] = a[0] / b[0];
+  out[1] = a[1] / b[1];
+  out[2] = a[2] / b[2];
+  return out;
+}
+function ceil(out, a) {
+  out[0] = Math.ceil(a[0]);
+  out[1] = Math.ceil(a[1]);
+  out[2] = Math.ceil(a[2]);
+  return out;
+}
+function floor(out, a) {
+  out[0] = Math.floor(a[0]);
+  out[1] = Math.floor(a[1]);
+  out[2] = Math.floor(a[2]);
+  return out;
+}
+function min(out, a, b) {
+  out[0] = Math.min(a[0], b[0]);
+  out[1] = Math.min(a[1], b[1]);
+  out[2] = Math.min(a[2], b[2]);
+  return out;
+}
+function max(out, a, b) {
+  out[0] = Math.max(a[0], b[0]);
+  out[1] = Math.max(a[1], b[1]);
+  out[2] = Math.max(a[2], b[2]);
+  return out;
+}
+function round(out, a) {
+  out[0] = Math.round(a[0]);
+  out[1] = Math.round(a[1]);
+  out[2] = Math.round(a[2]);
+  return out;
+}
+function scale2(out, a, b) {
+  out[0] = a[0] * b;
+  out[1] = a[1] * b;
+  out[2] = a[2] * b;
+  return out;
+}
+function scaleAndAdd(out, a, b, scale3) {
+  out[0] = a[0] + b[0] * scale3;
+  out[1] = a[1] + b[1] * scale3;
+  out[2] = a[2] + b[2] * scale3;
+  return out;
+}
+function distance(a, b) {
+  var x = b[0] - a[0];
+  var y = b[1] - a[1];
+  var z = b[2] - a[2];
+  return Math.hypot(x, y, z);
+}
+function squaredDistance(a, b) {
+  var x = b[0] - a[0];
+  var y = b[1] - a[1];
+  var z = b[2] - a[2];
+  return x * x + y * y + z * z;
+}
+function squaredLength(a) {
+  var x = a[0];
+  var y = a[1];
+  var z = a[2];
+  return x * x + y * y + z * z;
+}
+function negate(out, a) {
+  out[0] = -a[0];
+  out[1] = -a[1];
+  out[2] = -a[2];
+  return out;
+}
+function inverse(out, a) {
+  out[0] = 1 / a[0];
+  out[1] = 1 / a[1];
+  out[2] = 1 / a[2];
+  return out;
+}
+function normalize(out, a) {
+  var x = a[0];
+  var y = a[1];
+  var z = a[2];
+  var len2 = x * x + y * y + z * z;
+  if (len2 > 0) {
+    len2 = 1 / Math.sqrt(len2);
+  }
+  out[0] = a[0] * len2;
+  out[1] = a[1] * len2;
+  out[2] = a[2] * len2;
+  return out;
+}
+function dot(a, b) {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+function cross(out, a, b) {
+  var ax = a[0], ay = a[1], az = a[2];
+  var bx = b[0], by = b[1], bz = b[2];
+  out[0] = ay * bz - az * by;
+  out[1] = az * bx - ax * bz;
+  out[2] = ax * by - ay * bx;
+  return out;
+}
+function lerp(out, a, b, t) {
+  var ax = a[0];
+  var ay = a[1];
+  var az = a[2];
+  out[0] = ax + t * (b[0] - ax);
+  out[1] = ay + t * (b[1] - ay);
+  out[2] = az + t * (b[2] - az);
+  return out;
+}
+function hermite(out, a, b, c, d, t) {
+  var factorTimes2 = t * t;
+  var factor1 = factorTimes2 * (2 * t - 3) + 1;
+  var factor2 = factorTimes2 * (t - 2) + t;
+  var factor3 = factorTimes2 * (t - 1);
+  var factor4 = factorTimes2 * (3 - 2 * t);
+  out[0] = a[0] * factor1 + b[0] * factor2 + c[0] * factor3 + d[0] * factor4;
+  out[1] = a[1] * factor1 + b[1] * factor2 + c[1] * factor3 + d[1] * factor4;
+  out[2] = a[2] * factor1 + b[2] * factor2 + c[2] * factor3 + d[2] * factor4;
+  return out;
+}
+function bezier(out, a, b, c, d, t) {
+  var inverseFactor = 1 - t;
+  var inverseFactorTimesTwo = inverseFactor * inverseFactor;
+  var factorTimes2 = t * t;
+  var factor1 = inverseFactorTimesTwo * inverseFactor;
+  var factor2 = 3 * t * inverseFactorTimesTwo;
+  var factor3 = 3 * factorTimes2 * inverseFactor;
+  var factor4 = factorTimes2 * t;
+  out[0] = a[0] * factor1 + b[0] * factor2 + c[0] * factor3 + d[0] * factor4;
+  out[1] = a[1] * factor1 + b[1] * factor2 + c[1] * factor3 + d[1] * factor4;
+  out[2] = a[2] * factor1 + b[2] * factor2 + c[2] * factor3 + d[2] * factor4;
+  return out;
+}
+function random(out, scale3) {
+  scale3 = scale3 || 1;
+  var r = RANDOM() * 2 * Math.PI;
+  var z = RANDOM() * 2 - 1;
+  var zScale = Math.sqrt(1 - z * z) * scale3;
+  out[0] = Math.cos(r) * zScale;
+  out[1] = Math.sin(r) * zScale;
+  out[2] = z * scale3;
+  return out;
+}
+function transformMat4(out, a, m) {
+  var x = a[0], y = a[1], z = a[2];
+  var w = m[3] * x + m[7] * y + m[11] * z + m[15];
+  w = w || 1;
+  out[0] = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w;
+  out[1] = (m[1] * x + m[5] * y + m[9] * z + m[13]) / w;
+  out[2] = (m[2] * x + m[6] * y + m[10] * z + m[14]) / w;
+  return out;
+}
+function transformMat3(out, a, m) {
+  var x = a[0], y = a[1], z = a[2];
+  out[0] = x * m[0] + y * m[3] + z * m[6];
+  out[1] = x * m[1] + y * m[4] + z * m[7];
+  out[2] = x * m[2] + y * m[5] + z * m[8];
+  return out;
+}
+function transformQuat(out, a, q) {
+  var qx = q[0], qy = q[1], qz = q[2], qw = q[3];
+  var x = a[0], y = a[1], z = a[2];
+  var uvx = qy * z - qz * y, uvy = qz * x - qx * z, uvz = qx * y - qy * x;
+  var uuvx = qy * uvz - qz * uvy, uuvy = qz * uvx - qx * uvz, uuvz = qx * uvy - qy * uvx;
+  var w2 = qw * 2;
+  uvx *= w2;
+  uvy *= w2;
+  uvz *= w2;
+  uuvx *= 2;
+  uuvy *= 2;
+  uuvz *= 2;
+  out[0] = x + uvx + uuvx;
+  out[1] = y + uvy + uuvy;
+  out[2] = z + uvz + uuvz;
+  return out;
+}
+function rotateX2(out, a, b, rad) {
+  var p = [], r = [];
+  p[0] = a[0] - b[0];
+  p[1] = a[1] - b[1];
+  p[2] = a[2] - b[2];
+  r[0] = p[0];
+  r[1] = p[1] * Math.cos(rad) - p[2] * Math.sin(rad);
+  r[2] = p[1] * Math.sin(rad) + p[2] * Math.cos(rad);
+  out[0] = r[0] + b[0];
+  out[1] = r[1] + b[1];
+  out[2] = r[2] + b[2];
+  return out;
+}
+function rotateY2(out, a, b, rad) {
+  var p = [], r = [];
+  p[0] = a[0] - b[0];
+  p[1] = a[1] - b[1];
+  p[2] = a[2] - b[2];
+  r[0] = p[2] * Math.sin(rad) + p[0] * Math.cos(rad);
+  r[1] = p[1];
+  r[2] = p[2] * Math.cos(rad) - p[0] * Math.sin(rad);
+  out[0] = r[0] + b[0];
+  out[1] = r[1] + b[1];
+  out[2] = r[2] + b[2];
+  return out;
+}
+function rotateZ2(out, a, b, rad) {
+  var p = [], r = [];
+  p[0] = a[0] - b[0];
+  p[1] = a[1] - b[1];
+  p[2] = a[2] - b[2];
+  r[0] = p[0] * Math.cos(rad) - p[1] * Math.sin(rad);
+  r[1] = p[0] * Math.sin(rad) + p[1] * Math.cos(rad);
+  r[2] = p[2];
+  out[0] = r[0] + b[0];
+  out[1] = r[1] + b[1];
+  out[2] = r[2] + b[2];
+  return out;
+}
+function angle(a, b) {
+  var ax = a[0], ay = a[1], az = a[2], bx = b[0], by = b[1], bz = b[2], mag1 = Math.sqrt(ax * ax + ay * ay + az * az), mag2 = Math.sqrt(bx * bx + by * by + bz * bz), mag = mag1 * mag2, cosine = mag && dot(a, b) / mag;
+  return Math.acos(Math.min(Math.max(cosine, -1), 1));
+}
+function zero(out) {
+  out[0] = 0;
+  out[1] = 0;
+  out[2] = 0;
+  return out;
+}
+function str2(a) {
+  return "vec3(" + a[0] + ", " + a[1] + ", " + a[2] + ")";
+}
+function exactEquals2(a, b) {
+  return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+}
+function equals2(a, b) {
+  var a0 = a[0], a1 = a[1], a2 = a[2];
+  var b0 = b[0], b1 = b[1], b2 = b[2];
+  return Math.abs(a0 - b0) <= EPSILON * Math.max(1, Math.abs(a0), Math.abs(b0)) && Math.abs(a1 - b1) <= EPSILON * Math.max(1, Math.abs(a1), Math.abs(b1)) && Math.abs(a2 - b2) <= EPSILON * Math.max(1, Math.abs(a2), Math.abs(b2));
+}
+var sub2 = subtract2;
+var mul2 = multiply2;
+var div = divide;
+var dist = distance;
+var sqrDist = squaredDistance;
+var len = length;
+var sqrLen = squaredLength;
+var forEach = function() {
+  var vec = create2();
+  return function(a, stride, offset, count, fn, arg) {
+    var i, l;
+    if (!stride) {
+      stride = 3;
+    }
+    if (!offset) {
+      offset = 0;
+    }
+    if (count) {
+      l = Math.min(count * stride + offset, a.length);
+    } else {
+      l = a.length;
+    }
+    for (i = offset; i < l; i += stride) {
+      vec[0] = a[i];
+      vec[1] = a[i + 1];
+      vec[2] = a[i + 2];
+      fn(vec, vec, arg);
+      a[i] = vec[0];
+      a[i + 1] = vec[1];
+      a[i + 2] = vec[2];
+    }
+    return a;
+  };
+}();
 
 // ts/classes/util/math/matrix4.ts
 function m4() {
@@ -2559,11 +2947,11 @@ var Matrix4 = class _Matrix4 {
     );
     return this;
   }
-  rotateAxis(angle, axis) {
+  rotateAxis(angle2, axis) {
     mat4_exports.rotate(
       this.mat4,
       this.mat4,
-      angle,
+      angle2,
       [[1, 0, 0], [0, 1, 0], [0, 0, 1]][axis]
     );
     return this;
@@ -2681,8 +3069,8 @@ var Quaternion = class _Quaternion {
   static f(x, y = x, z = x, w = 1) {
     return new _Quaternion(x, y, z, w);
   }
-  setAxisAngle(axis, angle) {
-    const halfAngle = angle * 0.5;
+  setAxisAngle(axis, angle2) {
+    const halfAngle = angle2 * 0.5;
     const s = Math.sin(halfAngle);
     this.x = axis.x * s;
     this.y = axis.y * s;
@@ -2728,8 +3116,8 @@ var Transform = class {
     return Quaternion.fromMatrix(this.getWorldMatrix());
   }
   // Scale methods
-  setScale(scale2) {
-    this._localScale = scale2;
+  setScale(scale3) {
+    this._localScale = scale3;
     this._isDirty = true;
   }
   // Anchor point methods
@@ -2841,8 +3229,8 @@ var SceneObject = class {
 // ts/classes/webgl2/meshes/icoSphere.ts
 var _IcoSphere = class _IcoSphere {
   static normalize(v) {
-    const length = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-    return [v[0] / length, v[1] / length, v[2] / length];
+    const length2 = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    return [v[0] / length2, v[1] / length2, v[2] / length2];
   }
   static midpoint(v1, v22) {
     return this.normalize([
@@ -3337,6 +3725,7 @@ var Scene = class {
     const ambientIntensity = (_a = options.ambientLightIntensity) != null ? _a : 0.1;
     this.ambientLight = new AmbientLight(ambientColor, ambientIntensity);
     this.lightManager.setAmbientLight(this.ambientLight);
+    glob.events.resize.subscribe("level", this.resize.bind(this));
   }
   setAmbientLight(color, intensity) {
     this.ambientLight = new AmbientLight(color, intensity);
@@ -3472,6 +3861,27 @@ var Camera = class {
   }
 };
 
+// ts/classes/webgl2/material.ts
+var Material = class {
+  constructor({
+    ambient = vec3_exports.fromValues(0.2, 0.2, 0.2),
+    diffuse = vec3_exports.fromValues(0.8, 0.8, 0.8),
+    specular = vec3_exports.fromValues(1, 1, 1),
+    shininess = 2,
+    diffuseMap,
+    normalMap,
+    specularMap
+  } = {}) {
+    this.ambient = ambient;
+    this.diffuse = diffuse;
+    this.specular = specular;
+    this.shininess = shininess;
+    this.diffuseMap = diffuseMap;
+    this.normalMap = normalMap;
+    this.specularMap = specularMap;
+  }
+};
+
 // ts/classes/webgl2/meshes/plane.ts
 var Plane = class {
   static generateIndices(flipNormal) {
@@ -3497,14 +3907,22 @@ var Plane = class {
       0
     ]);
   }
-  static generateColors(color) {
-    const defaultColor = [0.8, 0.8, 0.8];
-    const useColor = color || defaultColor;
+  static generateColors(material) {
+    const defaultColor = vec3_exports.fromValues(0.8, 0.8, 0.8);
+    const color = material ? material.diffuse : defaultColor;
     return new Float32Array([
-      ...useColor,
-      ...useColor,
-      ...useColor,
-      ...useColor
+      color[0],
+      color[1],
+      color[2],
+      color[0],
+      color[1],
+      color[2],
+      color[0],
+      color[1],
+      color[2],
+      color[0],
+      color[1],
+      color[2]
     ]);
   }
   static createMeshData(props = {}) {
@@ -3513,11 +3931,260 @@ var Plane = class {
       indices: this.generateIndices(props.flipNormal || false),
       normals: this.generateNormals(props.flipNormal || false),
       texCoords: this.texCoords,
-      colors: this.generateColors(props.color)
+      colors: this.generateColors(props.material)
     };
   }
   static create(props = {}) {
+    if (!props.material && !props.texture) {
+      props.material = new Material();
+    }
     const meshData = this.createMeshData(props);
+    const vao = new VertexArray(glob.ctx);
+    vao.bind();
+    const vertexBuffer = new VertexBuffer(glob.ctx);
+    vertexBuffer.setData(meshData.vertices);
+    vao.setAttributePointer(
+      glob.shaderManager.getAttributeLocation("aPosition"),
+      3,
+      glob.ctx.FLOAT,
+      false,
+      0,
+      0
+    );
+    const colorBuffer = new VertexBuffer(glob.ctx);
+    colorBuffer.setData(meshData.colors);
+    vao.setAttributePointer(
+      glob.shaderManager.getAttributeLocation("aColor"),
+      3,
+      glob.ctx.FLOAT,
+      false,
+      0,
+      0
+    );
+    const normalBuffer = new VertexBuffer(glob.ctx);
+    normalBuffer.setData(meshData.normals);
+    vao.setAttributePointer(
+      glob.shaderManager.getAttributeLocation("aNormal"),
+      3,
+      glob.ctx.FLOAT,
+      false,
+      0,
+      0
+    );
+    const texCoordBuffer = new VertexBuffer(glob.ctx);
+    texCoordBuffer.setData(meshData.texCoords);
+    vao.setAttributePointer(
+      glob.shaderManager.getAttributeLocation("aTexCoord"),
+      2,
+      glob.ctx.FLOAT,
+      false,
+      0,
+      0
+    );
+    const indexBuffer = new IndexBuffer(glob.ctx);
+    indexBuffer.setData(meshData.indices);
+    const sceneObject = new SceneObject({
+      vao,
+      indexBuffer,
+      drawCount: meshData.indices.length
+    }, props);
+    if (props.material) {
+      glob.shaderManager.setUniform("uMaterial.ambient", new Float32Array(props.material.ambient));
+      glob.shaderManager.setUniform("uMaterial.diffuse", new Float32Array(props.material.diffuse));
+      glob.shaderManager.setUniform("uMaterial.specular", new Float32Array(props.material.specular));
+      glob.shaderManager.setUniform("uMaterial.shininess", props.material.shininess);
+      if (props.material.diffuseMap) {
+        glob.shaderManager.setUniform("uUseTexture", 1);
+        glob.ctx.activeTexture(glob.ctx.TEXTURE0);
+        glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, props.material.diffuseMap);
+        glob.shaderManager.setUniform("uMaterial.diffuseMap", 0);
+      } else {
+        glob.shaderManager.setUniform("uUseTexture", 0);
+      }
+    }
+    return sceneObject;
+  }
+};
+Plane.vertices = new Float32Array([
+  // Single face (square)
+  -0.5,
+  0,
+  -0.5,
+  // bottom-left
+  0.5,
+  0,
+  -0.5,
+  // bottom-right
+  0.5,
+  0,
+  0.5,
+  // top-right
+  -0.5,
+  0,
+  0.5
+  // top-left
+]);
+Plane.texCoords = new Float32Array([
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  0,
+  1
+]);
+
+// ts/classes/webgl2/meshes/cone.ts
+var Cone = class {
+  static generateMeshData(sides = 32, smoothShading = true, colors) {
+    const vertices = [];
+    const indices = [];
+    const normals = [];
+    const generatedColors = [];
+    const texCoords = [];
+    const defaultColors = [
+      [0.8, 0.2, 0.2],
+      // sides
+      [0.2, 0.2, 0.8]
+      // bottom
+    ];
+    let [sideColor, bottomColor] = defaultColors;
+    if (colors) {
+      if (Array.isArray(colors[0])) {
+        [sideColor, bottomColor] = colors;
+      } else {
+        sideColor = bottomColor = colors;
+      }
+    }
+    if (smoothShading) {
+      vertices.push(0, 0.5, 0);
+      normals.push(0, 1, 0);
+      generatedColors.push(...sideColor);
+      texCoords.push(0.5, 1);
+      for (let i = 0; i <= sides; i++) {
+        const angle2 = i * Math.PI * 2 / sides;
+        const x = Math.cos(angle2);
+        const z = Math.sin(angle2);
+        vertices.push(x * 0.5, -0.5, z * 0.5);
+        const dx = x * 0.5;
+        const dy = -0.5;
+        const dz = z * 0.5;
+        const length2 = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        normals.push(dx / length2, dy / length2, dz / length2);
+        generatedColors.push(...sideColor);
+        texCoords.push(i / sides, 0);
+      }
+      for (let i = 0; i < sides; i++) {
+        indices.push(
+          0,
+          // apex
+          i + 2,
+          // next base vertex
+          i + 1
+          // current base vertex
+        );
+      }
+    } else {
+      for (let i = 0; i < sides; i++) {
+        const angle1 = i * Math.PI * 2 / sides;
+        const angle2 = (i + 1) * Math.PI * 2 / sides;
+        const x1 = Math.cos(angle1) * 0.5;
+        const z1 = Math.sin(angle1) * 0.5;
+        const x2 = Math.cos(angle2) * 0.5;
+        const z2 = Math.sin(angle2) * 0.5;
+        vertices.push(
+          0,
+          0.5,
+          0,
+          // apex
+          x1,
+          -0.5,
+          z1,
+          // base point 1
+          x2,
+          -0.5,
+          z2
+          // base point 2
+        );
+        const v1x = x1;
+        const v1y = -1;
+        const v1z = z1;
+        const v2x = x2;
+        const v2y = -1;
+        const v2z = z2;
+        const nx = v2y * v1z - v2z * v1y;
+        const ny = v2z * v1x - v2x * v1z;
+        const nz = v2x * v1y - v2y * v1x;
+        const length2 = Math.sqrt(nx * nx + ny * ny + nz * nz);
+        const normalX = nx / length2;
+        const normalY = ny / length2;
+        const normalZ = nz / length2;
+        for (let j = 0; j < 3; j++) {
+          normals.push(normalX, normalY, normalZ);
+          generatedColors.push(...sideColor);
+        }
+        texCoords.push(
+          0.5,
+          1,
+          i / sides,
+          0,
+          (i + 1) / sides,
+          0
+        );
+        const baseIndex = i * 3;
+        indices.push(baseIndex, baseIndex + 2, baseIndex + 1);
+      }
+    }
+    const baseVertexCount = vertices.length / 3;
+    vertices.push(0, -0.5, 0);
+    normals.push(0, -1, 0);
+    generatedColors.push(...bottomColor);
+    texCoords.push(0.5, 0.5);
+    for (let i = 0; i < sides; i++) {
+      const angle1 = i * Math.PI * 2 / sides;
+      const angle2 = (i + 1) * Math.PI * 2 / sides;
+      const x1 = Math.cos(angle1) * 0.5;
+      const z1 = Math.sin(angle1) * 0.5;
+      const x2 = Math.cos(angle2) * 0.5;
+      const z2 = Math.sin(angle2) * 0.5;
+      vertices.push(
+        x1,
+        -0.5,
+        z1,
+        x2,
+        -0.5,
+        z2
+      );
+      normals.push(0, -1, 0, 0, -1, 0);
+      generatedColors.push(...bottomColor, ...bottomColor);
+      texCoords.push(
+        x1 + 0.5,
+        z1 + 0.5,
+        x2 + 0.5,
+        z2 + 0.5
+      );
+      const offset = baseVertexCount + 1 + i * 2;
+      indices.push(
+        baseVertexCount,
+        // center
+        offset,
+        // current point
+        offset + 1
+        // next point
+      );
+    }
+    return {
+      vertices: new Float32Array(vertices),
+      indices: new Uint16Array(indices),
+      normals: new Float32Array(normals),
+      colors: new Float32Array(generatedColors),
+      texCoords: new Float32Array(texCoords)
+    };
+  }
+  static create(props = {}) {
+    var _a;
+    const meshData = this.generateMeshData(props.sides || 32, (_a = props.smoothShading) != null ? _a : true, props.colors);
     const vao = new VertexArray(glob.ctx);
     vao.bind();
     const vertexBuffer = new VertexBuffer(glob.ctx);
@@ -3569,35 +4236,6 @@ var Plane = class {
     }, props);
   }
 };
-Plane.vertices = new Float32Array([
-  // Single face (square)
-  -0.5,
-  0,
-  -0.5,
-  // bottom-left
-  0.5,
-  0,
-  -0.5,
-  // bottom-right
-  0.5,
-  0,
-  0.5,
-  // top-right
-  -0.5,
-  0,
-  0.5
-  // top-left
-]);
-Plane.texCoords = new Float32Array([
-  0,
-  0,
-  1,
-  0,
-  1,
-  1,
-  0,
-  1
-]);
 
 // ts/classes/testLevel.ts
 var TestLevel = class extends Scene {
@@ -3614,27 +4252,18 @@ var TestLevel = class extends Scene {
     this.add(Plane.create({
       position: v3(0, -1, 0),
       scale: v3(10, 10, 10),
-      color: [0.8, 0.8, 0.8],
-      flipNormal: false
+      material: new Material({
+        ambient: v3(1, 0, 0).scale(0.2).vec,
+        diffuse: v3(1, 0, 0).vec,
+        specular: v3(1, 1, 1).vec
+      })
     }));
-    this.add(this.cube = IcoSphere.create({
-      subdivisions: 1,
+    this.add(this.cube = Cone.create({
+      sides: 4,
       smoothShading: false,
       rotation,
       position: v3(0, 1, 0),
-      scale: v3(0.5, 0.5, 0.5)
-    }));
-    this.add(IcoSphere.create({
-      subdivisions: 1,
-      smoothShading: false,
-      position: v3(2, 0.5, 2),
-      scale: v3(0.3, 0.3, 0.3)
-    }));
-    this.add(IcoSphere.create({
-      subdivisions: 1,
-      smoothShading: false,
-      position: v3(-1.5, 0.7, -1),
-      scale: v3(0.4, 0.4, 0.4)
+      scale: v3(1, 0.8, 1)
     }));
     this.addLight(new PointLight(
       v3(2, 4, 2),

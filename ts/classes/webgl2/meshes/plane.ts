@@ -2,9 +2,12 @@ import { MeshData } from '../types';
 import { VertexArray, VertexBuffer, IndexBuffer } from '../buffer';
 import { SceneObject, SceneObjectProps } from './sceneObject';
 import { glob } from '../../../game';
+import { Material } from '../material';
+import { vec3 } from 'gl-matrix';
 
 export interface PlaneProps extends SceneObjectProps {
-    color?: [number, number, number];
+    material?: Material;
+    texture?: string    ;
     flipNormal?: boolean;
 }
 
@@ -12,14 +15,14 @@ export class Plane {
     private static vertices: Float32Array = new Float32Array([
         // Single face (square)
         -0.5, 0.0, -0.5,  // bottom-left
-         0.5, 0.0, -0.5,  // bottom-right
-         0.5, 0.0,  0.5,  // top-right
-        -0.5, 0.0,  0.5   // top-left
+        0.5, 0.0, -0.5,  // bottom-right
+        0.5, 0.0, 0.5,  // top-right
+        -0.5, 0.0, 0.5   // top-left
     ]);
 
     private static generateIndices(flipNormal: boolean): Uint16Array {
         return new Uint16Array(
-            flipNormal 
+            flipNormal
                 ? [0, 1, 2, 2, 3, 0]     // clockwise winding for bottom visibility
                 : [0, 2, 1, 0, 3, 2]      // counter-clockwise winding for top visibility
         );
@@ -42,16 +45,16 @@ export class Plane {
         0.0, 1.0
     ]);
 
-    private static generateColors(color?: [number, number, number]): Float32Array {
-        const defaultColor: [number, number, number] = [0.8, 0.8, 0.8]; // Default to light gray
-        const useColor = color || defaultColor;
-        
+    private static generateColors(material?: Material): Float32Array {
+        const defaultColor = vec3.fromValues(0.8, 0.8, 0.8); // Default to light gray
+        const color = material ? material.diffuse : defaultColor;
+
         // Four vertices need the same color
         return new Float32Array([
-            ...useColor,
-            ...useColor,
-            ...useColor,
-            ...useColor
+            color[0], color[1], color[2],
+            color[0], color[1], color[2],
+            color[0], color[1], color[2],
+            color[0], color[1], color[2]
         ]);
     }
 
@@ -61,13 +64,18 @@ export class Plane {
             indices: this.generateIndices(props.flipNormal || false),
             normals: this.generateNormals(props.flipNormal || false),
             texCoords: this.texCoords,
-            colors: this.generateColors(props.color)
+            colors: this.generateColors(props.material)
         };
     }
 
     public static create(props: PlaneProps = {}): SceneObject {
+        // Create default material if none provided
+        if (!props.material && !props.texture) {
+            props.material = new Material();
+        }
+
         const meshData = this.createMeshData(props);
-        
+
         // Create and setup VAO
         const vao = new VertexArray(glob.ctx);
         vao.bind();
@@ -124,10 +132,31 @@ export class Plane {
         const indexBuffer = new IndexBuffer(glob.ctx);
         indexBuffer.setData(meshData.indices!);
 
-        return new SceneObject({
+        const sceneObject = new SceneObject({
             vao,
             indexBuffer,
             drawCount: meshData.indices!.length,
         }, props);
+
+        // Set material uniforms
+        if (props.material) {
+            // Set material properties
+            glob.shaderManager.setUniform('uMaterial.ambient', new Float32Array(props.material.ambient));
+            glob.shaderManager.setUniform('uMaterial.diffuse', new Float32Array(props.material.diffuse));
+            glob.shaderManager.setUniform('uMaterial.specular', new Float32Array(props.material.specular));
+            glob.shaderManager.setUniform('uMaterial.shininess', props.material.shininess);
+
+            if (props.material.diffuseMap) {
+                glob.shaderManager.setUniform('uUseTexture', 1);
+                // Bind texture to texture unit 0
+                glob.ctx.activeTexture(glob.ctx.TEXTURE0);
+                glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, props.material.diffuseMap);
+                glob.shaderManager.setUniform('uMaterial.diffuseMap', 0); // Use texture unit 0
+            } else {
+                glob.shaderManager.setUniform('uUseTexture', 0);
+            }
+        }
+
+        return sceneObject;
     }
 } 
