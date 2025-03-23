@@ -1,35 +1,44 @@
     import { VertexArray, IndexBuffer } from '../buffer';
 import { ShaderManager } from '../shaderManager';
 import { glob } from '../../../game';
-import { Matrix4 } from '../../util/math/matrix4';
+import { m4, Matrix4 } from '../../util/math/matrix4';
+import { Vector3, v3 } from '../../util/math/vector3';
 
 export interface SceneObjectData {
     vao: VertexArray;
-    indexBuffer?: IndexBuffer;
+    indexBuffer: IndexBuffer;
     shaderManager: ShaderManager;
     modelMatrix: Matrix4;
     drawMode: number;
     drawCount: number;
-    drawType?: number;
+    drawType: number;
+}
+
+export interface SceneObjectProps {
+    position?: Vector3;
+    scale?: Vector3;
+    rotation?: Vector3;
 }
 
 export class SceneObject implements SceneObjectData {
     public readonly vao: VertexArray;
-    public readonly indexBuffer?: IndexBuffer;
+    public readonly indexBuffer: IndexBuffer;
     public readonly shaderManager: ShaderManager;
     public readonly modelMatrix: Matrix4;
-    public readonly drawMode: number;
+    public readonly drawMode: number = glob.ctx.TRIANGLES;
     public readonly drawCount: number;
-    public readonly drawType?: number;
+    public readonly drawType: number = glob.ctx.UNSIGNED_SHORT;
 
-    constructor(data: SceneObjectData) {
+    constructor(data: Omit<SceneObjectData, 'modelMatrix' | 'shaderManager' | 'drawMode' |'drawType'>, props: SceneObjectProps = {}) {
         this.vao = data.vao;
         this.indexBuffer = data.indexBuffer;
-        this.shaderManager = data.shaderManager;
-        this.modelMatrix = data.modelMatrix;
-        this.drawMode = data.drawMode;
+        this.shaderManager = glob.shaderManager;
         this.drawCount = data.drawCount;
-        this.drawType = data.drawType;
+
+        this.modelMatrix = m4();
+        this.modelMatrix.translate(props.position || v3(0));
+        this.modelMatrix.rotate(props.rotation || v3(0));
+        this.modelMatrix.scale(props.scale || v3(1));
     }
 
     public render(viewMatrix: Matrix4, projectionMatrix: Matrix4) {

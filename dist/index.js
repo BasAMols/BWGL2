@@ -1167,40 +1167,6 @@ var Vector3 = class _Vector3 {
   }
 };
 
-// ts/classes/webgl2/meshes/sceneObject.ts
-var SceneObject = class {
-  constructor(data) {
-    this.vao = data.vao;
-    this.indexBuffer = data.indexBuffer;
-    this.shaderManager = data.shaderManager;
-    this.modelMatrix = data.modelMatrix;
-    this.drawMode = data.drawMode;
-    this.drawCount = data.drawCount;
-    this.drawType = data.drawType;
-  }
-  render(viewMatrix, projectionMatrix) {
-    this.shaderManager.setUniform("uModelMatrix", this.modelMatrix.mat4);
-    this.shaderManager.setUniform("uViewMatrix", viewMatrix.mat4);
-    this.shaderManager.setUniform("uProjectionMatrix", projectionMatrix.mat4);
-    this.vao.bind();
-    if (this.indexBuffer) {
-      glob.ctx.drawElements(
-        this.drawMode,
-        this.drawCount,
-        this.drawType || glob.ctx.UNSIGNED_SHORT,
-        0
-      );
-    } else {
-      glob.ctx.drawArrays(
-        this.drawMode,
-        0,
-        this.drawCount
-      );
-    }
-    this.vao.unbind();
-  }
-};
-
 // node_modules/gl-matrix/esm/common.js
 var EPSILON = 1e-6;
 var ARRAY_TYPE = typeof Float32Array !== "undefined" ? Float32Array : Array;
@@ -2587,6 +2553,43 @@ var Matrix4 = class _Matrix4 {
   }
 };
 
+// ts/classes/webgl2/meshes/sceneObject.ts
+var SceneObject = class {
+  constructor(data, props = {}) {
+    this.drawMode = glob.ctx.TRIANGLES;
+    this.drawType = glob.ctx.UNSIGNED_SHORT;
+    this.vao = data.vao;
+    this.indexBuffer = data.indexBuffer;
+    this.shaderManager = glob.shaderManager;
+    this.drawCount = data.drawCount;
+    this.modelMatrix = m4();
+    this.modelMatrix.translate(props.position || v3(0));
+    this.modelMatrix.rotate(props.rotation || v3(0));
+    this.modelMatrix.scale(props.scale || v3(1));
+  }
+  render(viewMatrix, projectionMatrix) {
+    this.shaderManager.setUniform("uModelMatrix", this.modelMatrix.mat4);
+    this.shaderManager.setUniform("uViewMatrix", viewMatrix.mat4);
+    this.shaderManager.setUniform("uProjectionMatrix", projectionMatrix.mat4);
+    this.vao.bind();
+    if (this.indexBuffer) {
+      glob.ctx.drawElements(
+        this.drawMode,
+        this.drawCount,
+        this.drawType || glob.ctx.UNSIGNED_SHORT,
+        0
+      );
+    } else {
+      glob.ctx.drawArrays(
+        this.drawMode,
+        0,
+        this.drawCount
+      );
+    }
+    this.vao.unbind();
+  }
+};
+
 // ts/classes/webgl2/meshes/cube.ts
 var Cube = class {
   static createMeshData() {
@@ -2598,7 +2601,7 @@ var Cube = class {
       colors: this.colors
     };
   }
-  static create(position = v3(0, 0, 0), scale2 = v3(1, 1, 1), rotation = v3(0, 0, 0)) {
+  static create(props = {}) {
     const meshData = this.createMeshData();
     const vao = new VertexArray(glob.ctx);
     vao.bind();
@@ -2644,19 +2647,11 @@ var Cube = class {
     );
     const indexBuffer = new IndexBuffer(glob.ctx);
     indexBuffer.setData(meshData.indices);
-    const modelMatrix = m4();
-    modelMatrix.translate(position);
-    modelMatrix.rotate(rotation);
-    modelMatrix.scale(scale2);
     return new SceneObject({
       vao,
       indexBuffer,
-      shaderManager: glob.shaderManager,
-      modelMatrix,
-      drawMode: glob.ctx.TRIANGLES,
-      drawCount: meshData.indices.length,
-      drawType: glob.ctx.UNSIGNED_SHORT
-    });
+      drawCount: meshData.indices.length
+    }, props);
   }
 };
 Cube.vertices = new Float32Array([
@@ -3082,35 +3077,18 @@ var TestLevel = class extends Scene {
   constructor() {
     super(new Camera(v3(3, 2, 3), v3(0, 0, 0), 45));
     this.camera.setFov(45);
-    this.add(this.cube1 = Cube.create(
-      v3(0, 0, 0),
-      // Position at origin
-      v3(1, 1, 1),
-      // Unit scale
-      v3(0, 0, 0)
-      // Rotation in radians
-    ));
-    this.add(Cube.create(
-      v3(1.5, 0, 0),
-      v3(1, 1, 1),
-      // Unit scale
-      v3(0, 0, 0)
-      // Rotation in radians
-    ));
-    this.add(Cube.create(
-      v3(0, 0, 1.5),
-      v3(1, 1, 1),
-      // Unit scale
-      v3(0, 0, 0)
-      // Rotation in radians
-    ));
-    this.add(Cube.create(
-      v3(1.5, 0, 1.5),
-      v3(1, 1, 1),
-      // Unit scale
-      v3(0, 0, 0)
-      // Rotation in radians
-    ));
+    this.add(this.cube1 = Cube.create({
+      rotation: v3(0, 0, 0)
+    }));
+    this.add(Cube.create({
+      position: v3(1.5, 0, 0)
+    }));
+    this.add(Cube.create({
+      position: v3(0, 0, 1.5)
+    }));
+    this.add(Cube.create({
+      position: v3(1.5, 0, 1.5)
+    }));
   }
   tick(obj) {
     super.tick(obj);

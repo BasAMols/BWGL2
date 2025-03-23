@@ -1,9 +1,6 @@
 import { MeshData } from '../types';
 import { VertexArray, VertexBuffer, IndexBuffer } from '../buffer';
-import { SceneObject } from './sceneObject';
-import { m4 } from '../../util/math/matrix4';
-import { Vector3 } from '../../util/math/vector3';
-import { v3 } from '../../util/math/vector3';
+import { SceneObject, SceneObjectProps } from './sceneObject';
 import { glob } from '../../../game';
 
 export class Cube {
@@ -144,11 +141,7 @@ export class Cube {
         };
     }
 
-    public static create(
-        position: Vector3 = v3(0, 0, 0),
-        scale: Vector3 = v3(1, 1, 1),
-        rotation: Vector3 = v3(0, 0, 0)
-    ): SceneObject {
+    public static create(props: SceneObjectProps = {}): SceneObject {
         const meshData = this.createMeshData();
         
         // Create and setup VAO
@@ -207,20 +200,10 @@ export class Cube {
         const indexBuffer = new IndexBuffer(glob.ctx);
         indexBuffer.setData(meshData.indices!);
 
-        // Create model matrix
-        const modelMatrix = m4();
-        modelMatrix.translate(position);
-        modelMatrix.rotate(rotation);
-        modelMatrix.scale(scale);
-
         return new SceneObject({
             vao,
             indexBuffer,
-            shaderManager: glob.shaderManager,
-            modelMatrix,
-            drawMode: glob.ctx.TRIANGLES,
             drawCount: meshData.indices!.length,
-            drawType: glob.ctx.UNSIGNED_SHORT
-        });
+        }, props);
     }
 }
