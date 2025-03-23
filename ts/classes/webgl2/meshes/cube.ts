@@ -3,6 +3,11 @@ import { VertexArray, VertexBuffer, IndexBuffer } from '../buffer';
 import { SceneObject, SceneObjectProps } from './sceneObject';
 import { glob } from '../../../game';
 
+export interface CubeProps extends SceneObjectProps {
+    // Allow either a single color for all faces or an array of 6 colors for each face
+    colors?: [number, number, number] | Array<[number, number, number]>;
+}
+
 export class Cube {
     private static vertices: Float32Array = new Float32Array([
         // Front face
@@ -37,44 +42,49 @@ export class Cube {
         -0.5, -0.5,  0.5   // 23 (0)
     ]);
 
-    private static colors: Float32Array = new Float32Array([
-        // Front face (red)
-        0.8, 0.2, 0.2,
-        0.8, 0.2, 0.2,
-        0.8, 0.2, 0.2,
-        0.8, 0.2, 0.2,
-        // Back face (yellow)
-        1.0, 1.0, 0.0,
-        1.0, 1.0, 0.0,
-        1.0, 1.0, 0.0,
-        1.0, 1.0, 0.0,
-        // Right face (green)
-        0.2, 0.8, 0.2,
-        0.2, 0.8, 0.2,
-        0.2, 0.8, 0.2,
-        0.2, 0.8, 0.2,
-        // Left face (purple)
-        0.8, 0.2, 0.8,
-        0.8, 0.2, 0.8,
-        0.8, 0.2, 0.8,
-        0.8, 0.2, 0.8,
-        // Top face (blue)
-        0.2, 0.2, 0.8,
-        0.2, 0.2, 0.8,
-        0.2, 0.2, 0.8,
-        0.2, 0.2, 0.8,
-        // Bottom face (orange)
-        1.0, 0.5, 0.0,
-        1.0, 0.5, 0.0,
-        1.0, 0.5, 0.0,
-        1.0, 0.5, 0.0
-    ]);
+    private static generateColors(colors?: [number, number, number] | Array<[number, number, number]>): Float32Array {
+        const defaultColors: Array<[number, number, number]> = [
+            [0.8, 0.2, 0.2], // Front face (red)
+            [1.0, 1.0, 0.0], // Back face (yellow)
+            [0.2, 0.8, 0.2], // Right face (green)
+            [0.8, 0.2, 0.8], // Left face (purple)
+            [0.2, 0.2, 0.8], // Top face (blue)
+            [1.0, 0.5, 0.0]  // Bottom face (orange)
+        ];
+
+        let faceColors: Array<[number, number, number]>;
+        
+        if (!colors) {
+            faceColors = defaultColors;
+        } else if (Array.isArray(colors[0])) {
+            // Multiple colors provided
+            faceColors = colors as Array<[number, number, number]>;
+            if (faceColors.length !== 6) {
+                throw new Error('Must provide exactly 6 colors for faces or a single color');
+            }
+        } else {
+            // Single color provided
+            const singleColor = colors as [number, number, number];
+            faceColors = Array(6).fill(singleColor);
+        }
+
+        // Convert to flat array for all vertices
+        const colorArray: number[] = [];
+        faceColors.forEach(color => {
+            // Each face has 4 vertices that need the same color
+            for (let i = 0; i < 4; i++) {
+                colorArray.push(...color);
+            }
+        });
+
+        return new Float32Array(colorArray);
+    }
 
     private static indices: Uint16Array = new Uint16Array([
         // Front
         0, 1, 2,    2, 3, 0,
-        // Back
-        4, 5, 6,    6, 7, 4,
+        // Back (reversed order)
+        4, 6, 5,    6, 4, 7,
         // Right
         8, 9, 10,   10, 11, 8,
         // Left
@@ -131,18 +141,18 @@ export class Cube {
         1.0, 1.0,
     ]);
 
-    public static createMeshData(): MeshData {
+    public static createMeshData(props: CubeProps = {}): MeshData {
         return {
             vertices: this.vertices,
             indices: this.indices,
             normals: this.normals,
             texCoords: this.texCoords,
-            colors: this.colors
+            colors: this.generateColors(props.colors)
         };
     }
 
-    public static create(props: SceneObjectProps = {}): SceneObject {
-        const meshData = this.createMeshData();
+    public static create(props: CubeProps = {}): SceneObject {
+        const meshData = this.createMeshData(props);
         
         // Create and setup VAO
         const vao = new VertexArray(glob.ctx);
