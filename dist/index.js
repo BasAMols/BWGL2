@@ -2852,6 +2852,133 @@ var SceneObject = class {
   }
 };
 
+// ts/classes/webgl2/meshes/plane.ts
+var Plane = class {
+  static generateIndices(flipNormal) {
+    return new Uint16Array(
+      flipNormal ? [0, 1, 2, 2, 3, 0] : [0, 2, 1, 0, 3, 2]
+      // counter-clockwise winding for top visibility
+    );
+  }
+  static generateNormals(flipNormal) {
+    const normalY = flipNormal ? -1 : 1;
+    return new Float32Array([
+      0,
+      normalY,
+      0,
+      0,
+      normalY,
+      0,
+      0,
+      normalY,
+      0,
+      0,
+      normalY,
+      0
+    ]);
+  }
+  static generateColors(color) {
+    const defaultColor = [0.8, 0.8, 0.8];
+    const useColor = color || defaultColor;
+    return new Float32Array([
+      ...useColor,
+      ...useColor,
+      ...useColor,
+      ...useColor
+    ]);
+  }
+  static createMeshData(props = {}) {
+    return {
+      vertices: this.vertices,
+      indices: this.generateIndices(props.flipNormal || false),
+      normals: this.generateNormals(props.flipNormal || false),
+      texCoords: this.texCoords,
+      colors: this.generateColors(props.color)
+    };
+  }
+  static create(props = {}) {
+    const meshData = this.createMeshData(props);
+    const vao = new VertexArray(glob.ctx);
+    vao.bind();
+    const vertexBuffer = new VertexBuffer(glob.ctx);
+    vertexBuffer.setData(meshData.vertices);
+    vao.setAttributePointer(
+      glob.shaderManager.getAttributeLocation("aPosition"),
+      3,
+      glob.ctx.FLOAT,
+      false,
+      0,
+      0
+    );
+    const colorBuffer = new VertexBuffer(glob.ctx);
+    colorBuffer.setData(meshData.colors);
+    vao.setAttributePointer(
+      glob.shaderManager.getAttributeLocation("aColor"),
+      3,
+      glob.ctx.FLOAT,
+      false,
+      0,
+      0
+    );
+    const normalBuffer = new VertexBuffer(glob.ctx);
+    normalBuffer.setData(meshData.normals);
+    vao.setAttributePointer(
+      glob.shaderManager.getAttributeLocation("aNormal"),
+      3,
+      glob.ctx.FLOAT,
+      false,
+      0,
+      0
+    );
+    const texCoordBuffer = new VertexBuffer(glob.ctx);
+    texCoordBuffer.setData(meshData.texCoords);
+    vao.setAttributePointer(
+      glob.shaderManager.getAttributeLocation("aTexCoord"),
+      2,
+      glob.ctx.FLOAT,
+      false,
+      0,
+      0
+    );
+    const indexBuffer = new IndexBuffer(glob.ctx);
+    indexBuffer.setData(meshData.indices);
+    return new SceneObject({
+      vao,
+      indexBuffer,
+      drawCount: meshData.indices.length
+    }, props);
+  }
+};
+Plane.vertices = new Float32Array([
+  // Single face (square)
+  -0.5,
+  0,
+  -0.5,
+  // bottom-left
+  0.5,
+  0,
+  -0.5,
+  // bottom-right
+  0.5,
+  0,
+  0.5,
+  // top-right
+  -0.5,
+  0,
+  0.5
+  // top-left
+]);
+Plane.texCoords = new Float32Array([
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  0,
+  1
+]);
+
 // ts/classes/webgl2/meshes/cube.ts
 var Cube = class {
   static generateColors(colors) {
@@ -3208,8 +3335,15 @@ var TestLevel = class extends Scene {
     this.camera.setFov(45);
     const rotation = new Quaternion();
     rotation.setAxisAngle(v3(1, 0, 0), 0);
+    this.add(Plane.create({
+      position: v3(0, 0, 0),
+      scale: v3(3, 3, 3),
+      color: [0, 1, 0],
+      flipNormal: false
+    }));
     this.add(this.cube1 = Cube.create({
-      rotation
+      rotation,
+      position: v3(0, 1, 0)
     }));
   }
   tick(obj) {

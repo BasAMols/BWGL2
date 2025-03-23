@@ -4,6 +4,7 @@ import { TickerReturnData } from './ticker';
 import { Scene } from './webgl2/scene';
 import { Camera } from './webgl2/camera';
 import { Quaternion } from './util/math/quaternion';
+import { Plane } from './webgl2/meshes/plane';
 import { Cube } from './webgl2/meshes/cube';
 export class TestLevel extends Scene {
     cube1: SceneObject;
@@ -15,8 +16,15 @@ export class TestLevel extends Scene {
         const rotation = new Quaternion(); // identity quaternion
         rotation.setAxisAngle(v3(1, 0, 0), 0); // rotate 90 degrees around Y axis
 
+        this.add(Plane.create({
+            position: v3(0, 0, 0),
+            scale: v3(3, 3, 3),
+            color: [0, 1, 0],
+            flipNormal: false
+        }));
         this.add(this.cube1 = Cube.create({
-            rotation: rotation
+            rotation: rotation,
+            position: v3(0, 1, 0)
         }));
         // this.add(Cylinder.create({
         //     sides: 16,
