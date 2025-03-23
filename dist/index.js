@@ -54,10 +54,10 @@ var Vector2 = class _Vector2 {
   magnitudeSqr() {
     return this.x * this.x + this.y * this.y;
   }
-  clampMagnitude(max2 = 1) {
+  clampMagnitude(max = 1) {
     if (this.magnitude() === 0)
       return v2(0);
-    return this.scale(1 / this.magnitude() || 1).scale(Math.min(max2, this.magnitude()));
+    return this.scale(1 / this.magnitude() || 1).scale(Math.min(max, this.magnitude()));
   }
   distance(vector) {
     return Math.sqrt(this.distanceSqr(vector));
@@ -103,8 +103,8 @@ var Vector2 = class _Vector2 {
     var vector = this.toPrecision(1);
     return "[" + vector.x + "; " + vector.y + "]";
   }
-  clamp(min2, max2) {
-    return _Vector2.clamp(this, min2, max2);
+  clamp(min, max) {
+    return _Vector2.clamp(this, min, max);
   }
   static min(a, b) {
     return new _Vector2(
@@ -118,8 +118,8 @@ var Vector2 = class _Vector2 {
       Math.max(a.y, b.y)
     );
   }
-  static clamp(value, min2, max2) {
-    return _Vector2.max(_Vector2.min(value, min2), max2);
+  static clamp(value, min, max) {
+    return _Vector2.max(_Vector2.min(value, min), max);
   }
   clampMagnitute(mag) {
     return _Vector2.clampMagnitute(this, mag);
@@ -288,55 +288,922 @@ var Events = class {
   }
 };
 
+// ts/classes/webgl2/buffer.ts
+var Buffer2 = class {
+  constructor(gl, type = gl.ARRAY_BUFFER, usage = gl.STATIC_DRAW) {
+    this.gl = gl;
+    this.type = type;
+    this.usage = usage;
+    const buffer = gl.createBuffer();
+    if (!buffer) {
+      throw new Error("Failed to create buffer");
+    }
+    this.buffer = buffer;
+  }
+  bind() {
+    this.gl.bindBuffer(this.type, this.buffer);
+  }
+  unbind() {
+    this.gl.bindBuffer(this.type, null);
+  }
+  setData(data) {
+    this.bind();
+    this.gl.bufferData(this.type, data, this.usage);
+  }
+  updateData(data, offset = 0) {
+    this.bind();
+    this.gl.bufferSubData(this.type, offset, data);
+  }
+  dispose() {
+    this.gl.deleteBuffer(this.buffer);
+  }
+};
+var VertexArray = class {
+  constructor(gl) {
+    this.gl = gl;
+    const vao = gl.createVertexArray();
+    if (!vao) {
+      throw new Error("Failed to create vertex array object");
+    }
+    this.vao = vao;
+  }
+  bind() {
+    this.gl.bindVertexArray(this.vao);
+  }
+  unbind() {
+    this.gl.bindVertexArray(null);
+  }
+  setAttributePointer(location, size, type, normalized = false, stride = 0, offset = 0) {
+    this.gl.vertexAttribPointer(location, size, type, normalized, stride, offset);
+    this.gl.enableVertexAttribArray(location);
+  }
+  dispose() {
+    this.gl.deleteVertexArray(this.vao);
+  }
+};
+var VertexBuffer = class extends Buffer2 {
+  constructor(gl, usage = gl.STATIC_DRAW) {
+    super(gl, gl.ARRAY_BUFFER, usage);
+  }
+};
+var IndexBuffer = class extends Buffer2 {
+  constructor(gl, usage = gl.STATIC_DRAW) {
+    super(gl, gl.ELEMENT_ARRAY_BUFFER, usage);
+    this.count = 0;
+  }
+  setData(data) {
+    super.setData(data);
+    this.count = data.byteLength / 2;
+  }
+  getCount() {
+    return this.count;
+  }
+};
+
+// ts/classes/webgl2/shaderManager.ts
+var ShaderManager = class {
+  constructor(gl) {
+    this.currentProgram = null;
+    this.gl = gl;
+    this.shaderPrograms = /* @__PURE__ */ new Map();
+    this.uniforms = /* @__PURE__ */ new Map();
+    this.attributes = /* @__PURE__ */ new Map();
+  }
+  loadShaderProgram(name, vertexSource, fragmentSource) {
+    try {
+      const vertexShader = this.compileShader(vertexSource, this.gl.VERTEX_SHADER);
+      const fragmentShader = this.compileShader(fragmentSource, this.gl.FRAGMENT_SHADER);
+      const program = this.createProgram(vertexShader, fragmentShader);
+      this.shaderPrograms.set(name, program);
+      this.uniforms.set(name, /* @__PURE__ */ new Map());
+      this.attributes.set(name, /* @__PURE__ */ new Map());
+      this.gl.deleteShader(vertexShader);
+      this.gl.deleteShader(fragmentShader);
+      this.introspectShaderProgram(name);
+    } catch (error) {
+      console.error("Failed to load shader program '".concat(name, "':"), error);
+      throw error;
+    }
+  }
+  compileShader(source, type) {
+    const shader = this.gl.createShader(type);
+    if (!shader) {
+      throw new Error("Failed to create shader");
+    }
+    this.gl.shaderSource(shader, source);
+    this.gl.compileShader(shader);
+    if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+      const info = this.gl.getShaderInfoLog(shader);
+      this.gl.deleteShader(shader);
+      throw new Error("Shader compilation error: ".concat(info));
+    }
+    return shader;
+  }
+  createProgram(vertexShader, fragmentShader) {
+    const program = this.gl.createProgram();
+    if (!program) {
+      throw new Error("Failed to create shader program");
+    }
+    this.gl.attachShader(program, vertexShader);
+    this.gl.attachShader(program, fragmentShader);
+    this.gl.linkProgram(program);
+    if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
+      const info = this.gl.getProgramInfoLog(program);
+      this.gl.deleteProgram(program);
+      throw new Error("Shader program linking error: ".concat(info));
+    }
+    return program;
+  }
+  introspectShaderProgram(name) {
+    const program = this.shaderPrograms.get(name);
+    if (!program) {
+      throw new Error("Shader program '".concat(name, "' not found"));
+    }
+    const numUniforms = this.gl.getProgramParameter(program, this.gl.ACTIVE_UNIFORMS);
+    const uniformMap = this.uniforms.get(name);
+    for (let i = 0; i < numUniforms; i++) {
+      const info = this.gl.getActiveUniform(program, i);
+      if (!info)
+        continue;
+      const location = this.gl.getUniformLocation(program, info.name);
+      if (!location)
+        continue;
+      uniformMap.set(info.name, {
+        type: this.getUniformTypeName(info.type),
+        value: this.getDefaultValueForType(info.type),
+        location
+      });
+    }
+    const numAttributes = this.gl.getProgramParameter(program, this.gl.ACTIVE_ATTRIBUTES);
+    const attributeMap = this.attributes.get(name);
+    for (let i = 0; i < numAttributes; i++) {
+      const info = this.gl.getActiveAttrib(program, i);
+      if (!info)
+        continue;
+      const location = this.gl.getAttribLocation(program, info.name);
+      if (location === -1)
+        continue;
+      attributeMap.set(info.name, {
+        type: this.getAttributeTypeName(info.type),
+        size: this.getAttributeSize(info.type),
+        location
+      });
+    }
+  }
+  useProgram(name) {
+    const program = this.shaderPrograms.get(name);
+    if (!program) {
+      throw new Error("Shader program '".concat(name, "' not found"));
+    }
+    this.gl.useProgram(program);
+    this.currentProgram = name;
+  }
+  setUniform(name, value) {
+    if (!this.currentProgram) {
+      throw new Error("No shader program is currently in use");
+    }
+    const uniformMap = this.uniforms.get(this.currentProgram);
+    if (!uniformMap) {
+      throw new Error("Uniform map not found for program '".concat(this.currentProgram, "'"));
+    }
+    const uniform = uniformMap.get(name);
+    if (!uniform || !uniform.location) {
+      throw new Error("Uniform '".concat(name, "' not found in program '").concat(this.currentProgram, "'"));
+    }
+    this.setUniformValue(uniform.type, uniform.location, value);
+    uniform.value = value;
+  }
+  setUniformValue(type, location, value) {
+    switch (type) {
+      case "float":
+        this.gl.uniform1f(location, value);
+        break;
+      case "vec2":
+        this.gl.uniform2fv(location, value);
+        break;
+      case "vec3":
+        this.gl.uniform3fv(location, value);
+        break;
+      case "vec4":
+        this.gl.uniform4fv(location, value);
+        break;
+      case "mat4":
+        this.gl.uniformMatrix4fv(location, false, value);
+        break;
+      case "int":
+      case "bool":
+        this.gl.uniform1i(location, value);
+        break;
+      case "sampler2D":
+        this.gl.uniform1i(location, value);
+        break;
+      default:
+        throw new Error("Unsupported uniform type: ".concat(type));
+    }
+  }
+  getAttributeLocation(name) {
+    if (!this.currentProgram) {
+      throw new Error("No shader program is currently in use");
+    }
+    const attributeMap = this.attributes.get(this.currentProgram);
+    if (!attributeMap) {
+      throw new Error("Attribute map not found for program '".concat(this.currentProgram, "'"));
+    }
+    const attribute = attributeMap.get(name);
+    if (!attribute) {
+      throw new Error("Attribute '".concat(name, "' not found in program '").concat(this.currentProgram, "'"));
+    }
+    return attribute.location;
+  }
+  getUniformTypeName(type) {
+    switch (type) {
+      case this.gl.FLOAT:
+        return "float";
+      case this.gl.FLOAT_VEC2:
+        return "vec2";
+      case this.gl.FLOAT_VEC3:
+        return "vec3";
+      case this.gl.FLOAT_VEC4:
+        return "vec4";
+      case this.gl.FLOAT_MAT4:
+        return "mat4";
+      case this.gl.INT:
+        return "int";
+      case this.gl.BOOL:
+        return "bool";
+      case this.gl.SAMPLER_2D:
+        return "sampler2D";
+      default:
+        return "unknown";
+    }
+  }
+  getAttributeTypeName(type) {
+    switch (type) {
+      case this.gl.FLOAT:
+        return "float";
+      case this.gl.FLOAT_VEC2:
+        return "vec2";
+      case this.gl.FLOAT_VEC3:
+        return "vec3";
+      case this.gl.FLOAT_VEC4:
+        return "vec4";
+      default:
+        return "unknown";
+    }
+  }
+  getAttributeSize(type) {
+    switch (type) {
+      case this.gl.FLOAT:
+        return 1;
+      case this.gl.FLOAT_VEC2:
+        return 2;
+      case this.gl.FLOAT_VEC3:
+        return 3;
+      case this.gl.FLOAT_VEC4:
+        return 4;
+      default:
+        return 0;
+    }
+  }
+  getDefaultValueForType(type) {
+    switch (type) {
+      case this.gl.FLOAT:
+      case this.gl.INT:
+      case this.gl.BOOL:
+      case this.gl.SAMPLER_2D:
+        return 0;
+      case this.gl.FLOAT_VEC2:
+        return new Float32Array(2);
+      case this.gl.FLOAT_VEC3:
+        return new Float32Array(3);
+      case this.gl.FLOAT_VEC4:
+        return new Float32Array(4);
+      case this.gl.FLOAT_MAT4:
+        return new Float32Array(16);
+      default:
+        return 0;
+    }
+  }
+  dispose() {
+    for (const [name, program] of this.shaderPrograms) {
+      this.gl.deleteProgram(program);
+    }
+    this.shaderPrograms.clear();
+    this.uniforms.clear();
+    this.attributes.clear();
+    this.currentProgram = null;
+  }
+};
+
+// ts/classes/webgl2/shaders/fragmentShaderSource.ts
+var fragmentShaderSource = "#version 300 es\nprecision highp float;\n\n// Input from vertex shader\nin vec3 vNormal;\nin vec2 vTexCoord;\nin vec3 vFragPos;\nin vec3 vColor;\n\n// Uniforms\nuniform vec3 uLightPos;\nuniform vec3 uViewPos;\nuniform vec3 uLightColor;\nuniform sampler2D uTexture;\nuniform bool uUseTexture;\n\n// Output\nout vec4 fragColor;\n\nvoid main() {\n    // Normalize the normal vector\n    vec3 normal = normalize(vNormal);\n    \n    // Light properties\n    vec3 lightColor = uLightColor;\n    float ambientStrength = 0.1;\n    float specularStrength = 0.5;\n    float shininess = 32.0;\n\n    // Ambient\n    vec3 ambient = ambientStrength * lightColor;\n\n    // Diffuse\n    vec3 lightDir = normalize(uLightPos - vFragPos);\n    float diff = max(dot(normal, lightDir), 0.0);\n    vec3 diffuse = diff * lightColor;\n\n    // Specular\n    vec3 viewDir = normalize(uViewPos - vFragPos);\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);\n    vec3 specular = specularStrength * spec * lightColor;\n\n    // Combine results\n    vec3 baseColor = uUseTexture ? texture(uTexture, vTexCoord).rgb : vColor;\n    vec3 result = (ambient + diffuse + specular) * baseColor;\n\n    // Output final color\n    fragColor = vec4(result, 1.0);\n}";
+
+// ts/classes/webgl2/shaders/vertexShaderSource.ts
+var vertexShaderSource = "#version 300 es\n\n// Attributes\nin vec3 aPosition;\nin vec3 aNormal;\nin vec2 aTexCoord;\nin vec3 aColor;\n\n// Uniforms\nuniform mat4 uModelMatrix;\nuniform mat4 uViewMatrix;\nuniform mat4 uProjectionMatrix;\n\n// Varyings (output to fragment shader)\nout vec3 vNormal;\nout vec2 vTexCoord;\nout vec3 vFragPos;\nout vec3 vColor;\n\nvoid main() {\n    // Calculate world space position\n    vec4 worldPos = uModelMatrix * vec4(aPosition, 1.0);\n    vFragPos = worldPos.xyz;\n    \n    // Transform normal to world space\n    // Note: This assumes uniform scaling. For non-uniform scaling, use the normal matrix\n    vNormal = mat3(uModelMatrix) * aNormal;\n    \n    // Pass texture coordinates and color to fragment shader\n    vTexCoord = aTexCoord;\n    vColor = aColor;\n    \n    // Calculate final position\n    gl_Position = uProjectionMatrix * uViewMatrix * worldPos;\n}";
+
 // ts/classes/webgl2/initialise.ts
 var WebGL2Initializer = class {
   constructor(canvas) {
-    this.gl = null;
+    this.ctx = null;
     if (!canvas) {
       throw new Error("Canvas not found");
     }
     this.canvas = canvas;
-    this.initializeWebGL2();
+    this.ctx = this.initializeWebGL2();
+    this.shaderManager = new ShaderManager(this.ctx);
+    this.vao = new VertexArray(this.ctx);
+    this.vertexBuffer = new VertexBuffer(this.ctx);
+    this.indexBuffer = new IndexBuffer(this.ctx);
+    this.shaderManager.loadShaderProgram("basic", vertexShaderSource, fragmentShaderSource);
+    this.shaderManager.useProgram("basic");
+    this.shaderManager.setUniform("uLightPos", new Float32Array([5, 5, 5]));
+    this.shaderManager.setUniform("uLightColor", new Float32Array([1, 1, 1]));
+    this.shaderManager.setUniform("uUseTexture", 0);
+    this.shaderManager.setUniform("uViewPos", new Float32Array([3, 2, 3]));
   }
   initializeWebGL2() {
+    let ctx = null;
     try {
-      this.gl = this.canvas.getContext("webgl2");
-      if (!this.gl) {
+      ctx = this.canvas.getContext("webgl2");
+      if (!ctx) {
         throw new Error("WebGL2 not supported");
       }
-      this.gl.enable(this.gl.DEPTH_TEST);
-      this.gl.enable(this.gl.CULL_FACE);
-      this.gl.cullFace(this.gl.BACK);
-      this.gl.frontFace(this.gl.CCW);
-      this.gl.clearColor(0, 0, 0, 1);
+      ctx.enable(ctx.DEPTH_TEST);
+      ctx.enable(ctx.CULL_FACE);
+      ctx.cullFace(ctx.BACK);
+      ctx.frontFace(ctx.CCW);
     } catch (error) {
       console.error("Failed to initialize WebGL2:", error);
       throw error;
     }
+    return ctx;
   }
-  getContext() {
-    if (!this.gl) {
-      throw new Error("WebGL2 context not initialized");
+};
+
+// ts/classes/elements/renderer.ts
+var Renderer = class extends DomElement {
+  get ctx() {
+    return this.webgl.ctx;
+  }
+  get shaderManager() {
+    return this.webgl.shaderManager;
+  }
+  constructor() {
+    super("canvas");
+    this.dom.style.position = "absolute";
+    this.dom.style.pointerEvents = "all";
+    this.dom.style.bottom = "0px";
+    this.dom.style.touchAction = "none";
+    this.dom.tabIndex = 1;
+    this.webgl = new WebGL2Initializer(this.dom);
+    window.addEventListener("resize", () => {
+      this.resize();
+    });
+    glob.events.resize = new Events("resize");
+    this.resize();
+  }
+  resize() {
+    this.size = v2(document.body.clientWidth, document.body.clientHeight);
+    this.dom.style.width = "".concat(this.size.x, "px");
+    this.dom.setAttribute("width", String(this.size.x));
+    this.dom.style.height = "".concat(this.size.y, "px");
+    this.dom.setAttribute("height", String(this.size.y));
+    glob.events.resize.alert(this.size);
+    this.ctx.viewport(0, 0, this.size.x, this.size.y);
+  }
+  get width() {
+    return this.size.x;
+  }
+  set width(value) {
+    this.dom.style.width = "".concat(value, "px");
+    this.dom.setAttribute("width", String(value));
+    this.size.x = value;
+  }
+  get height() {
+    return this.size.y;
+  }
+  set height(value) {
+    this.dom.style.height = "".concat(value, "px");
+    this.dom.setAttribute("height", String(value));
+    this.size.y = value;
+  }
+  tick(obj) {
+    var _a, _b;
+    super.tick(obj);
+    this.tickerData = obj;
+    (_a = glob.game.active) == null ? void 0 : _a.tick(obj);
+    (_b = glob.game.active) == null ? void 0 : _b.afterTick(obj);
+  }
+};
+
+// ts/classes/input/gamepad.ts
+var Pad = class {
+  constructor(gamepad) {
+    this.gamepad = gamepad;
+  }
+  tick() {
+    this.recentPad = navigator.getGamepads().find((g) => g.id === this.gamepad.id);
+  }
+};
+
+// ts/classes/input/gamepadManager.ts
+var PadManager = class {
+  constructor() {
+    this.pads = {};
+    window.addEventListener("gamepadconnected", this.connect.bind(this));
+    window.addEventListener("gamepaddisconnected", this.disconnect.bind(this));
+  }
+  connect(e) {
+    this.pads[e.gamepad.id] = new Pad(e.gamepad);
+  }
+  disconnect(e) {
+    delete this.pads[e.gamepad.id];
+  }
+  tick() {
+    Object.values(this.pads).forEach((pad) => {
+      pad.tick();
+    });
+  }
+};
+
+// ts/classes/elements/domText.ts
+var DomText = class extends DomElement {
+  set color(v) {
+    this.dom.style.color = v;
+  }
+  set fontSize(v) {
+    this.dom.style.fontSize = String(v) + "px";
+  }
+  set fontWeight(v) {
+    this.dom.style.fontWeight = String(v);
+  }
+  set fontFamily(v) {
+    this.dom.style.fontFamily = v;
+  }
+  get text() {
+    return this.dom.innerHTML;
+  }
+  set text(v) {
+    this.dom.innerHTML = v ? v : "";
+  }
+  set padding(v) {
+    this.dom.style.padding = v.join("px ") + "px";
+  }
+  constructor(attr = {}) {
+    super("div", attr);
+    this.color = attr.color;
+    this.text = attr.text;
+    this.fontSize = attr.fontSize;
+    this.fontWeight = attr.fontWeight;
+    this.fontFamily = attr.fontFamily;
+    this.padding = attr.padding || [0, 0, 0, 0];
+    this.dom.style.pointerEvents = "none";
+    this.dom.style.userSelect = "none";
+    this.dom.style.zIndex = "1";
+    this.dom.style.whiteSpace = "pre-line";
+  }
+};
+
+// ts/classes/input/inputDevices.ts
+var Keyboard = class {
+  constructor() {
+    this.keyDown = {};
+    this.keyUp = {};
+  }
+  ready() {
+    glob.renderer.dom.addEventListener("keydown", (e) => {
+      var _a;
+      const k = e.key.toLowerCase();
+      (_a = this.keyDown[k]) == null ? void 0 : _a.forEach((c) => {
+        c(glob.frame);
+      });
+    });
+    glob.renderer.dom.addEventListener("keyup", (e) => {
+      var _a;
+      const k = e.key.toLowerCase();
+      (_a = this.keyUp[k]) == null ? void 0 : _a.forEach((c) => {
+        c();
+      });
+    });
+  }
+  register(key, down, up) {
+    const k = key.toLowerCase();
+    if (this.keyDown[k])
+      this.keyDown[k].push(down);
+    else
+      this.keyDown[k] = [down];
+    if (this.keyUp[k])
+      this.keyUp[k].push(up);
+    else
+      this.keyUp[k] = [up];
+  }
+};
+var InputDevices = class {
+  constructor() {
+    this.keyboard = new Keyboard();
+    this.overlay = new DomText({
+      text: "Pauzed"
+    });
+    this.overlay.dom.setAttribute(
+      "style",
+      "\n            transform-origin: left bottom;\n            pointer-events: none;\n            bottom: 0px;\n            left: 0px;\n            user-select: none;\n            z-index: 999;\n            position: absolute;\n            height: 100vh;\n            width: 100vw;\n            color: white !important;\n            font-family: monospace;\n            font-weight: bold;\n            font-size: 40px;\n            padding-left: 50px;\n            padding-top: 20px;\n            box-sizing: border-box;\n            display: none;\n            text-transform: uppercase;"
+    );
+  }
+  get locked() {
+    return this._locked;
+  }
+  set locked(value) {
+    this._locked = value;
+  }
+  ready() {
+    window.addEventListener("contextmenu", (e) => e.preventDefault());
+    this.mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (this.mobile) {
+      this.locked = true;
+    } else {
+      document.body.appendChild(this.overlay.dom);
     }
-    return this.gl;
+    this.keyboard.ready();
   }
-  getCanvas() {
-    return this.canvas;
+};
+
+// ts/classes/util/utils.ts
+var Util = class {
+  static clamp(value, min, max) {
+    return Math.max(Math.min(value, max), min);
   }
-  resizeCanvas(width, height) {
-    var _a;
-    (_a = this.gl) == null ? void 0 : _a.viewport(0, 0, width, height);
+  static to0(value, tolerance = 0.1) {
+    return Math.abs(value) < tolerance ? 0 : value;
   }
-  clear() {
-    var _a;
-    (_a = this.gl) == null ? void 0 : _a.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+  static chunk(array, size) {
+    const output = [];
+    for (let i = 0; i < array.length; i += size) {
+      output.push(array.slice(i, i + size));
+    }
+    return output;
+  }
+  static padArray(ar, b, len) {
+    return ar.concat(Array.from(Array(len).fill(b))).slice(0, len);
+  }
+  static addArrays(ar, br) {
+    return ar.map((a, i) => a + br[i]);
+  }
+  static subtractArrays(ar, br) {
+    return ar.map((a, i) => a - br[i]);
+  }
+  static multiplyArrays(ar, br) {
+    return ar.map((a, i) => a * br[i]);
+  }
+  static scaleArrays(ar, b) {
+    return ar.map((a, i) => a * b);
+  }
+  static radToDeg(r) {
+    return r * 180 / Math.PI;
+  }
+  static degToRad(d) {
+    return d * Math.PI / 180;
+  }
+  static closestVectorMagniture(vectors, target) {
+    let current;
+    vectors.forEach((v) => {
+      if (current === void 0 || Math.abs(v.magnitude()) < Math.abs(current.magnitude()))
+        current = v;
+      else {
+      }
+    });
+    return current;
+  }
+};
+
+// ts/classes/util/math/vector3.ts
+function v3(a, b, c) {
+  if (typeof a === "number") {
+    return Vector3.f(a, b, c);
+  } else if (typeof a === "undefined") {
+    return Vector3.f(0);
+  } else {
+    return Vector3.f(...a);
+  }
+}
+var Vector3 = class _Vector3 {
+  get pitch() {
+    return this.x;
+  }
+  set pitch(value) {
+    this.x = value;
+  }
+  get yaw() {
+    return this.y;
+  }
+  set yaw(value) {
+    this.y = value;
+  }
+  get roll() {
+    return this.z;
+  }
+  set roll(value) {
+    this.z = value;
+  }
+  get x() {
+    return this.vec[0];
+  }
+  set x(value) {
+    this.vec[0] = value;
+  }
+  get y() {
+    return this.vec[1];
+  }
+  set y(value) {
+    this.vec[1] = value;
+  }
+  get z() {
+    return this.vec[2];
+  }
+  set z(value) {
+    this.vec[2] = value;
+  }
+  get xy() {
+    return v2(this.x, this.y);
+  }
+  set xy(v) {
+    this.x = v.x;
+    this.y = v.y;
+  }
+  get xz() {
+    return v2(this.x, this.z);
+  }
+  set xz(v) {
+    this.x = v.x;
+    this.z = v.y;
+  }
+  get yx() {
+    return v2(this.y, this.x);
+  }
+  set yx(v) {
+    this.y = v.x;
+    this.x = v.y;
+  }
+  get yz() {
+    return v2(this.y, this.z);
+  }
+  set yz(v) {
+    this.y = v.x;
+    this.z = v.y;
+  }
+  get zx() {
+    return v2(this.z, this.x);
+  }
+  set zx(v) {
+    this.z = v.x;
+    this.x = v.y;
+  }
+  get zy() {
+    return v2(this.z, this.y);
+  }
+  set zy(v) {
+    this.z = v.x;
+    this.y = v.y;
+  }
+  get xzy() {
+    return v3(this.x, this.z, this.y);
+  }
+  set xzy(v) {
+    this.x = v.x;
+    this.z = v.y;
+    this.y = v.z;
+  }
+  get xyz() {
+    return v3(this.x, this.y, this.z);
+  }
+  set xyz(v) {
+    this.x = v.x;
+    this.y = v.y;
+    this.z = v.z;
+  }
+  get yxz() {
+    return v3(this.y, this.x, this.z);
+  }
+  set yxz(v) {
+    this.y = v.x;
+    this.x = v.y;
+    this.z = v.z;
+  }
+  get yzx() {
+    return v3(this.y, this.z, this.x);
+  }
+  set yzx(v) {
+    this.y = v.x;
+    this.z = v.y;
+    this.x = v.z;
+  }
+  get zxy() {
+    return v3(this.z, this.x, this.y);
+  }
+  set zxy(v) {
+    this.z = v.x;
+    this.x = v.y;
+    this.y = v.z;
+  }
+  get zyx() {
+    return v3(this.z, this.y, this.x);
+  }
+  set zyx(v) {
+    this.z = v.x;
+    this.y = v.y;
+    this.x = v.z;
+  }
+  get str() {
+    return this.vec.toString();
+  }
+  get log() {
+    console.log(this.str);
+    return this.str;
+  }
+  constructor(x = 0, y = 0, z = 0) {
+    this.vec = [x, y, z];
+  }
+  static from2(vector, z = 0) {
+    return new _Vector3(vector.x, vector.y, z);
+  }
+  static f(x = 0, y = x, z = x) {
+    return new _Vector3(x, y, z);
+  }
+  static get forwards() {
+    return new _Vector3(0, 0, 1);
+  }
+  static get backwards() {
+    return new _Vector3(0, 0, -1);
+  }
+  static get up() {
+    return new _Vector3(0, 1, 0);
+  }
+  static get down() {
+    return new _Vector3(0, -1, 0);
+  }
+  static get left() {
+    return new _Vector3(-1, 0, 0);
+  }
+  static get right() {
+    return new _Vector3(1, 0, 0);
+  }
+  static get PI() {
+    return new _Vector3(Math.PI, Math.PI, Math.PI);
+  }
+  static get TAU() {
+    return _Vector3.PI.scale(0.5);
+  }
+  get array() {
+    return [this.x, this.y, this.z];
+  }
+  set array(a) {
+    [this.x, this.y, this.z] = a;
+  }
+  forEach(callbackfn) {
+    this.array.forEach(callbackfn);
+  }
+  get c() {
+    return this.clone();
+  }
+  equals(vector) {
+    return this.x === vector.x && this.y === vector.y && this.z === vector.z;
+  }
+  clone() {
+    return new _Vector3(
+      this.x,
+      this.y,
+      this.z
+    );
+  }
+  add(...vectors) {
+    return new _Vector3(
+      this.x + vectors.reduce((a, b) => a + b.x, 0),
+      this.y + vectors.reduce((a, b) => a + b.y, 0),
+      this.z + vectors.reduce((a, b) => a + b.z, 0)
+    );
+  }
+  multiply(a, b, c) {
+    const [x, y, z] = typeof a === "number" ? [a, b, c] : a.array;
+    return new _Vector3(
+      this.x * x,
+      this.y * y,
+      this.z * z
+    );
+  }
+  subtract(...vectors) {
+    return new _Vector3(
+      this.x - vectors.reduce((a, b) => a + b.x, 0),
+      this.y - vectors.reduce((a, b) => a + b.y, 0),
+      this.z - vectors.reduce((a, b) => a + b.z, 0)
+    );
+  }
+  scale(...scalars) {
+    return new _Vector3(
+      this.x * scalars.reduce((a, b) => a * b, 1),
+      this.y * scalars.reduce((a, b) => a * b, 1),
+      this.z * scalars.reduce((a, b) => a * b, 1)
+    );
+  }
+  divide(...vectors) {
+    return new _Vector3(
+      this.x / vectors.reduce((a, b) => a * b.x, 1),
+      this.y / vectors.reduce((a, b) => a * b.y, 1),
+      this.z / vectors.reduce((a, b) => a * b.z, 1)
+    );
+  }
+  rotateXY(rad) {
+    const [a, b] = this.xy.rotate(rad).array;
+    return new _Vector3(
+      a,
+      this.y,
+      b
+    );
+  }
+  rotateXZ(rad) {
+    const [a, b] = this.xz.rotate(rad).array;
+    return new _Vector3(
+      a,
+      b,
+      this.z
+    );
+  }
+  rotateYZ(rad) {
+    const [a, b] = this.yz.rotate(rad).array;
+    return new _Vector3(
+      this.x,
+      a,
+      b
+    );
+  }
+  magnitude() {
+    return Math.sqrt(this.magnitudeSqr());
+  }
+  magnitudeSqr() {
+    return this.x * this.x + this.y * this.y + this.z * this.z;
+  }
+  mod(max) {
+    return new _Vector3(
+      this.x % max.x,
+      this.y % max.y,
+      this.z % max.z
+    );
+  }
+  clamp(min, max) {
+    return new _Vector3(
+      Util.clamp(this.x, min.x, max.x),
+      Util.clamp(this.y, min.y, max.y),
+      Util.clamp(this.z, min.z, max.z)
+    );
+  }
+  normalize() {
+    let len = this.x * this.x + this.y * this.y + this.z * this.z;
+    if (len > 0) {
+      len = 1 / Math.sqrt(len);
+    }
+    return v3(
+      this.x * len,
+      this.y * len,
+      this.z * len
+    );
+  }
+};
+
+// ts/classes/webgl2/meshes/sceneObject.ts
+var SceneObject = class {
+  constructor(data) {
+    this.vao = data.vao;
+    this.indexBuffer = data.indexBuffer;
+    this.shaderManager = data.shaderManager;
+    this.modelMatrix = data.modelMatrix;
+    this.drawMode = data.drawMode;
+    this.drawCount = data.drawCount;
+    this.drawType = data.drawType;
+  }
+  render(viewMatrix, projectionMatrix) {
+    this.shaderManager.setUniform("uModelMatrix", this.modelMatrix.mat4);
+    this.shaderManager.setUniform("uViewMatrix", viewMatrix.mat4);
+    this.shaderManager.setUniform("uProjectionMatrix", projectionMatrix.mat4);
+    this.vao.bind();
+    if (this.indexBuffer) {
+      glob.ctx.drawElements(
+        this.drawMode,
+        this.drawCount,
+        this.drawType || glob.ctx.UNSIGNED_SHORT,
+        0
+      );
+    } else {
+      glob.ctx.drawArrays(
+        this.drawMode,
+        0,
+        this.drawCount
+      );
+    }
+    this.vao.unbind();
   }
 };
 
 // node_modules/gl-matrix/esm/common.js
 var EPSILON = 1e-6;
 var ARRAY_TYPE = typeof Float32Array !== "undefined" ? Float32Array : Array;
-var RANDOM = Math.random;
 var degree = Math.PI / 180;
 if (!Math.hypot)
   Math.hypot = function() {
@@ -740,7 +1607,7 @@ function scale(out, a, v) {
 }
 function rotate(out, a, rad, axis) {
   var x = axis[0], y = axis[1], z = axis[2];
-  var len2 = Math.hypot(x, y, z);
+  var len = Math.hypot(x, y, z);
   var s, c, t;
   var a00, a01, a02, a03;
   var a10, a11, a12, a13;
@@ -748,13 +1615,13 @@ function rotate(out, a, rad, axis) {
   var b00, b01, b02;
   var b10, b11, b12;
   var b20, b21, b22;
-  if (len2 < EPSILON) {
+  if (len < EPSILON) {
     return null;
   }
-  len2 = 1 / len2;
-  x *= len2;
-  y *= len2;
-  z *= len2;
+  len = 1 / len;
+  x *= len;
+  y *= len;
+  z *= len;
   s = Math.sin(rad);
   c = Math.cos(rad);
   t = 1 - c;
@@ -932,15 +1799,15 @@ function fromScaling(out, v) {
 }
 function fromRotation(out, rad, axis) {
   var x = axis[0], y = axis[1], z = axis[2];
-  var len2 = Math.hypot(x, y, z);
+  var len = Math.hypot(x, y, z);
   var s, c, t;
-  if (len2 < EPSILON) {
+  if (len < EPSILON) {
     return null;
   }
-  len2 = 1 / len2;
-  x *= len2;
-  y *= len2;
-  z *= len2;
+  len = 1 / len;
+  x *= len;
+  y *= len;
+  z *= len;
   s = Math.sin(rad);
   c = Math.cos(rad);
   t = 1 - c;
@@ -1398,7 +2265,7 @@ function orthoZO(out, left, right, bottom, top, near, far) {
   return out;
 }
 function lookAt(out, eye, center, up) {
-  var x0, x1, x2, y0, y1, y2, z0, z1, z2, len2;
+  var x0, x1, x2, y0, y1, y2, z0, z1, z2, len;
   var eyex = eye[0];
   var eyey = eye[1];
   var eyez = eye[2];
@@ -1414,37 +2281,37 @@ function lookAt(out, eye, center, up) {
   z0 = eyex - centerx;
   z1 = eyey - centery;
   z2 = eyez - centerz;
-  len2 = 1 / Math.hypot(z0, z1, z2);
-  z0 *= len2;
-  z1 *= len2;
-  z2 *= len2;
+  len = 1 / Math.hypot(z0, z1, z2);
+  z0 *= len;
+  z1 *= len;
+  z2 *= len;
   x0 = upy * z2 - upz * z1;
   x1 = upz * z0 - upx * z2;
   x2 = upx * z1 - upy * z0;
-  len2 = Math.hypot(x0, x1, x2);
-  if (!len2) {
+  len = Math.hypot(x0, x1, x2);
+  if (!len) {
     x0 = 0;
     x1 = 0;
     x2 = 0;
   } else {
-    len2 = 1 / len2;
-    x0 *= len2;
-    x1 *= len2;
-    x2 *= len2;
+    len = 1 / len;
+    x0 *= len;
+    x1 *= len;
+    x2 *= len;
   }
   y0 = z1 * x2 - z2 * x1;
   y1 = z2 * x0 - z0 * x2;
   y2 = z0 * x1 - z1 * x0;
-  len2 = Math.hypot(y0, y1, y2);
-  if (!len2) {
+  len = Math.hypot(y0, y1, y2);
+  if (!len) {
     y0 = 0;
     y1 = 0;
     y2 = 0;
   } else {
-    len2 = 1 / len2;
-    y0 *= len2;
-    y1 *= len2;
-    y2 *= len2;
+    len = 1 / len;
+    y0 *= len;
+    y1 *= len;
+    y2 *= len;
   }
   out[0] = x0;
   out[1] = y0;
@@ -1467,20 +2334,20 @@ function lookAt(out, eye, center, up) {
 function targetTo(out, eye, target, up) {
   var eyex = eye[0], eyey = eye[1], eyez = eye[2], upx = up[0], upy = up[1], upz = up[2];
   var z0 = eyex - target[0], z1 = eyey - target[1], z2 = eyez - target[2];
-  var len2 = z0 * z0 + z1 * z1 + z2 * z2;
-  if (len2 > 0) {
-    len2 = 1 / Math.sqrt(len2);
-    z0 *= len2;
-    z1 *= len2;
-    z2 *= len2;
+  var len = z0 * z0 + z1 * z1 + z2 * z2;
+  if (len > 0) {
+    len = 1 / Math.sqrt(len);
+    z0 *= len;
+    z1 *= len;
+    z2 *= len;
   }
   var x0 = upy * z2 - upz * z1, x1 = upz * z0 - upx * z2, x2 = upx * z1 - upy * z0;
-  len2 = x0 * x0 + x1 * x1 + x2 * x2;
-  if (len2 > 0) {
-    len2 = 1 / Math.sqrt(len2);
-    x0 *= len2;
-    x1 *= len2;
-    x2 *= len2;
+  len = x0 * x0 + x1 * x1 + x2 * x2;
+  if (len > 0) {
+    len = 1 / Math.sqrt(len);
+    x0 *= len;
+    x1 *= len;
+    x2 *= len;
   }
   out[0] = x0;
   out[1] = x1;
@@ -1563,23 +2430,23 @@ function multiplyScalar(out, a, b) {
   out[15] = a[15] * b;
   return out;
 }
-function multiplyScalarAndAdd(out, a, b, scale3) {
-  out[0] = a[0] + b[0] * scale3;
-  out[1] = a[1] + b[1] * scale3;
-  out[2] = a[2] + b[2] * scale3;
-  out[3] = a[3] + b[3] * scale3;
-  out[4] = a[4] + b[4] * scale3;
-  out[5] = a[5] + b[5] * scale3;
-  out[6] = a[6] + b[6] * scale3;
-  out[7] = a[7] + b[7] * scale3;
-  out[8] = a[8] + b[8] * scale3;
-  out[9] = a[9] + b[9] * scale3;
-  out[10] = a[10] + b[10] * scale3;
-  out[11] = a[11] + b[11] * scale3;
-  out[12] = a[12] + b[12] * scale3;
-  out[13] = a[13] + b[13] * scale3;
-  out[14] = a[14] + b[14] * scale3;
-  out[15] = a[15] + b[15] * scale3;
+function multiplyScalarAndAdd(out, a, b, scale2) {
+  out[0] = a[0] + b[0] * scale2;
+  out[1] = a[1] + b[1] * scale2;
+  out[2] = a[2] + b[2] * scale2;
+  out[3] = a[3] + b[3] * scale2;
+  out[4] = a[4] + b[4] * scale2;
+  out[5] = a[5] + b[5] * scale2;
+  out[6] = a[6] + b[6] * scale2;
+  out[7] = a[7] + b[7] * scale2;
+  out[8] = a[8] + b[8] * scale2;
+  out[9] = a[9] + b[9] * scale2;
+  out[10] = a[10] + b[10] * scale2;
+  out[11] = a[11] + b[11] * scale2;
+  out[12] = a[12] + b[12] * scale2;
+  out[13] = a[13] + b[13] * scale2;
+  out[14] = a[14] + b[14] * scale2;
+  out[15] = a[15] + b[15] * scale2;
   return out;
 }
 function exactEquals(a, b) {
@@ -1599,825 +2466,128 @@ function equals(a, b) {
 var mul = multiply;
 var sub = subtract;
 
-// node_modules/gl-matrix/esm/vec3.js
-var vec3_exports = {};
-__export(vec3_exports, {
-  add: () => add2,
-  angle: () => angle,
-  bezier: () => bezier,
-  ceil: () => ceil,
-  clone: () => clone2,
-  copy: () => copy2,
-  create: () => create2,
-  cross: () => cross,
-  dist: () => dist,
-  distance: () => distance,
-  div: () => div,
-  divide: () => divide,
-  dot: () => dot,
-  equals: () => equals2,
-  exactEquals: () => exactEquals2,
-  floor: () => floor,
-  forEach: () => forEach,
-  fromValues: () => fromValues2,
-  hermite: () => hermite,
-  inverse: () => inverse,
-  len: () => len,
-  length: () => length,
-  lerp: () => lerp,
-  max: () => max,
-  min: () => min,
-  mul: () => mul2,
-  multiply: () => multiply2,
-  negate: () => negate,
-  normalize: () => normalize,
-  random: () => random,
-  rotateX: () => rotateX2,
-  rotateY: () => rotateY2,
-  rotateZ: () => rotateZ2,
-  round: () => round,
-  scale: () => scale2,
-  scaleAndAdd: () => scaleAndAdd,
-  set: () => set2,
-  sqrDist: () => sqrDist,
-  sqrLen: () => sqrLen,
-  squaredDistance: () => squaredDistance,
-  squaredLength: () => squaredLength,
-  str: () => str2,
-  sub: () => sub2,
-  subtract: () => subtract2,
-  transformMat3: () => transformMat3,
-  transformMat4: () => transformMat4,
-  transformQuat: () => transformQuat,
-  zero: () => zero
-});
-function create2() {
-  var out = new ARRAY_TYPE(3);
-  if (ARRAY_TYPE != Float32Array) {
-    out[0] = 0;
-    out[1] = 0;
-    out[2] = 0;
+// ts/classes/util/math/matrix4.ts
+function m4() {
+  return Matrix4.f();
+}
+var Matrix4 = class _Matrix4 {
+  constructor(source) {
+    this.mat4 = source ? mat4_exports.clone(source) : mat4_exports.create();
+    return this;
   }
-  return out;
-}
-function clone2(a) {
-  var out = new ARRAY_TYPE(3);
-  out[0] = a[0];
-  out[1] = a[1];
-  out[2] = a[2];
-  return out;
-}
-function length(a) {
-  var x = a[0];
-  var y = a[1];
-  var z = a[2];
-  return Math.hypot(x, y, z);
-}
-function fromValues2(x, y, z) {
-  var out = new ARRAY_TYPE(3);
-  out[0] = x;
-  out[1] = y;
-  out[2] = z;
-  return out;
-}
-function copy2(out, a) {
-  out[0] = a[0];
-  out[1] = a[1];
-  out[2] = a[2];
-  return out;
-}
-function set2(out, x, y, z) {
-  out[0] = x;
-  out[1] = y;
-  out[2] = z;
-  return out;
-}
-function add2(out, a, b) {
-  out[0] = a[0] + b[0];
-  out[1] = a[1] + b[1];
-  out[2] = a[2] + b[2];
-  return out;
-}
-function subtract2(out, a, b) {
-  out[0] = a[0] - b[0];
-  out[1] = a[1] - b[1];
-  out[2] = a[2] - b[2];
-  return out;
-}
-function multiply2(out, a, b) {
-  out[0] = a[0] * b[0];
-  out[1] = a[1] * b[1];
-  out[2] = a[2] * b[2];
-  return out;
-}
-function divide(out, a, b) {
-  out[0] = a[0] / b[0];
-  out[1] = a[1] / b[1];
-  out[2] = a[2] / b[2];
-  return out;
-}
-function ceil(out, a) {
-  out[0] = Math.ceil(a[0]);
-  out[1] = Math.ceil(a[1]);
-  out[2] = Math.ceil(a[2]);
-  return out;
-}
-function floor(out, a) {
-  out[0] = Math.floor(a[0]);
-  out[1] = Math.floor(a[1]);
-  out[2] = Math.floor(a[2]);
-  return out;
-}
-function min(out, a, b) {
-  out[0] = Math.min(a[0], b[0]);
-  out[1] = Math.min(a[1], b[1]);
-  out[2] = Math.min(a[2], b[2]);
-  return out;
-}
-function max(out, a, b) {
-  out[0] = Math.max(a[0], b[0]);
-  out[1] = Math.max(a[1], b[1]);
-  out[2] = Math.max(a[2], b[2]);
-  return out;
-}
-function round(out, a) {
-  out[0] = Math.round(a[0]);
-  out[1] = Math.round(a[1]);
-  out[2] = Math.round(a[2]);
-  return out;
-}
-function scale2(out, a, b) {
-  out[0] = a[0] * b;
-  out[1] = a[1] * b;
-  out[2] = a[2] * b;
-  return out;
-}
-function scaleAndAdd(out, a, b, scale3) {
-  out[0] = a[0] + b[0] * scale3;
-  out[1] = a[1] + b[1] * scale3;
-  out[2] = a[2] + b[2] * scale3;
-  return out;
-}
-function distance(a, b) {
-  var x = b[0] - a[0];
-  var y = b[1] - a[1];
-  var z = b[2] - a[2];
-  return Math.hypot(x, y, z);
-}
-function squaredDistance(a, b) {
-  var x = b[0] - a[0];
-  var y = b[1] - a[1];
-  var z = b[2] - a[2];
-  return x * x + y * y + z * z;
-}
-function squaredLength(a) {
-  var x = a[0];
-  var y = a[1];
-  var z = a[2];
-  return x * x + y * y + z * z;
-}
-function negate(out, a) {
-  out[0] = -a[0];
-  out[1] = -a[1];
-  out[2] = -a[2];
-  return out;
-}
-function inverse(out, a) {
-  out[0] = 1 / a[0];
-  out[1] = 1 / a[1];
-  out[2] = 1 / a[2];
-  return out;
-}
-function normalize(out, a) {
-  var x = a[0];
-  var y = a[1];
-  var z = a[2];
-  var len2 = x * x + y * y + z * z;
-  if (len2 > 0) {
-    len2 = 1 / Math.sqrt(len2);
+  static f() {
+    return new _Matrix4();
   }
-  out[0] = a[0] * len2;
-  out[1] = a[1] * len2;
-  out[2] = a[2] * len2;
-  return out;
-}
-function dot(a, b) {
-  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-}
-function cross(out, a, b) {
-  var ax = a[0], ay = a[1], az = a[2];
-  var bx = b[0], by = b[1], bz = b[2];
-  out[0] = ay * bz - az * by;
-  out[1] = az * bx - ax * bz;
-  out[2] = ax * by - ay * bx;
-  return out;
-}
-function lerp(out, a, b, t) {
-  var ax = a[0];
-  var ay = a[1];
-  var az = a[2];
-  out[0] = ax + t * (b[0] - ax);
-  out[1] = ay + t * (b[1] - ay);
-  out[2] = az + t * (b[2] - az);
-  return out;
-}
-function hermite(out, a, b, c, d, t) {
-  var factorTimes2 = t * t;
-  var factor1 = factorTimes2 * (2 * t - 3) + 1;
-  var factor2 = factorTimes2 * (t - 2) + t;
-  var factor3 = factorTimes2 * (t - 1);
-  var factor4 = factorTimes2 * (3 - 2 * t);
-  out[0] = a[0] * factor1 + b[0] * factor2 + c[0] * factor3 + d[0] * factor4;
-  out[1] = a[1] * factor1 + b[1] * factor2 + c[1] * factor3 + d[1] * factor4;
-  out[2] = a[2] * factor1 + b[2] * factor2 + c[2] * factor3 + d[2] * factor4;
-  return out;
-}
-function bezier(out, a, b, c, d, t) {
-  var inverseFactor = 1 - t;
-  var inverseFactorTimesTwo = inverseFactor * inverseFactor;
-  var factorTimes2 = t * t;
-  var factor1 = inverseFactorTimesTwo * inverseFactor;
-  var factor2 = 3 * t * inverseFactorTimesTwo;
-  var factor3 = 3 * factorTimes2 * inverseFactor;
-  var factor4 = factorTimes2 * t;
-  out[0] = a[0] * factor1 + b[0] * factor2 + c[0] * factor3 + d[0] * factor4;
-  out[1] = a[1] * factor1 + b[1] * factor2 + c[1] * factor3 + d[1] * factor4;
-  out[2] = a[2] * factor1 + b[2] * factor2 + c[2] * factor3 + d[2] * factor4;
-  return out;
-}
-function random(out, scale3) {
-  scale3 = scale3 || 1;
-  var r = RANDOM() * 2 * Math.PI;
-  var z = RANDOM() * 2 - 1;
-  var zScale = Math.sqrt(1 - z * z) * scale3;
-  out[0] = Math.cos(r) * zScale;
-  out[1] = Math.sin(r) * zScale;
-  out[2] = z * scale3;
-  return out;
-}
-function transformMat4(out, a, m) {
-  var x = a[0], y = a[1], z = a[2];
-  var w = m[3] * x + m[7] * y + m[11] * z + m[15];
-  w = w || 1;
-  out[0] = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w;
-  out[1] = (m[1] * x + m[5] * y + m[9] * z + m[13]) / w;
-  out[2] = (m[2] * x + m[6] * y + m[10] * z + m[14]) / w;
-  return out;
-}
-function transformMat3(out, a, m) {
-  var x = a[0], y = a[1], z = a[2];
-  out[0] = x * m[0] + y * m[3] + z * m[6];
-  out[1] = x * m[1] + y * m[4] + z * m[7];
-  out[2] = x * m[2] + y * m[5] + z * m[8];
-  return out;
-}
-function transformQuat(out, a, q) {
-  var qx = q[0], qy = q[1], qz = q[2], qw = q[3];
-  var x = a[0], y = a[1], z = a[2];
-  var uvx = qy * z - qz * y, uvy = qz * x - qx * z, uvz = qx * y - qy * x;
-  var uuvx = qy * uvz - qz * uvy, uuvy = qz * uvx - qx * uvz, uuvz = qx * uvy - qy * uvx;
-  var w2 = qw * 2;
-  uvx *= w2;
-  uvy *= w2;
-  uvz *= w2;
-  uuvx *= 2;
-  uuvy *= 2;
-  uuvz *= 2;
-  out[0] = x + uvx + uuvx;
-  out[1] = y + uvy + uuvy;
-  out[2] = z + uvz + uuvz;
-  return out;
-}
-function rotateX2(out, a, b, rad) {
-  var p = [], r = [];
-  p[0] = a[0] - b[0];
-  p[1] = a[1] - b[1];
-  p[2] = a[2] - b[2];
-  r[0] = p[0];
-  r[1] = p[1] * Math.cos(rad) - p[2] * Math.sin(rad);
-  r[2] = p[1] * Math.sin(rad) + p[2] * Math.cos(rad);
-  out[0] = r[0] + b[0];
-  out[1] = r[1] + b[1];
-  out[2] = r[2] + b[2];
-  return out;
-}
-function rotateY2(out, a, b, rad) {
-  var p = [], r = [];
-  p[0] = a[0] - b[0];
-  p[1] = a[1] - b[1];
-  p[2] = a[2] - b[2];
-  r[0] = p[2] * Math.sin(rad) + p[0] * Math.cos(rad);
-  r[1] = p[1];
-  r[2] = p[2] * Math.cos(rad) - p[0] * Math.sin(rad);
-  out[0] = r[0] + b[0];
-  out[1] = r[1] + b[1];
-  out[2] = r[2] + b[2];
-  return out;
-}
-function rotateZ2(out, a, b, rad) {
-  var p = [], r = [];
-  p[0] = a[0] - b[0];
-  p[1] = a[1] - b[1];
-  p[2] = a[2] - b[2];
-  r[0] = p[0] * Math.cos(rad) - p[1] * Math.sin(rad);
-  r[1] = p[0] * Math.sin(rad) + p[1] * Math.cos(rad);
-  r[2] = p[2];
-  out[0] = r[0] + b[0];
-  out[1] = r[1] + b[1];
-  out[2] = r[2] + b[2];
-  return out;
-}
-function angle(a, b) {
-  var ax = a[0], ay = a[1], az = a[2], bx = b[0], by = b[1], bz = b[2], mag1 = Math.sqrt(ax * ax + ay * ay + az * az), mag2 = Math.sqrt(bx * bx + by * by + bz * bz), mag = mag1 * mag2, cosine = mag && dot(a, b) / mag;
-  return Math.acos(Math.min(Math.max(cosine, -1), 1));
-}
-function zero(out) {
-  out[0] = 0;
-  out[1] = 0;
-  out[2] = 0;
-  return out;
-}
-function str2(a) {
-  return "vec3(" + a[0] + ", " + a[1] + ", " + a[2] + ")";
-}
-function exactEquals2(a, b) {
-  return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
-}
-function equals2(a, b) {
-  var a0 = a[0], a1 = a[1], a2 = a[2];
-  var b0 = b[0], b1 = b[1], b2 = b[2];
-  return Math.abs(a0 - b0) <= EPSILON * Math.max(1, Math.abs(a0), Math.abs(b0)) && Math.abs(a1 - b1) <= EPSILON * Math.max(1, Math.abs(a1), Math.abs(b1)) && Math.abs(a2 - b2) <= EPSILON * Math.max(1, Math.abs(a2), Math.abs(b2));
-}
-var sub2 = subtract2;
-var mul2 = multiply2;
-var div = divide;
-var dist = distance;
-var sqrDist = squaredDistance;
-var len = length;
-var sqrLen = squaredLength;
-var forEach = function() {
-  var vec = create2();
-  return function(a, stride, offset, count, fn, arg) {
-    var i, l;
-    if (!stride) {
-      stride = 3;
-    }
-    if (!offset) {
-      offset = 0;
-    }
-    if (count) {
-      l = Math.min(count * stride + offset, a.length);
-    } else {
-      l = a.length;
-    }
-    for (i = offset; i < l; i += stride) {
-      vec[0] = a[i];
-      vec[1] = a[i + 1];
-      vec[2] = a[i + 2];
-      fn(vec, vec, arg);
-      a[i] = vec[0];
-      a[i + 1] = vec[1];
-      a[i + 2] = vec[2];
-    }
-    return a;
-  };
-}();
-
-// ts/classes/webgl2/camera.ts
-var Camera = class {
-  constructor(position = vec3_exports.fromValues(0, 0, 5), target = vec3_exports.fromValues(0, 0, 0), up = vec3_exports.fromValues(0, 1, 0), fov = 45, aspect = 1, near = 0.1, far = 1e3) {
-    this.position = position;
-    this.target = target;
-    this.up = up;
-    this.fov = fov;
-    this.aspect = aspect;
-    this.near = near;
-    this.far = far;
-    this.viewMatrix = mat4_exports.create();
-    this.projectionMatrix = mat4_exports.create();
-    this.updateViewMatrix();
-    this.updateProjectionMatrix();
-  }
-  updateViewMatrix() {
-    mat4_exports.lookAt(this.viewMatrix, this.position, this.target, this.up);
-  }
-  updateProjectionMatrix() {
-    mat4_exports.perspective(
-      this.projectionMatrix,
-      this.fov * Math.PI / 180,
-      this.aspect,
-      this.near,
-      this.far
+  add(mat) {
+    mat4_exports.add(
+      this.mat4,
+      this.mat4,
+      mat.mat4
     );
+    return this;
   }
-  setPosition(position) {
-    this.position = position;
-    this.updateViewMatrix();
+  subtract(mat) {
+    mat4_exports.subtract(
+      this.mat4,
+      this.mat4,
+      mat.mat4
+    );
+    return this;
   }
-  setTarget(target) {
-    this.target = target;
-    this.updateViewMatrix();
+  multiply(mat) {
+    mat4_exports.multiply(
+      this.mat4,
+      this.mat4,
+      mat.mat4
+    );
+    return this;
   }
-  setUp(up) {
-    this.up = up;
-    this.updateViewMatrix();
+  scale(vector) {
+    mat4_exports.scale(
+      this.mat4,
+      this.mat4,
+      vector.vec
+    );
+    return this;
   }
-  setAspect(aspect) {
-    this.aspect = aspect;
-    this.updateProjectionMatrix();
+  translate(vector) {
+    mat4_exports.translate(
+      this.mat4,
+      this.mat4,
+      vector.vec
+    );
+    return this;
   }
-  setFov(fov) {
-    this.fov = fov;
-    this.updateProjectionMatrix();
+  invert() {
+    mat4_exports.invert(
+      this.mat4,
+      this.mat4
+    );
+    return this;
   }
-  getViewMatrix() {
-    return this.viewMatrix;
+  transpose(mat) {
+    mat4_exports.transpose(
+      this.mat4,
+      mat ? mat.mat4 : this.mat4
+    );
+    return this;
   }
-  getProjectionMatrix() {
-    return this.projectionMatrix;
+  rotateAxis(angle, axis) {
+    mat4_exports.rotate(
+      this.mat4,
+      this.mat4,
+      angle,
+      [[1, 0, 0], [0, 1, 0], [0, 0, 1]][axis]
+    );
+    return this;
   }
-  getPosition() {
-    return this.position;
+  rotate(rotation) {
+    rotation.forEach((r, i) => {
+      this.rotateAxis(r, i);
+    });
+    return this;
   }
-  getTarget() {
-    return this.target;
+  perspective(fov, near = 1, far = Infinity) {
+    mat4_exports.perspective(
+      this.mat4,
+      fov,
+      glob.renderer ? glob.renderer.width / glob.renderer.height : document.body.clientWidth / document.body.clientHeight,
+      near,
+      far
+    );
+    return this;
   }
-  getUp() {
-    return this.up;
+  ortho(left, right, bottom, top, near = 1, far = Infinity) {
+    mat4_exports.ortho(
+      this.mat4,
+      left,
+      right,
+      bottom,
+      top,
+      near,
+      far
+    );
+    return this;
   }
-};
-
-// ts/classes/webgl2/scene.ts
-var Scene = class {
-  constructor(gl, camera) {
-    this.objects = [];
-    this.clearColor = [0, 0, 0, 1];
-    this.gl = gl;
-    this.camera = camera || new Camera();
+  clone() {
+    return new _Matrix4(this.mat4);
   }
-  add(object) {
-    this.objects.push(object);
+  static lookAt(camera, target) {
+    let matrix = m4();
+    mat4_exports.lookAt(
+      matrix.mat4,
+      camera.vec,
+      target.vec,
+      v3(0, 1, 0).vec
+    );
+    return matrix;
   }
-  remove(object) {
-    const index = this.objects.indexOf(object);
-    if (index !== -1) {
-      this.objects.splice(index, 1);
-    }
-  }
-  setCamera(camera) {
-    this.camera = camera;
-  }
-  getCamera() {
-    return this.camera;
-  }
-  setClearColor(r, g, b, a = 1) {
-    this.clearColor = [r, g, b, a];
-    this.gl.clearColor(r, g, b, a);
-  }
-  render() {
-    this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
-    const viewMatrix = this.camera.getViewMatrix();
-    const projectionMatrix = this.camera.getProjectionMatrix();
-    for (const object of this.objects) {
-      object.shaderManager.setUniform("uModelMatrix", object.modelMatrix);
-      object.shaderManager.setUniform("uViewMatrix", viewMatrix);
-      object.shaderManager.setUniform("uProjectionMatrix", projectionMatrix);
-      object.vao.bind();
-      if (object.indexBuffer) {
-        this.gl.drawElements(
-          object.drawMode,
-          object.drawCount,
-          object.drawType || this.gl.UNSIGNED_SHORT,
-          0
-        );
-      } else {
-        this.gl.drawArrays(
-          object.drawMode,
-          0,
-          object.drawCount
-        );
-      }
-      object.vao.unbind();
-    }
-  }
-  dispose() {
-    var _a;
-    for (const object of this.objects) {
-      object.vao.dispose();
-      (_a = object.indexBuffer) == null ? void 0 : _a.dispose();
-    }
-    this.objects = [];
-  }
-};
-
-// ts/classes/webgl2/buffer.ts
-var Buffer2 = class {
-  constructor(gl, type = gl.ARRAY_BUFFER, usage = gl.STATIC_DRAW) {
-    this.gl = gl;
-    this.type = type;
-    this.usage = usage;
-    const buffer = gl.createBuffer();
-    if (!buffer) {
-      throw new Error("Failed to create buffer");
-    }
-    this.buffer = buffer;
-  }
-  bind() {
-    this.gl.bindBuffer(this.type, this.buffer);
-  }
-  unbind() {
-    this.gl.bindBuffer(this.type, null);
-  }
-  setData(data) {
-    this.bind();
-    this.gl.bufferData(this.type, data, this.usage);
-  }
-  updateData(data, offset = 0) {
-    this.bind();
-    this.gl.bufferSubData(this.type, offset, data);
-  }
-  dispose() {
-    this.gl.deleteBuffer(this.buffer);
-  }
-};
-var VertexArray = class {
-  constructor(gl) {
-    this.gl = gl;
-    const vao = gl.createVertexArray();
-    if (!vao) {
-      throw new Error("Failed to create vertex array object");
-    }
-    this.vao = vao;
-  }
-  bind() {
-    this.gl.bindVertexArray(this.vao);
-  }
-  unbind() {
-    this.gl.bindVertexArray(null);
-  }
-  setAttributePointer(location, size, type, normalized = false, stride = 0, offset = 0) {
-    this.gl.vertexAttribPointer(location, size, type, normalized, stride, offset);
-    this.gl.enableVertexAttribArray(location);
-  }
-  dispose() {
-    this.gl.deleteVertexArray(this.vao);
-  }
-};
-var VertexBuffer = class extends Buffer2 {
-  constructor(gl, usage = gl.STATIC_DRAW) {
-    super(gl, gl.ARRAY_BUFFER, usage);
-  }
-};
-var IndexBuffer = class extends Buffer2 {
-  constructor(gl, usage = gl.STATIC_DRAW) {
-    super(gl, gl.ELEMENT_ARRAY_BUFFER, usage);
-    this.count = 0;
-  }
-  setData(data) {
-    super.setData(data);
-    this.count = data.byteLength / 2;
-  }
-  getCount() {
-    return this.count;
+  get position() {
+    return v3(this.mat4[12], this.mat4[13], this.mat4[14]);
   }
 };
 
-// ts/classes/webgl2/shaderManager.ts
-var ShaderManager = class {
-  constructor(gl) {
-    this.currentProgram = null;
-    this.gl = gl;
-    this.shaderPrograms = /* @__PURE__ */ new Map();
-    this.uniforms = /* @__PURE__ */ new Map();
-    this.attributes = /* @__PURE__ */ new Map();
-  }
-  loadShaderProgram(name, vertexSource, fragmentSource) {
-    try {
-      const vertexShader = this.compileShader(vertexSource, this.gl.VERTEX_SHADER);
-      const fragmentShader = this.compileShader(fragmentSource, this.gl.FRAGMENT_SHADER);
-      const program = this.createProgram(vertexShader, fragmentShader);
-      this.shaderPrograms.set(name, program);
-      this.uniforms.set(name, /* @__PURE__ */ new Map());
-      this.attributes.set(name, /* @__PURE__ */ new Map());
-      this.gl.deleteShader(vertexShader);
-      this.gl.deleteShader(fragmentShader);
-      this.introspectShaderProgram(name);
-    } catch (error) {
-      console.error("Failed to load shader program '".concat(name, "':"), error);
-      throw error;
-    }
-  }
-  compileShader(source, type) {
-    const shader = this.gl.createShader(type);
-    if (!shader) {
-      throw new Error("Failed to create shader");
-    }
-    this.gl.shaderSource(shader, source);
-    this.gl.compileShader(shader);
-    if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
-      const info = this.gl.getShaderInfoLog(shader);
-      this.gl.deleteShader(shader);
-      throw new Error("Shader compilation error: ".concat(info));
-    }
-    return shader;
-  }
-  createProgram(vertexShader, fragmentShader) {
-    const program = this.gl.createProgram();
-    if (!program) {
-      throw new Error("Failed to create shader program");
-    }
-    this.gl.attachShader(program, vertexShader);
-    this.gl.attachShader(program, fragmentShader);
-    this.gl.linkProgram(program);
-    if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
-      const info = this.gl.getProgramInfoLog(program);
-      this.gl.deleteProgram(program);
-      throw new Error("Shader program linking error: ".concat(info));
-    }
-    return program;
-  }
-  introspectShaderProgram(name) {
-    const program = this.shaderPrograms.get(name);
-    if (!program) {
-      throw new Error("Shader program '".concat(name, "' not found"));
-    }
-    const numUniforms = this.gl.getProgramParameter(program, this.gl.ACTIVE_UNIFORMS);
-    const uniformMap = this.uniforms.get(name);
-    for (let i = 0; i < numUniforms; i++) {
-      const info = this.gl.getActiveUniform(program, i);
-      if (!info)
-        continue;
-      const location = this.gl.getUniformLocation(program, info.name);
-      if (!location)
-        continue;
-      uniformMap.set(info.name, {
-        type: this.getUniformTypeName(info.type),
-        value: this.getDefaultValueForType(info.type),
-        location
-      });
-    }
-    const numAttributes = this.gl.getProgramParameter(program, this.gl.ACTIVE_ATTRIBUTES);
-    const attributeMap = this.attributes.get(name);
-    for (let i = 0; i < numAttributes; i++) {
-      const info = this.gl.getActiveAttrib(program, i);
-      if (!info)
-        continue;
-      const location = this.gl.getAttribLocation(program, info.name);
-      if (location === -1)
-        continue;
-      attributeMap.set(info.name, {
-        type: this.getAttributeTypeName(info.type),
-        size: this.getAttributeSize(info.type),
-        location
-      });
-    }
-  }
-  useProgram(name) {
-    const program = this.shaderPrograms.get(name);
-    if (!program) {
-      throw new Error("Shader program '".concat(name, "' not found"));
-    }
-    this.gl.useProgram(program);
-    this.currentProgram = name;
-  }
-  setUniform(name, value) {
-    if (!this.currentProgram) {
-      throw new Error("No shader program is currently in use");
-    }
-    const uniformMap = this.uniforms.get(this.currentProgram);
-    if (!uniformMap) {
-      throw new Error("Uniform map not found for program '".concat(this.currentProgram, "'"));
-    }
-    const uniform = uniformMap.get(name);
-    if (!uniform || !uniform.location) {
-      throw new Error("Uniform '".concat(name, "' not found in program '").concat(this.currentProgram, "'"));
-    }
-    this.setUniformValue(uniform.type, uniform.location, value);
-    uniform.value = value;
-  }
-  setUniformValue(type, location, value) {
-    switch (type) {
-      case "float":
-        this.gl.uniform1f(location, value);
-        break;
-      case "vec2":
-        this.gl.uniform2fv(location, value);
-        break;
-      case "vec3":
-        this.gl.uniform3fv(location, value);
-        break;
-      case "vec4":
-        this.gl.uniform4fv(location, value);
-        break;
-      case "mat4":
-        this.gl.uniformMatrix4fv(location, false, value);
-        break;
-      case "int":
-      case "bool":
-        this.gl.uniform1i(location, value);
-        break;
-      case "sampler2D":
-        this.gl.uniform1i(location, value);
-        break;
-      default:
-        throw new Error("Unsupported uniform type: ".concat(type));
-    }
-  }
-  getAttributeLocation(name) {
-    if (!this.currentProgram) {
-      throw new Error("No shader program is currently in use");
-    }
-    const attributeMap = this.attributes.get(this.currentProgram);
-    if (!attributeMap) {
-      throw new Error("Attribute map not found for program '".concat(this.currentProgram, "'"));
-    }
-    const attribute = attributeMap.get(name);
-    if (!attribute) {
-      throw new Error("Attribute '".concat(name, "' not found in program '").concat(this.currentProgram, "'"));
-    }
-    return attribute.location;
-  }
-  getUniformTypeName(type) {
-    switch (type) {
-      case this.gl.FLOAT:
-        return "float";
-      case this.gl.FLOAT_VEC2:
-        return "vec2";
-      case this.gl.FLOAT_VEC3:
-        return "vec3";
-      case this.gl.FLOAT_VEC4:
-        return "vec4";
-      case this.gl.FLOAT_MAT4:
-        return "mat4";
-      case this.gl.INT:
-        return "int";
-      case this.gl.BOOL:
-        return "bool";
-      case this.gl.SAMPLER_2D:
-        return "sampler2D";
-      default:
-        return "unknown";
-    }
-  }
-  getAttributeTypeName(type) {
-    switch (type) {
-      case this.gl.FLOAT:
-        return "float";
-      case this.gl.FLOAT_VEC2:
-        return "vec2";
-      case this.gl.FLOAT_VEC3:
-        return "vec3";
-      case this.gl.FLOAT_VEC4:
-        return "vec4";
-      default:
-        return "unknown";
-    }
-  }
-  getAttributeSize(type) {
-    switch (type) {
-      case this.gl.FLOAT:
-        return 1;
-      case this.gl.FLOAT_VEC2:
-        return 2;
-      case this.gl.FLOAT_VEC3:
-        return 3;
-      case this.gl.FLOAT_VEC4:
-        return 4;
-      default:
-        return 0;
-    }
-  }
-  getDefaultValueForType(type) {
-    switch (type) {
-      case this.gl.FLOAT:
-      case this.gl.INT:
-      case this.gl.BOOL:
-      case this.gl.SAMPLER_2D:
-        return 0;
-      case this.gl.FLOAT_VEC2:
-        return new Float32Array(2);
-      case this.gl.FLOAT_VEC3:
-        return new Float32Array(3);
-      case this.gl.FLOAT_VEC4:
-        return new Float32Array(4);
-      case this.gl.FLOAT_MAT4:
-        return new Float32Array(16);
-      default:
-        return 0;
-    }
-  }
-  dispose() {
-    for (const [name, program] of this.shaderPrograms) {
-      this.gl.deleteProgram(program);
-    }
-    this.shaderPrograms.clear();
-    this.uniforms.clear();
-    this.attributes.clear();
-    this.currentProgram = null;
-  }
-};
-
-// ts/classes/meshes/cube.ts
+// ts/classes/webgl2/meshes/cube.ts
 var Cube = class {
   static createMeshData() {
     return {
@@ -2428,67 +2598,65 @@ var Cube = class {
       colors: this.colors
     };
   }
-  static createSceneObject(gl, shaderManager, position = vec3_exports.fromValues(0, 0, 0), scale3 = vec3_exports.fromValues(1, 1, 1), rotation = vec3_exports.fromValues(0, 0, 0)) {
+  static create(position = v3(0, 0, 0), scale2 = v3(1, 1, 1), rotation = v3(0, 0, 0)) {
     const meshData = this.createMeshData();
-    const vao = new VertexArray(gl);
+    const vao = new VertexArray(glob.ctx);
     vao.bind();
-    const vertexBuffer = new VertexBuffer(gl);
+    const vertexBuffer = new VertexBuffer(glob.ctx);
     vertexBuffer.setData(meshData.vertices);
     vao.setAttributePointer(
-      shaderManager.getAttributeLocation("aPosition"),
+      glob.shaderManager.getAttributeLocation("aPosition"),
       3,
-      gl.FLOAT,
+      glob.ctx.FLOAT,
       false,
       0,
       0
     );
-    const colorBuffer = new VertexBuffer(gl);
+    const colorBuffer = new VertexBuffer(glob.ctx);
     colorBuffer.setData(meshData.colors);
     vao.setAttributePointer(
-      shaderManager.getAttributeLocation("aColor"),
+      glob.shaderManager.getAttributeLocation("aColor"),
       3,
-      gl.FLOAT,
+      glob.ctx.FLOAT,
       false,
       0,
       0
     );
-    const normalBuffer = new VertexBuffer(gl);
+    const normalBuffer = new VertexBuffer(glob.ctx);
     normalBuffer.setData(meshData.normals);
     vao.setAttributePointer(
-      shaderManager.getAttributeLocation("aNormal"),
+      glob.shaderManager.getAttributeLocation("aNormal"),
       3,
-      gl.FLOAT,
+      glob.ctx.FLOAT,
       false,
       0,
       0
     );
-    const texCoordBuffer = new VertexBuffer(gl);
+    const texCoordBuffer = new VertexBuffer(glob.ctx);
     texCoordBuffer.setData(meshData.texCoords);
     vao.setAttributePointer(
-      shaderManager.getAttributeLocation("aTexCoord"),
+      glob.shaderManager.getAttributeLocation("aTexCoord"),
       2,
-      gl.FLOAT,
+      glob.ctx.FLOAT,
       false,
       0,
       0
     );
-    const indexBuffer = new IndexBuffer(gl);
+    const indexBuffer = new IndexBuffer(glob.ctx);
     indexBuffer.setData(meshData.indices);
-    const modelMatrix = mat4_exports.create();
-    mat4_exports.translate(modelMatrix, modelMatrix, position);
-    mat4_exports.rotateX(modelMatrix, modelMatrix, rotation[0]);
-    mat4_exports.rotateY(modelMatrix, modelMatrix, rotation[1]);
-    mat4_exports.rotateZ(modelMatrix, modelMatrix, rotation[2]);
-    mat4_exports.scale(modelMatrix, modelMatrix, scale3);
-    return {
+    const modelMatrix = m4();
+    modelMatrix.translate(position);
+    modelMatrix.rotate(rotation);
+    modelMatrix.scale(scale2);
+    return new SceneObject({
       vao,
       indexBuffer,
-      shaderManager,
+      shaderManager: glob.shaderManager,
       modelMatrix,
-      drawMode: gl.TRIANGLES,
+      drawMode: glob.ctx.TRIANGLES,
       drawCount: meshData.indices.length,
-      drawType: gl.UNSIGNED_SHORT
-    };
+      drawType: glob.ctx.UNSIGNED_SHORT
+    });
   }
 };
 Cube.vertices = new Float32Array([
@@ -2820,234 +2988,132 @@ Cube.texCoords = new Float32Array([
   1
 ]);
 
-// ts/classes/webgl2/shaders/fragmentShaderSource.ts
-var fragmentShaderSource = "#version 300 es\nprecision highp float;\n\n// Input from vertex shader\nin vec3 vNormal;\nin vec2 vTexCoord;\nin vec3 vFragPos;\nin vec3 vColor;\n\n// Uniforms\nuniform vec3 uLightPos;\nuniform vec3 uViewPos;\nuniform vec3 uLightColor;\nuniform sampler2D uTexture;\nuniform bool uUseTexture;\n\n// Output\nout vec4 fragColor;\n\nvoid main() {\n    // Normalize the normal vector\n    vec3 normal = normalize(vNormal);\n    \n    // Light properties\n    vec3 lightColor = uLightColor;\n    float ambientStrength = 0.1;\n    float specularStrength = 0.5;\n    float shininess = 32.0;\n\n    // Ambient\n    vec3 ambient = ambientStrength * lightColor;\n\n    // Diffuse\n    vec3 lightDir = normalize(uLightPos - vFragPos);\n    float diff = max(dot(normal, lightDir), 0.0);\n    vec3 diffuse = diff * lightColor;\n\n    // Specular\n    vec3 viewDir = normalize(uViewPos - vFragPos);\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);\n    vec3 specular = specularStrength * spec * lightColor;\n\n    // Combine results\n    vec3 baseColor = uUseTexture ? texture(uTexture, vTexCoord).rgb : vColor;\n    vec3 result = (ambient + diffuse + specular) * baseColor;\n\n    // Output final color\n    fragColor = vec4(result, 1.0);\n}";
-
-// ts/classes/webgl2/shaders/vertexShaderSource.ts
-var vertexShaderSource = "#version 300 es\n\n// Attributes\nin vec3 aPosition;\nin vec3 aNormal;\nin vec2 aTexCoord;\nin vec3 aColor;\n\n// Uniforms\nuniform mat4 uModelMatrix;\nuniform mat4 uViewMatrix;\nuniform mat4 uProjectionMatrix;\n\n// Varyings (output to fragment shader)\nout vec3 vNormal;\nout vec2 vTexCoord;\nout vec3 vFragPos;\nout vec3 vColor;\n\nvoid main() {\n    // Calculate world space position\n    vec4 worldPos = uModelMatrix * vec4(aPosition, 1.0);\n    vFragPos = worldPos.xyz;\n    \n    // Transform normal to world space\n    // Note: This assumes uniform scaling. For non-uniform scaling, use the normal matrix\n    vNormal = mat3(uModelMatrix) * aNormal;\n    \n    // Pass texture coordinates and color to fragment shader\n    vTexCoord = aTexCoord;\n    vColor = aColor;\n    \n    // Calculate final position\n    gl_Position = uProjectionMatrix * uViewMatrix * worldPos;\n}";
-
-// ts/classes/elements/renderer.ts
-var Renderer = class extends DomElement {
-  constructor() {
-    super("canvas");
-    this.dom.style.position = "absolute";
-    this.dom.style.pointerEvents = "all";
-    this.dom.style.bottom = "0px";
-    this.dom.style.touchAction = "none";
-    this.dom.tabIndex = 1;
-    this.webgl = new WebGL2Initializer(this.dom);
-    this.ctx = this.webgl.getContext();
-    this.shaderManager = new ShaderManager(this.ctx);
-    this.vao = new VertexArray(this.ctx);
-    this.vertexBuffer = new VertexBuffer(this.ctx);
-    this.indexBuffer = new IndexBuffer(this.ctx);
-    const position = vec3_exports.fromValues(3, 2, 3);
-    const target = vec3_exports.fromValues(0, 0, 0);
-    const up = vec3_exports.fromValues(0, 1, 0);
-    this.camera = new Camera(position, target, up, 45);
-    this.scene = new Scene(this.ctx);
-    this.scene.setCamera(this.camera);
-    window.addEventListener("resize", () => {
-      this.resize();
-    });
-    this.addEvent(new Events("resize"));
-    this.resize();
-    this.init();
+// ts/classes/webgl2/camera.ts
+var Camera = class {
+  constructor(position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 45, near = 0.1, far = 1e3) {
+    this.position = position;
+    this.target = target;
+    this.fov = fov;
+    this.near = near;
+    this.far = far;
+    this.updateViewMatrix();
+    this.updateProjectionMatrix();
   }
-  init() {
-    this.shaderManager.loadShaderProgram("basic", vertexShaderSource, fragmentShaderSource);
-    this.shaderManager.useProgram("basic");
-    this.shaderManager.setUniform("uLightPos", new Float32Array([5, 5, 5]));
-    this.shaderManager.setUniform("uLightColor", new Float32Array([1, 1, 1]));
-    this.shaderManager.setUniform("uUseTexture", 0);
-    this.shaderManager.setUniform("uViewPos", new Float32Array([3, 2, 3]));
-    const cube = Cube.createSceneObject(
-      this.ctx,
-      this.shaderManager,
-      vec3_exports.fromValues(0, 0, 0),
-      // Position at origin
-      vec3_exports.fromValues(1, 1, 1),
-      // Unit scale
-      vec3_exports.fromValues(0.2, 0.5, 0)
-      // Rotation in radians
+  updateViewMatrix() {
+    this.viewMatrix = Matrix4.lookAt(this.position, this.target);
+  }
+  updateProjectionMatrix() {
+    this.projectionMatrix = m4().perspective(
+      this.fov * Math.PI / 180,
+      this.near,
+      this.far
     );
-    this.scene.add(cube);
   }
-  resize() {
-    this.size = v2(document.body.clientWidth, document.body.clientHeight);
-    this.dom.style.width = "".concat(this.size.x, "px");
-    this.dom.setAttribute("width", String(this.size.x));
-    this.dom.style.height = "".concat(this.size.y, "px");
-    this.dom.setAttribute("height", String(this.size.y));
-    this.getEvent("resize").alert(this.size);
-    this.webgl.resizeCanvas(this.width, this.height);
-    if (this.camera) {
-      this.camera.setAspect(this.width / this.height);
+  setPosition(position) {
+    this.position = position;
+    this.updateViewMatrix();
+  }
+  setTarget(target) {
+    this.target = target;
+    this.updateViewMatrix();
+  }
+  setFov(fov) {
+    this.fov = fov;
+    this.updateProjectionMatrix();
+  }
+  getViewMatrix() {
+    return this.viewMatrix;
+  }
+  getProjectionMatrix() {
+    return this.projectionMatrix;
+  }
+  getPosition() {
+    return this.position;
+  }
+  getTarget() {
+    return this.target;
+  }
+};
+
+// ts/classes/webgl2/scene.ts
+var Scene = class {
+  constructor(camera) {
+    this.objects = [];
+    this.camera = camera || new Camera();
+    glob.events.resize.subscribe("resize", this.resize.bind(this));
+  }
+  add(object) {
+    this.objects.push(object);
+  }
+  remove(object) {
+    const index = this.objects.indexOf(object);
+    if (index !== -1) {
+      this.objects.splice(index, 1);
     }
   }
-  get width() {
-    return Math.round(Number(this.dom.style.width.replace(/\D/g, "")));
+  render() {
+    glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT | glob.ctx.DEPTH_BUFFER_BIT);
+    const viewMatrix = this.camera.getViewMatrix();
+    const projectionMatrix = this.camera.getProjectionMatrix();
+    for (const object of this.objects) {
+      object.render(viewMatrix, projectionMatrix);
+    }
   }
-  set width(value) {
-    this.dom.style.width = "".concat(value, "px");
-    this.dom.setAttribute("width", String(value));
-  }
-  get height() {
-    return Math.round(Number(this.dom.style.height.replace(/\D/g, "")));
-  }
-  set height(value) {
-    this.dom.style.height = "".concat(value, "px");
-    this.dom.setAttribute("height", String(value));
-  }
-  addLevel(child) {
-    child.build();
-  }
-  get context() {
-    return this._context;
-  }
-  set context(value) {
-    this._context = value;
+  dispose() {
+    var _a;
+    for (const object of this.objects) {
+      object.vao.dispose();
+      (_a = object.indexBuffer) == null ? void 0 : _a.dispose();
+    }
+    this.objects = [];
   }
   tick(obj) {
-    var _a;
+  }
+  afterTick(obj) {
+    this.render();
+  }
+  resize() {
+    this.camera.updateProjectionMatrix();
+  }
+};
+
+// ts/classes/testLevel.ts
+var TestLevel = class extends Scene {
+  constructor() {
+    super(new Camera(v3(3, 2, 3), v3(0, 0, 0), 45));
+    this.camera.setFov(45);
+    this.add(this.cube1 = Cube.create(
+      v3(0, 0, 0),
+      // Position at origin
+      v3(1, 1, 1),
+      // Unit scale
+      v3(0, 0, 0)
+      // Rotation in radians
+    ));
+    this.add(Cube.create(
+      v3(1.5, 0, 0),
+      v3(1, 1, 1),
+      // Unit scale
+      v3(0, 0, 0)
+      // Rotation in radians
+    ));
+    this.add(Cube.create(
+      v3(0, 0, 1.5),
+      v3(1, 1, 1),
+      // Unit scale
+      v3(0, 0, 0)
+      // Rotation in radians
+    ));
+    this.add(Cube.create(
+      v3(1.5, 0, 1.5),
+      v3(1, 1, 1),
+      // Unit scale
+      v3(0, 0, 0)
+      // Rotation in radians
+    ));
+  }
+  tick(obj) {
     super.tick(obj);
-    this.tickerData = obj;
-    (_a = glob.game.active) == null ? void 0 : _a.tick(obj);
-    this.scene.render();
-  }
-};
-
-// ts/classes/input/gamepad.ts
-var Pad = class {
-  constructor(gamepad) {
-    this.gamepad = gamepad;
-  }
-  tick() {
-    this.recentPad = navigator.getGamepads().find((g) => g.id === this.gamepad.id);
-  }
-};
-
-// ts/classes/input/gamepadManager.ts
-var PadManager = class {
-  constructor() {
-    this.pads = {};
-    window.addEventListener("gamepadconnected", this.connect.bind(this));
-    window.addEventListener("gamepaddisconnected", this.disconnect.bind(this));
-  }
-  connect(e) {
-    this.pads[e.gamepad.id] = new Pad(e.gamepad);
-  }
-  disconnect(e) {
-    delete this.pads[e.gamepad.id];
-  }
-  tick() {
-    Object.values(this.pads).forEach((pad) => {
-      pad.tick();
-    });
-  }
-};
-
-// ts/classes/elements/domText.ts
-var DomText = class extends DomElement {
-  set color(v) {
-    this.dom.style.color = v;
-  }
-  set fontSize(v) {
-    this.dom.style.fontSize = String(v) + "px";
-  }
-  set fontWeight(v) {
-    this.dom.style.fontWeight = String(v);
-  }
-  set fontFamily(v) {
-    this.dom.style.fontFamily = v;
-  }
-  get text() {
-    return this.dom.innerHTML;
-  }
-  set text(v) {
-    this.dom.innerHTML = v ? v : "";
-  }
-  set padding(v) {
-    this.dom.style.padding = v.join("px ") + "px";
-  }
-  constructor(attr = {}) {
-    super("div", attr);
-    this.color = attr.color;
-    this.text = attr.text;
-    this.fontSize = attr.fontSize;
-    this.fontWeight = attr.fontWeight;
-    this.fontFamily = attr.fontFamily;
-    this.padding = attr.padding || [0, 0, 0, 0];
-    this.dom.style.pointerEvents = "none";
-    this.dom.style.userSelect = "none";
-    this.dom.style.zIndex = "1";
-    this.dom.style.whiteSpace = "pre-line";
-  }
-};
-
-// ts/classes/input/inputDevices.ts
-var Keyboard = class {
-  constructor() {
-    this.keyDown = {};
-    this.keyUp = {};
-  }
-  ready() {
-    glob.renderer.dom.addEventListener("keydown", (e) => {
-      var _a;
-      const k = e.key.toLowerCase();
-      (_a = this.keyDown[k]) == null ? void 0 : _a.forEach((c) => {
-        c(glob.frame);
-      });
-    });
-    glob.renderer.dom.addEventListener("keyup", (e) => {
-      var _a;
-      const k = e.key.toLowerCase();
-      (_a = this.keyUp[k]) == null ? void 0 : _a.forEach((c) => {
-        c();
-      });
-    });
-  }
-  register(key, down, up) {
-    const k = key.toLowerCase();
-    if (this.keyDown[k])
-      this.keyDown[k].push(down);
-    else
-      this.keyDown[k] = [down];
-    if (this.keyUp[k])
-      this.keyUp[k].push(up);
-    else
-      this.keyUp[k] = [up];
-  }
-};
-var InputDevices = class {
-  constructor() {
-    this.keyboard = new Keyboard();
-    this.overlay = new DomText({
-      text: "Pauzed"
-    });
-    this.overlay.dom.setAttribute(
-      "style",
-      "\n            transform-origin: left bottom;\n            pointer-events: none;\n            bottom: 0px;\n            left: 0px;\n            user-select: none;\n            z-index: 999;\n            position: absolute;\n            height: 100vh;\n            width: 100vw;\n            color: white !important;\n            font-family: monospace;\n            font-weight: bold;\n            font-size: 40px;\n            padding-left: 50px;\n            padding-top: 20px;\n            box-sizing: border-box;\n            display: none;\n            text-transform: uppercase;"
-    );
-  }
-  get locked() {
-    return this._locked;
-  }
-  set locked(value) {
-    this._locked = value;
-  }
-  ready() {
-    window.addEventListener("contextmenu", (e) => e.preventDefault());
-    this.mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (this.mobile) {
-      this.locked = true;
-    } else {
-      if (glob.game.active) {
-        glob.game.active.interface.touchControls.style.display = "none";
-      }
-      document.body.appendChild(this.overlay.dom);
-    }
-    this.keyboard.ready();
   }
 };
 
@@ -3159,12 +3225,19 @@ var glob = new class {
   constructor() {
     this.device = new InputDevices();
     this.frame = 0;
+    this.events = {};
   }
   get renderer() {
     return this.game.renderer;
   }
+  get shaderManager() {
+    return this.renderer.shaderManager;
+  }
   get mobile() {
     return this.device.mobile;
+  }
+  get ctx() {
+    return this.renderer.ctx;
   }
 }();
 var Game = class {
@@ -3176,7 +3249,7 @@ var Game = class {
     this.levels = {};
     this.padManager = new PadManager();
     glob.game = this;
-    this.build();
+    this.init();
     glob.device.ready();
   }
   get t() {
@@ -3198,13 +3271,13 @@ var Game = class {
     }
     this._waitCount = value;
   }
-  async build() {
+  init() {
     this.renderer = new Renderer();
-    await this.renderer.init();
     this.loader = new Loader();
     this.renderer.addChild(this.loader);
     this.ticker = new Ticker();
     this.ticker.add(this.tick.bind(this));
+    this.addLevel("test", new TestLevel());
     if (this.waitCount === 0) {
       this.start();
     } else {
@@ -3216,8 +3289,7 @@ var Game = class {
   }
   addLevel(s, level) {
     this.levels[s] = level;
-    this.renderer.addLevel(level);
-    document.body.appendChild(level.interface.dom);
+    this.active = level;
   }
   get level() {
     return this.active;

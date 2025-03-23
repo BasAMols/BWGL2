@@ -1,8 +1,10 @@
-import { vec3, mat4 } from 'gl-matrix';
-import { MeshData } from '../webgl2/types';
-import { VertexArray, VertexBuffer, IndexBuffer } from '../webgl2/buffer';
-import { ShaderManager } from '../webgl2/shaderManager';
-import { SceneObject } from '../webgl2/scene';
+import { MeshData } from '../types';
+import { VertexArray, VertexBuffer, IndexBuffer } from '../buffer';
+import { SceneObject } from './sceneObject';
+import { m4 } from '../../util/math/matrix4';
+import { Vector3 } from '../../util/math/vector3';
+import { v3 } from '../../util/math/vector3';
+import { glob } from '../../../game';
 
 export class Cube {
     private static vertices: Float32Array = new Float32Array([
@@ -142,87 +144,83 @@ export class Cube {
         };
     }
 
-    public static createSceneObject(
-        gl: WebGL2RenderingContext,
-        shaderManager: ShaderManager,
-        position: vec3 = vec3.fromValues(0, 0, 0),
-        scale: vec3 = vec3.fromValues(1, 1, 1),
-        rotation: vec3 = vec3.fromValues(0, 0, 0)
+    public static create(
+        position: Vector3 = v3(0, 0, 0),
+        scale: Vector3 = v3(1, 1, 1),
+        rotation: Vector3 = v3(0, 0, 0)
     ): SceneObject {
         const meshData = this.createMeshData();
         
         // Create and setup VAO
-        const vao = new VertexArray(gl);
+        const vao = new VertexArray(glob.ctx);
         vao.bind();
 
         // Create and setup vertex buffer
-        const vertexBuffer = new VertexBuffer(gl);
+        const vertexBuffer = new VertexBuffer(glob.ctx);
         vertexBuffer.setData(meshData.vertices);
         vao.setAttributePointer(
-            shaderManager.getAttributeLocation('aPosition'),
+            glob.shaderManager.getAttributeLocation('aPosition'),
             3,
-            gl.FLOAT,
+            glob.ctx.FLOAT,
             false,
             0,
             0
         );
 
         // Create and setup color buffer
-        const colorBuffer = new VertexBuffer(gl);
+        const colorBuffer = new VertexBuffer(glob.ctx);
         colorBuffer.setData(meshData.colors!);
         vao.setAttributePointer(
-            shaderManager.getAttributeLocation('aColor'),
+            glob.shaderManager.getAttributeLocation('aColor'),
             3,
-            gl.FLOAT,
+            glob.ctx.FLOAT,
             false,
             0,
             0
         );
 
         // Create and setup normal buffer
-        const normalBuffer = new VertexBuffer(gl);
+        const normalBuffer = new VertexBuffer(glob.ctx);
         normalBuffer.setData(meshData.normals!);
         vao.setAttributePointer(
-            shaderManager.getAttributeLocation('aNormal'),
+            glob.shaderManager.getAttributeLocation('aNormal'),
             3,
-            gl.FLOAT,
+            glob.ctx.FLOAT,
             false,
             0,
             0
         );
 
         // Create and setup texture coordinate buffer
-        const texCoordBuffer = new VertexBuffer(gl);
+        const texCoordBuffer = new VertexBuffer(glob.ctx);
         texCoordBuffer.setData(meshData.texCoords!);
         vao.setAttributePointer(
-            shaderManager.getAttributeLocation('aTexCoord'),
+            glob.shaderManager.getAttributeLocation('aTexCoord'),
             2,
-            gl.FLOAT,
+            glob.ctx.FLOAT,
             false,
             0,
             0
         );
 
         // Create and setup index buffer
-        const indexBuffer = new IndexBuffer(gl);
+        const indexBuffer = new IndexBuffer(glob.ctx);
         indexBuffer.setData(meshData.indices!);
 
         // Create model matrix
-        const modelMatrix = mat4.create();
-        mat4.translate(modelMatrix, modelMatrix, position);
-        mat4.rotateX(modelMatrix, modelMatrix, rotation[0]);
-        mat4.rotateY(modelMatrix, modelMatrix, rotation[1]);
-        mat4.rotateZ(modelMatrix, modelMatrix, rotation[2]);
-        mat4.scale(modelMatrix, modelMatrix, scale);
+        const modelMatrix = m4();
+        modelMatrix.translate(position);
+        modelMatrix.rotate(rotation);
+        modelMatrix.scale(scale);
 
-        return {
+        return new SceneObject({
             vao,
             indexBuffer,
-            shaderManager,
+            shaderManager: glob.shaderManager,
             modelMatrix,
-            drawMode: gl.TRIANGLES,
+            drawMode: glob.ctx.TRIANGLES,
             drawCount: meshData.indices!.length,
-            drawType: gl.UNSIGNED_SHORT
-        };
+            drawType: glob.ctx.UNSIGNED_SHORT
+        });
     }
 }

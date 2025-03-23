@@ -79,9 +79,9 @@ export class InputDevices {
             this.locked = true;
 
         } else {
-            if (glob.game.active) {
-                glob.game.active.interface.touchControls.style.display = 'none';
-            }
+            // if (glob.game.active && glob.game.active.interface) {
+            //     glob.game.active.interface.touchControls.style.display = 'none';
+            // }
             // glob.renderer.dom.addEventListener('click', (e) => {
             //     if (!this.locked) {
             //         glob.renderer.dom.requestPointerLock();

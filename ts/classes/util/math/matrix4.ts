@@ -1,5 +1,6 @@
 import { mat4, vec3 } from 'gl-matrix';
 import { Vector3, v3 } from './vector3';
+import { glob } from '../../../game';
 
 export function m4() {
     return Matrix4.f();
@@ -37,6 +38,14 @@ export class Matrix4 {
             this.mat4,
             this.mat4,
             mat.mat4
+        );
+        return this;
+    }
+    public scale(vector: Vector3) {
+        mat4.scale(
+            this.mat4,
+            this.mat4,
+            vector.vec
         );
         return this;
     }
@@ -81,7 +90,7 @@ export class Matrix4 {
         mat4.perspective(
             this.mat4,
             fov,
-            document.body.clientWidth / document.body.clientHeight,
+            glob.renderer ? glob.renderer.width / glob.renderer.height : document.body.clientWidth / document.body.clientHeight,
             near,
             far
         );

@@ -1,20 +1,29 @@
 import { Renderer } from './classes/elements/renderer';
 import { PadManager } from './classes/input/gamepadManager';
 import { InputDevices } from './classes/input/inputDevices';
-import { Level } from './classes/level';
+import { TestLevel } from './classes/testLevel';
 import { Ticker, TickerReturnData } from './classes/ticker';
+import { Events } from './classes/util/event';
 import { Loader } from './classes/util/loader';
+import { Scene } from './classes/webgl2/scene';
 
 export var glob = new class {
     public game: Game;
     public get renderer() {
         return this.game.renderer;
     }
+    public get shaderManager() {
+        return this.renderer.shaderManager;
+    }
     public device: InputDevices = new InputDevices();
     public get mobile(): boolean {
         return this.device.mobile;
     }
     public frame: number = 0;
+    public get ctx(): WebGL2RenderingContext {
+        return this.renderer.ctx;
+    }
+    public events: Record<string, Events<any>> = {};
 };
 
 export class Game {
@@ -27,8 +36,8 @@ export class Game {
     
     public total: number = 0;
 
-    public levels: Record<string, Level> = {};
-    public active: Level;
+    public levels: Record<string, Scene> = {};
+    public active: Scene;
 
     public padManager: PadManager = new PadManager();
     get t(): TickerReturnData {
@@ -54,20 +63,21 @@ export class Game {
 
     public constructor() {
         glob.game = this;
-        this.build();
+        this.init();
         glob.device.ready();
     }
 
 
-    async build() {
+    init() {
         this.renderer = new Renderer();
-        await this.renderer.init();
 
         this.loader = new Loader();
         this.renderer.addChild(this.loader);
 
         this.ticker = new Ticker();
         this.ticker.add(this.tick.bind(this));
+
+        this.addLevel('test', new TestLevel());
 
         if (this.waitCount === 0) {
             this.start();
@@ -80,13 +90,15 @@ export class Game {
         this.renderer.tick(obj);
     }
 
-    protected addLevel(s: string, level: Level) {
+    protected addLevel(s: string, level: Scene) {
         this.levels[s] = level;
-        this.renderer.addLevel(level);
-        document.body.appendChild(level.interface.dom)
+        // if (level.interface) {
+        //     document.body.appendChild(level.interface.dom)
+        // }
+        this.active = level;
     }
 
-    public get level(): Level {
+    public get level(): Scene {
         return this.active;
     }
 
