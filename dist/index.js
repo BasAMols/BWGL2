@@ -22,6 +22,1215 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
+// ts/classes/util/math/vector2.ts
+function v2(n, y) {
+  if (typeof n === "number") {
+    return Vector2.f(n, y);
+  } else if (typeof n === "undefined") {
+    return Vector2.f(0);
+  } else {
+    return Vector2.f(...n);
+  }
+}
+var Vector2 = class _Vector2 {
+  constructor(x, y) {
+    this.x = x === void 0 ? 0 : x;
+    this.y = y === void 0 ? 0 : y;
+  }
+  static f(x = 0, y = x) {
+    return new _Vector2(x, y);
+  }
+  isZero() {
+    return this.x === 0 && this.y === 0;
+  }
+  clone() {
+    return new _Vector2(this.x, this.y);
+  }
+  add(vector) {
+    return new _Vector2(this.x + vector.x, this.y + vector.y);
+  }
+  multiply(vector) {
+    return new _Vector2(this.x * vector.x, this.y * vector.y);
+  }
+  subtract(vector) {
+    return new _Vector2(this.x - vector.x, this.y - vector.y);
+  }
+  scale(scalar) {
+    return new _Vector2(this.x * scalar, this.y * scalar);
+  }
+  dot(vector) {
+    return this.x * vector.x + this.y + vector.y;
+  }
+  moveTowards(vector, t) {
+    t = Math.min(t, 1);
+    var diff = vector.subtract(this);
+    return this.add(diff.scale(t));
+  }
+  magnitude() {
+    return Math.sqrt(this.magnitudeSqr());
+  }
+  magnitudeSqr() {
+    return this.x * this.x + this.y * this.y;
+  }
+  clampMagnitude(max2 = 1) {
+    if (this.magnitude() === 0)
+      return v2(0);
+    return this.scale(1 / this.magnitude() || 1).scale(Math.min(max2, this.magnitude()));
+  }
+  distance(vector) {
+    return Math.sqrt(this.distanceSqr(vector));
+  }
+  distanceSqr(vector) {
+    var deltaX = this.x - vector.x;
+    var deltaY = this.y - vector.y;
+    return deltaX * deltaX + deltaY * deltaY;
+  }
+  normalize() {
+    var mag = this.magnitude();
+    var vector = this.clone();
+    if (Math.abs(mag) < 1e-9) {
+      vector.x = 0;
+      vector.y = 0;
+    } else {
+      vector.x /= mag;
+      vector.y /= mag;
+    }
+    return vector;
+  }
+  angleDegrees() {
+    return this.angle() * (180 / Math.PI);
+  }
+  angle() {
+    return Math.atan2(this.y, this.x);
+  }
+  rotate(rad) {
+    var cos = Math.cos(rad);
+    var sin = Math.sin(rad);
+    return new _Vector2(
+      this.x * cos - this.y * sin,
+      this.x * sin + this.y * cos
+    );
+  }
+  toPrecision(precision) {
+    var vector = this.clone();
+    vector.x = +vector.x.toFixed(precision);
+    vector.y = +vector.y.toFixed(precision);
+    return vector;
+  }
+  toString() {
+    var vector = this.toPrecision(1);
+    return "[" + vector.x + "; " + vector.y + "]";
+  }
+  clamp(min2, max2) {
+    return _Vector2.clamp(this, min2, max2);
+  }
+  static min(a, b) {
+    return new _Vector2(
+      Math.min(a.x, b.x),
+      Math.min(a.y, b.y)
+    );
+  }
+  static max(a, b) {
+    return new _Vector2(
+      Math.max(a.x, b.x),
+      Math.max(a.y, b.y)
+    );
+  }
+  static clamp(value, min2, max2) {
+    return _Vector2.max(_Vector2.min(value, min2), max2);
+  }
+  clampMagnitute(mag) {
+    return _Vector2.clampMagnitute(this, mag);
+  }
+  get array() {
+    return [this.x, this.y];
+  }
+  set array(a) {
+    [this.x, this.y] = a;
+  }
+  get surfaceArea() {
+    return this.x * this.y;
+  }
+  static clampMagnitute(value, mag) {
+    var ratio = value.magnitude() / mag;
+    return new _Vector2(value.x / ratio, value.y / ratio);
+  }
+  static get zero() {
+    return new _Vector2(0, 0);
+  }
+  static get down() {
+    return new _Vector2(0, -1);
+  }
+  static get up() {
+    return new _Vector2(0, 1);
+  }
+  static get right() {
+    return new _Vector2(1, 0);
+  }
+  static get left() {
+    return new _Vector2(-1, 0);
+  }
+  static get fromDegree() {
+    return new _Vector2(0, 0);
+  }
+};
+
+// ts/classes/elements/element.ts
+var Element = class {
+  constructor() {
+    this.events = [];
+  }
+  get t() {
+    return glob.game.t;
+  }
+  build() {
+  }
+  addEvent(e) {
+    this.events.push(e);
+  }
+  getEvent(id) {
+    return this.events.find((e) => id === e.id);
+  }
+};
+
+// ts/classes/elements/domElement.ts
+var DomElement = class extends Element {
+  constructor(type, attr = {}) {
+    super();
+    this.children = [];
+    this.rendererType = "dom";
+    this._position = v2(0);
+    this.size = v2(0);
+    this.dom = document.createElement(type);
+    this.dom.style.position = "absolute";
+    this.dom.style.transformOrigin = "bottom left";
+    this.dom.style.pointerEvents = "none";
+    this.dom.style.bottom = "0px";
+    this.id = attr.id || "";
+    this.background = attr.background || "";
+    this.size = attr.size || Vector2.zero;
+    this.position = attr.position || Vector2.zero;
+  }
+  get position() {
+    return this._position;
+  }
+  set position(value) {
+    this._position = value;
+    this.x = value.x;
+    this.y = value.y;
+  }
+  get id() {
+    return this.dom.id;
+  }
+  set id(value) {
+    if (value) {
+      this.dom.id = value;
+    }
+  }
+  get x() {
+    return Math.round(Number(this.dom.style.left.replace(/\D/g, "")));
+  }
+  set x(n) {
+    if (this.dom) {
+      this.dom.style.left = "".concat(n, "px");
+    }
+  }
+  get y() {
+    return Math.round(Number(this.dom.style.bottom.replace(/\D/g, "")));
+  }
+  set y(n) {
+    if (this.dom) {
+      this.dom.style.bottom = "".concat(n, "px");
+    }
+  }
+  set visible(value) {
+    this.dom ? this.dom.style.display = value ? "block" : "none" : null;
+  }
+  set background(v) {
+    this.dom.style.background = v;
+  }
+  get width() {
+    return Math.round(Number(this.dom.style.width.replace(/\D/g, "")));
+  }
+  set width(value) {
+    if (this.dom) {
+      this.dom.style.width = "".concat(value, "px");
+      this.dom.setAttribute("width", String(value));
+    }
+  }
+  get height() {
+    return Math.round(Number(this.dom.style.height.replace(/\D/g, "")));
+  }
+  set height(value) {
+    if (this.dom) {
+      this.dom.style.height = "".concat(value, "px");
+      this.dom.setAttribute("height", String(value));
+    }
+  }
+  ready() {
+    this.build();
+  }
+  tick(obj) {
+    this.children.forEach((c) => {
+      c.tick(obj);
+    });
+  }
+  appendChild(e) {
+    this.dom.appendChild(e.dom);
+  }
+  addChild(child) {
+    this.children.push(child);
+    this.dom.appendChild(child.dom);
+  }
+  addEventListener(type, listener, options) {
+    this.dom.addEventListener(type, listener, options);
+  }
+  removeEventListener(type, listener, options) {
+    this.dom.removeEventListener(type, listener, options);
+  }
+};
+
+// ts/classes/util/event.ts
+var Events = class {
+  constructor(id) {
+    this.subscribers = {};
+    this.id = id;
+  }
+  subscribe(key, func) {
+    this.subscribers[key] = func;
+  }
+  alert(v) {
+    Object.values(this.subscribers).forEach((s) => {
+      s(v);
+    });
+  }
+};
+
+// ts/classes/webgl2/buffer.ts
+var Buffer2 = class {
+  constructor(gl, type = gl.ARRAY_BUFFER, usage = gl.STATIC_DRAW) {
+    this.gl = gl;
+    this.type = type;
+    this.usage = usage;
+    const buffer = gl.createBuffer();
+    if (!buffer) {
+      throw new Error("Failed to create buffer");
+    }
+    this.buffer = buffer;
+  }
+  bind() {
+    this.gl.bindBuffer(this.type, this.buffer);
+  }
+  unbind() {
+    this.gl.bindBuffer(this.type, null);
+  }
+  setData(data) {
+    this.bind();
+    this.gl.bufferData(this.type, data, this.usage);
+  }
+  updateData(data, offset = 0) {
+    this.bind();
+    this.gl.bufferSubData(this.type, offset, data);
+  }
+  dispose() {
+    this.gl.deleteBuffer(this.buffer);
+  }
+};
+var VertexArray = class {
+  constructor(gl) {
+    this.gl = gl;
+    const vao = gl.createVertexArray();
+    if (!vao) {
+      throw new Error("Failed to create vertex array object");
+    }
+    this.vao = vao;
+  }
+  bind() {
+    this.gl.bindVertexArray(this.vao);
+  }
+  unbind() {
+    this.gl.bindVertexArray(null);
+  }
+  setAttributePointer(location, size, type, normalized = false, stride = 0, offset = 0) {
+    this.gl.vertexAttribPointer(location, size, type, normalized, stride, offset);
+    this.gl.enableVertexAttribArray(location);
+  }
+  dispose() {
+    this.gl.deleteVertexArray(this.vao);
+  }
+};
+var VertexBuffer = class extends Buffer2 {
+  constructor(gl, usage = gl.STATIC_DRAW) {
+    super(gl, gl.ARRAY_BUFFER, usage);
+  }
+};
+var IndexBuffer = class extends Buffer2 {
+  constructor(gl, usage = gl.STATIC_DRAW) {
+    super(gl, gl.ELEMENT_ARRAY_BUFFER, usage);
+    this.count = 0;
+  }
+  setData(data) {
+    super.setData(data);
+    this.count = data.byteLength / 2;
+  }
+  getCount() {
+    return this.count;
+  }
+};
+
+// ts/classes/webgl2/shaderManager.ts
+var ShaderManager = class {
+  constructor(gl) {
+    this.currentProgram = null;
+    this.gl = gl;
+    this.shaderPrograms = /* @__PURE__ */ new Map();
+    this.uniforms = /* @__PURE__ */ new Map();
+    this.attributes = /* @__PURE__ */ new Map();
+  }
+  loadShaderProgram(name, vertexSource, fragmentSource) {
+    try {
+      const vertexShader = this.compileShader(vertexSource, this.gl.VERTEX_SHADER);
+      const fragmentShader = this.compileShader(fragmentSource, this.gl.FRAGMENT_SHADER);
+      const program = this.createProgram(vertexShader, fragmentShader);
+      this.shaderPrograms.set(name, program);
+      this.uniforms.set(name, /* @__PURE__ */ new Map());
+      this.attributes.set(name, /* @__PURE__ */ new Map());
+      this.gl.deleteShader(vertexShader);
+      this.gl.deleteShader(fragmentShader);
+      this.introspectShaderProgram(name);
+    } catch (error) {
+      console.error("Failed to load shader program '".concat(name, "':"), error);
+      throw error;
+    }
+  }
+  compileShader(source, type) {
+    const shader = this.gl.createShader(type);
+    if (!shader) {
+      throw new Error("Failed to create shader");
+    }
+    this.gl.shaderSource(shader, source);
+    this.gl.compileShader(shader);
+    if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+      const info = this.gl.getShaderInfoLog(shader);
+      this.gl.deleteShader(shader);
+      throw new Error("Shader compilation error: ".concat(info));
+    }
+    return shader;
+  }
+  createProgram(vertexShader, fragmentShader) {
+    const program = this.gl.createProgram();
+    if (!program) {
+      throw new Error("Failed to create shader program");
+    }
+    this.gl.attachShader(program, vertexShader);
+    this.gl.attachShader(program, fragmentShader);
+    this.gl.linkProgram(program);
+    if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
+      const info = this.gl.getProgramInfoLog(program);
+      this.gl.deleteProgram(program);
+      throw new Error("Shader program linking error: ".concat(info));
+    }
+    return program;
+  }
+  introspectShaderProgram(name) {
+    const program = this.shaderPrograms.get(name);
+    if (!program) {
+      throw new Error("Shader program '".concat(name, "' not found"));
+    }
+    const numUniforms = this.gl.getProgramParameter(program, this.gl.ACTIVE_UNIFORMS);
+    const uniformMap = this.uniforms.get(name);
+    for (let i = 0; i < numUniforms; i++) {
+      const info = this.gl.getActiveUniform(program, i);
+      if (!info)
+        continue;
+      const location = this.gl.getUniformLocation(program, info.name);
+      if (!location)
+        continue;
+      const baseName = info.name.replace(/\[\d+\].*$/, "");
+      uniformMap.set(baseName, {
+        type: this.getUniformTypeName(info.type),
+        value: this.getDefaultValueForType(info.type),
+        location,
+        isArray: info.size > 1,
+        arraySize: info.size
+      });
+    }
+    const numAttributes = this.gl.getProgramParameter(program, this.gl.ACTIVE_ATTRIBUTES);
+    const attributeMap = this.attributes.get(name);
+    for (let i = 0; i < numAttributes; i++) {
+      const info = this.gl.getActiveAttrib(program, i);
+      if (!info)
+        continue;
+      const location = this.gl.getAttribLocation(program, info.name);
+      if (location === -1)
+        continue;
+      attributeMap.set(info.name, {
+        type: this.getAttributeTypeName(info.type),
+        size: this.getAttributeSize(info.type),
+        location
+      });
+    }
+  }
+  useProgram(name) {
+    const program = this.shaderPrograms.get(name);
+    if (!program) {
+      throw new Error("Shader program '".concat(name, "' not found"));
+    }
+    this.gl.useProgram(program);
+    this.currentProgram = name;
+  }
+  setUniform(name, value) {
+    if (!this.currentProgram) {
+      throw new Error("No shader program is currently in use");
+    }
+    const uniformMap = this.uniforms.get(this.currentProgram);
+    if (!uniformMap) {
+      throw new Error("Uniform map not found for program '".concat(this.currentProgram, "'"));
+    }
+    const uniform = uniformMap.get(name);
+    if (!uniform || !uniform.location) {
+      throw new Error("Uniform '".concat(name, "' not found in program '").concat(this.currentProgram, "'. Make sure to use the u_camelCase naming convention for uniforms, v_camelCase for varyings, and a_camelCase for attributes."));
+    }
+    this.setUniformValue(uniform.type, uniform.location, value);
+    uniform.value = value;
+  }
+  setUniformValue(type, location, value) {
+    switch (type) {
+      case "float":
+        if (Array.isArray(value) || value instanceof Float32Array) {
+          this.gl.uniform1fv(location, value);
+        } else {
+          this.gl.uniform1f(location, value);
+        }
+        break;
+      case "vec2":
+        this.gl.uniform2fv(location, value);
+        break;
+      case "vec3":
+        this.gl.uniform3fv(location, value);
+        break;
+      case "vec4":
+        this.gl.uniform4fv(location, value);
+        break;
+      case "mat4":
+        this.gl.uniformMatrix4fv(location, false, value);
+        break;
+      case "mat3":
+        this.gl.uniformMatrix3fv(location, false, value);
+        break;
+      case "int":
+      case "bool":
+        if (Array.isArray(value) || value instanceof Int32Array) {
+          this.gl.uniform1iv(location, value);
+        } else {
+          this.gl.uniform1i(location, value);
+        }
+        break;
+      case "sampler2D":
+        this.gl.uniform1i(location, value);
+        break;
+      case "Light":
+        const data = value;
+        this.gl.uniform1fv(location, data);
+        break;
+      default:
+        console.warn("Unsupported uniform type: ".concat(type));
+        break;
+    }
+  }
+  getAttributeLocation(name) {
+    if (!this.currentProgram) {
+      throw new Error("No shader program is currently in use");
+    }
+    const attributeMap = this.attributes.get(this.currentProgram);
+    if (!attributeMap) {
+      throw new Error("Attribute map not found for program '".concat(this.currentProgram, "'"));
+    }
+    const attribute = attributeMap.get(name);
+    if (!attribute) {
+      throw new Error("Attribute '".concat(name, "' not found in program '").concat(this.currentProgram, "'. Make sure to use the a_camelCase naming convention."));
+    }
+    return attribute.location;
+  }
+  getUniformTypeName(type) {
+    switch (type) {
+      case this.gl.FLOAT:
+        return "float";
+      case this.gl.FLOAT_VEC2:
+        return "vec2";
+      case this.gl.FLOAT_VEC3:
+        return "vec3";
+      case this.gl.FLOAT_VEC4:
+        return "vec4";
+      case this.gl.FLOAT_MAT4:
+        return "mat4";
+      case this.gl.FLOAT_MAT3:
+        return "mat3";
+      case this.gl.INT:
+        return "int";
+      case this.gl.BOOL:
+        return "bool";
+      case this.gl.SAMPLER_2D:
+        return "sampler2D";
+      case 35666:
+        return "Light";
+      default:
+        console.warn("Unknown uniform type: ".concat(type));
+        return "unknown";
+    }
+  }
+  getAttributeTypeName(type) {
+    switch (type) {
+      case this.gl.FLOAT:
+        return "float";
+      case this.gl.FLOAT_VEC2:
+        return "vec2";
+      case this.gl.FLOAT_VEC3:
+        return "vec3";
+      case this.gl.FLOAT_VEC4:
+        return "vec4";
+      default:
+        return "unknown";
+    }
+  }
+  getAttributeSize(type) {
+    switch (type) {
+      case this.gl.FLOAT:
+        return 1;
+      case this.gl.FLOAT_VEC2:
+        return 2;
+      case this.gl.FLOAT_VEC3:
+        return 3;
+      case this.gl.FLOAT_VEC4:
+        return 4;
+      default:
+        return 0;
+    }
+  }
+  getDefaultValueForType(type) {
+    switch (type) {
+      case this.gl.FLOAT:
+      case this.gl.INT:
+      case this.gl.BOOL:
+      case this.gl.SAMPLER_2D:
+        return 0;
+      case this.gl.FLOAT_VEC2:
+        return new Float32Array(2);
+      case this.gl.FLOAT_VEC3:
+        return new Float32Array(3);
+      case this.gl.FLOAT_VEC4:
+        return new Float32Array(4);
+      case this.gl.FLOAT_MAT4:
+        return new Float32Array(16);
+      default:
+        return 0;
+    }
+  }
+  dispose() {
+    for (const [name, program] of this.shaderPrograms) {
+      this.gl.deleteProgram(program);
+    }
+    this.shaderPrograms.clear();
+    this.uniforms.clear();
+    this.attributes.clear();
+    this.currentProgram = null;
+  }
+};
+
+// ts/classes/webgl2/shaders/fragmentShaderSource.ts
+var fragmentShaderSource = "#version 300 es\nprecision highp float;\n\n// Maximum number of lights\n#define MAX_LIGHTS 10\n\n// Light types\n#define LIGHT_TYPE_INACTIVE -1\n#define LIGHT_TYPE_AMBIENT 0\n#define LIGHT_TYPE_DIRECTIONAL 1\n#define LIGHT_TYPE_POINT 2\n#define LIGHT_TYPE_SPOT 3\n\n// Input from vertex shader\nin vec3 v_normal;\nin vec2 v_texCoord;\nin vec3 v_fragPos;\nin vec3 v_color;\nin vec4 v_fragPosLightSpace;\n\n// Material structure\nstruct Material {\n    vec3 ambient;\n    vec3 diffuse;\n    vec3 specular;\n    float shininess;\n    sampler2D diffuseMap;\n};\n\n// Light uniforms\nuniform int u_lightTypes[MAX_LIGHTS];\nuniform vec3 u_lightPositions[MAX_LIGHTS];\nuniform vec3 u_lightDirections[MAX_LIGHTS];\nuniform vec3 u_lightColors[MAX_LIGHTS];\nuniform float u_lightIntensities[MAX_LIGHTS];\nuniform float u_lightConstants[MAX_LIGHTS];\nuniform float u_lightLinears[MAX_LIGHTS];\nuniform float u_lightQuadratics[MAX_LIGHTS];\nuniform float u_lightCutOffs[MAX_LIGHTS];\nuniform float u_lightOuterCutOffs[MAX_LIGHTS];\nuniform int u_numLights;\n\n// Material uniforms\nuniform Material u_material;\nuniform bool u_useTexture;\n\n// Shadow mapping uniforms\nuniform sampler2D u_shadowMap;\nuniform mat4 u_lightSpaceMatrix;\n\n// Other uniforms\nuniform vec3 u_viewPos;\n\n// Output\nout vec4 fragColor;\n\nfloat ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir) {\n    // Perform perspective divide\n    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;\n    \n    // Transform to [0,1] range\n    projCoords = projCoords * 0.5 + 0.5;\n    \n    // Get closest depth value from light's perspective\n    float closestDepth = texture(u_shadowMap, projCoords.xy).r;\n    \n    // Get current depth\n    float currentDepth = projCoords.z;\n    \n    // Calculate bias based on surface angle\n    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);\n    \n    // PCF (Percentage Closer Filtering)\n    float shadow = 0.0;\n    vec2 texelSize = 1.0 / vec2(textureSize(u_shadowMap, 0));\n    for(int x = -1; x <= 1; ++x) {\n        for(int y = -1; y <= 1; ++y) {\n            float pcfDepth = texture(u_shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;\n            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;\n        }\n    }\n    shadow /= 9.0;\n    \n    // Keep shadow at 0.0 when outside the far plane region of the light's frustum\n    if(projCoords.z > 1.0)\n        shadow = 0.0;\n        \n    return shadow;\n}\n\n// Function to calculate directional light\nvec3 calcDirectionalLight(int index, vec3 normal, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(-u_lightDirections[index]);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_material.shininess);\n    \n    vec3 ambient = u_lightColors[index] * u_material.ambient;\n    vec3 diffuse = u_lightColors[index] * diff * baseColor;\n    vec3 specular = u_lightColors[index] * spec * u_material.specular;\n    \n    return (ambient + diffuse + specular) * u_lightIntensities[index];\n}\n\n// Function to calculate point light\nvec3 calcPointLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(u_lightPositions[index] - fragPos);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_material.shininess);\n    \n    // Attenuation\n    float distance = length(u_lightPositions[index] - fragPos);\n    float attenuation = 1.0 / (u_lightConstants[index] + u_lightLinears[index] * distance + u_lightQuadratics[index] * distance * distance);\n    \n    vec3 ambient = u_lightColors[index] * u_material.ambient;\n    vec3 diffuse = u_lightColors[index] * diff * baseColor;\n    vec3 specular = u_lightColors[index] * spec * u_material.specular;\n    \n    return (ambient + diffuse + specular) * attenuation * u_lightIntensities[index];\n}\n\n// Function to calculate spot light\nvec3 calcSpotLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(u_lightPositions[index] - fragPos);\n    \n    // Spot light intensity\n    float theta = dot(lightDir, normalize(-u_lightDirections[index]));\n    float epsilon = u_lightCutOffs[index] - u_lightOuterCutOffs[index];\n    float intensity = clamp((theta - u_lightOuterCutOffs[index]) / epsilon, 0.0, 1.0);\n    \n    // Use point light calculation and multiply by spot intensity\n    return calcPointLight(index, normal, fragPos, viewDir, baseColor) * intensity;\n}\n\nvoid main() {\n    vec3 normal = normalize(v_normal);\n    vec3 viewDir = normalize(u_viewPos - v_fragPos);\n    \n    // Get base color from texture or vertex color\n    vec3 baseColor;\n    if (u_useTexture) {\n        baseColor = texture(u_material.diffuseMap, v_texCoord).rgb;\n    } else {\n        baseColor = v_color;\n    }\n    \n    vec3 result = vec3(0.0);\n    float shadow = ShadowCalculation(v_fragPosLightSpace, normal, normalize(u_lightPositions[0] - v_fragPos));\n    \n    // Calculate contribution from each light\n    for(int i = 0; i < u_numLights; i++) {\n        if(i >= MAX_LIGHTS) break;\n        \n        // Skip inactive lights\n        if(u_lightTypes[i] == LIGHT_TYPE_INACTIVE) continue;\n        \n        if(u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            result += u_lightColors[i] * u_lightIntensities[i] * baseColor;\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            vec3 lighting = calcDirectionalLight(i, normal, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_POINT) {\n            vec3 lighting = calcPointLight(i, normal, v_fragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n            vec3 lighting = calcSpotLight(i, normal, v_fragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n    }\n    \n    fragColor = vec4(result, 1.0);\n}";
+
+// ts/classes/webgl2/shaders/vertexShaderSource.ts
+var vertexShaderSource = "#version 300 es\n\n// Attributes\nin vec3 a_position;\nin vec3 a_normal;\nin vec2 a_texCoord;\nin vec3 a_color;\n\n// Uniforms\nuniform mat4 u_modelMatrix;\nuniform mat4 u_viewMatrix;\nuniform mat4 u_projectionMatrix;\nuniform mat3 u_normalMatrix; // Added for correct normal transformation\nuniform mat4 u_lightSpaceMatrix; // Added for shadow mapping\n\n// Material uniforms\nstruct Material {\n    vec3 ambient;\n    vec3 diffuse;\n    vec3 specular;\n    float shininess;\n    sampler2D diffuseMap;\n};\nuniform Material u_material;\nuniform bool u_useTexture;\n\n// Varyings (output to fragment shader)\nout vec3 v_normal;\nout vec2 v_texCoord;\nout vec3 v_fragPos;\nout vec3 v_color;\nout vec4 v_fragPosLightSpace; // Added for shadow mapping\n\nvoid main() {\n    // Calculate world space position\n    vec4 worldPos = u_modelMatrix * vec4(a_position, 1.0);\n    v_fragPos = worldPos.xyz;\n    \n    // Transform normal to world space using normal matrix\n    v_normal = normalize(u_normalMatrix * a_normal);\n    \n    // Pass texture coordinates and color to fragment shader\n    v_texCoord = a_texCoord;\n    v_color = u_useTexture ? vec3(1.0) : (a_color * u_material.diffuse);\n    \n    // Calculate position in light space for shadow mapping\n    v_fragPosLightSpace = u_lightSpaceMatrix * worldPos;\n    \n    // Calculate final position\n    gl_Position = u_projectionMatrix * u_viewMatrix * worldPos;\n}";
+
+// ts/classes/webgl2/shaders/shadowVertexShader.ts
+var shadowVertexShaderSource = "#version 300 es\nprecision highp float;\n\nin vec3 a_position;\nuniform mat4 u_lightSpaceMatrix;\nuniform mat4 u_modelMatrix;\n\nvoid main() {\n    gl_Position = u_lightSpaceMatrix * u_modelMatrix * vec4(a_position, 1.0);\n}\n";
+
+// ts/classes/webgl2/initialise.ts
+var WebGL2Initializer = class {
+  constructor(canvas) {
+    this.ctx = null;
+    if (!canvas) {
+      throw new Error("Canvas not found");
+    }
+    this.canvas = canvas;
+    this.ctx = this.initializeWebGL2();
+    this.shaderManager = new ShaderManager(this.ctx);
+    this.vao = new VertexArray(this.ctx);
+    this.vertexBuffer = new VertexBuffer(this.ctx);
+    this.indexBuffer = new IndexBuffer(this.ctx);
+    this.shaderManager.loadShaderProgram("basic", vertexShaderSource, fragmentShaderSource);
+    this.shaderManager.loadShaderProgram("shadow", shadowVertexShaderSource, "#version 300 es\n            precision highp float;\n            out vec4 fragColor;\n            void main() {\n                // Only depth values are written\n            }\n        ");
+    this.shaderManager.useProgram("basic");
+    const numLights = 10;
+    const types = new Int32Array(numLights);
+    const positions = new Float32Array(numLights * 3);
+    const directions = new Float32Array(numLights * 3);
+    const colors = new Float32Array(numLights * 3);
+    const intensities = new Float32Array(numLights);
+    const constants = new Float32Array(numLights);
+    const linears = new Float32Array(numLights);
+    const quadratics = new Float32Array(numLights);
+    const cutOffs = new Float32Array(numLights);
+    const outerCutOffs = new Float32Array(numLights);
+    types.fill(-1);
+    constants.fill(1);
+    this.shaderManager.setUniform("u_numLights", 0);
+    this.shaderManager.setUniform("u_lightTypes", types);
+    this.shaderManager.setUniform("u_lightPositions", positions);
+    this.shaderManager.setUniform("u_lightDirections", directions);
+    this.shaderManager.setUniform("u_lightColors", colors);
+    this.shaderManager.setUniform("u_lightIntensities", intensities);
+    this.shaderManager.setUniform("u_lightConstants", constants);
+    this.shaderManager.setUniform("u_lightLinears", linears);
+    this.shaderManager.setUniform("u_lightQuadratics", quadratics);
+    this.shaderManager.setUniform("u_lightCutOffs", cutOffs);
+    this.shaderManager.setUniform("u_lightOuterCutOffs", outerCutOffs);
+    this.shaderManager.setUniform("u_material.ambient", new Float32Array([0.2, 0.2, 0.2]));
+    this.shaderManager.setUniform("u_material.diffuse", new Float32Array([0.8, 0.8, 0.8]));
+    this.shaderManager.setUniform("u_material.specular", new Float32Array([1, 1, 1]));
+    this.shaderManager.setUniform("u_material.shininess", 32);
+    this.shaderManager.setUniform("u_useTexture", 0);
+    this.shaderManager.setUniform("u_viewPos", new Float32Array([3, 2, 3]));
+    this.ctx.enable(this.ctx.DEPTH_TEST);
+    this.ctx.enable(this.ctx.CULL_FACE);
+  }
+  initializeWebGL2() {
+    const ctx = this.canvas.getContext("webgl2");
+    if (!ctx) {
+      throw new Error("WebGL 2 not supported");
+    }
+    return ctx;
+  }
+};
+
+// ts/classes/elements/renderer.ts
+var Renderer = class extends DomElement {
+  get ctx() {
+    return this.webgl.ctx;
+  }
+  get shaderManager() {
+    return this.webgl.shaderManager;
+  }
+  constructor() {
+    super("canvas");
+    this.dom.style.position = "absolute";
+    this.dom.style.pointerEvents = "all";
+    this.dom.style.bottom = "0px";
+    this.dom.style.touchAction = "none";
+    this.dom.tabIndex = 1;
+    this.webgl = new WebGL2Initializer(this.dom);
+    window.addEventListener("resize", () => {
+      this.resize();
+    });
+    glob.events.resize = new Events("resize");
+    this.resize();
+  }
+  resize() {
+    this.size = v2(document.body.clientWidth, document.body.clientHeight);
+    this.dom.style.width = "".concat(this.size.x, "px");
+    this.dom.setAttribute("width", String(this.size.x));
+    this.dom.style.height = "".concat(this.size.y, "px");
+    this.dom.setAttribute("height", String(this.size.y));
+    glob.events.resize.alert(this.size);
+    this.ctx.viewport(0, 0, this.size.x, this.size.y);
+  }
+  get width() {
+    return this.size.x;
+  }
+  set width(value) {
+    this.dom.style.width = "".concat(value, "px");
+    this.dom.setAttribute("width", String(value));
+    this.size.x = value;
+  }
+  get height() {
+    return this.size.y;
+  }
+  set height(value) {
+    this.dom.style.height = "".concat(value, "px");
+    this.dom.setAttribute("height", String(value));
+    this.size.y = value;
+  }
+  tick(obj) {
+    var _a, _b;
+    super.tick(obj);
+    this.tickerData = obj;
+    (_a = glob.game.active) == null ? void 0 : _a.tick(obj);
+    (_b = glob.game.active) == null ? void 0 : _b.afterTick(obj);
+  }
+};
+
+// ts/classes/input/gamepad.ts
+var Pad = class {
+  constructor(gamepad) {
+    this.gamepad = gamepad;
+  }
+  tick() {
+    this.recentPad = navigator.getGamepads().find((g) => g.id === this.gamepad.id);
+  }
+};
+
+// ts/classes/input/gamepadManager.ts
+var PadManager = class {
+  constructor() {
+    this.pads = {};
+    window.addEventListener("gamepadconnected", this.connect.bind(this));
+    window.addEventListener("gamepaddisconnected", this.disconnect.bind(this));
+  }
+  connect(e) {
+    this.pads[e.gamepad.id] = new Pad(e.gamepad);
+  }
+  disconnect(e) {
+    delete this.pads[e.gamepad.id];
+  }
+  tick() {
+    Object.values(this.pads).forEach((pad) => {
+      pad.tick();
+    });
+  }
+};
+
+// ts/classes/elements/domText.ts
+var DomText = class extends DomElement {
+  set color(v) {
+    this.dom.style.color = v;
+  }
+  set fontSize(v) {
+    this.dom.style.fontSize = String(v) + "px";
+  }
+  set fontWeight(v) {
+    this.dom.style.fontWeight = String(v);
+  }
+  set fontFamily(v) {
+    this.dom.style.fontFamily = v;
+  }
+  get text() {
+    return this.dom.innerHTML;
+  }
+  set text(v) {
+    this.dom.innerHTML = v ? v : "";
+  }
+  set padding(v) {
+    this.dom.style.padding = v.join("px ") + "px";
+  }
+  constructor(attr = {}) {
+    super("div", attr);
+    this.color = attr.color;
+    this.text = attr.text;
+    this.fontSize = attr.fontSize;
+    this.fontWeight = attr.fontWeight;
+    this.fontFamily = attr.fontFamily;
+    this.padding = attr.padding || [0, 0, 0, 0];
+    this.dom.style.pointerEvents = "none";
+    this.dom.style.userSelect = "none";
+    this.dom.style.zIndex = "1";
+    this.dom.style.whiteSpace = "pre-line";
+  }
+};
+
+// ts/classes/input/inputDevices.ts
+var Keyboard = class {
+  constructor() {
+    this.keyDown = {};
+    this.keyUp = {};
+  }
+  ready() {
+    glob.renderer.dom.addEventListener("keydown", (e) => {
+      var _a;
+      const k = e.key.toLowerCase();
+      (_a = this.keyDown[k]) == null ? void 0 : _a.forEach((c) => {
+        c(glob.frame);
+      });
+    });
+    glob.renderer.dom.addEventListener("keyup", (e) => {
+      var _a;
+      const k = e.key.toLowerCase();
+      (_a = this.keyUp[k]) == null ? void 0 : _a.forEach((c) => {
+        c();
+      });
+    });
+  }
+  register(key, down, up) {
+    const k = key.toLowerCase();
+    if (this.keyDown[k])
+      this.keyDown[k].push(down);
+    else
+      this.keyDown[k] = [down];
+    if (this.keyUp[k])
+      this.keyUp[k].push(up);
+    else
+      this.keyUp[k] = [up];
+  }
+};
+var InputDevices = class {
+  constructor() {
+    this.keyboard = new Keyboard();
+    this.overlay = new DomText({
+      text: "Pauzed"
+    });
+    this.overlay.dom.setAttribute(
+      "style",
+      "\n            transform-origin: left bottom;\n            pointer-events: none;\n            bottom: 0px;\n            left: 0px;\n            user-select: none;\n            z-index: 999;\n            position: absolute;\n            height: 100vh;\n            width: 100vw;\n            color: white !important;\n            font-family: monospace;\n            font-weight: bold;\n            font-size: 40px;\n            padding-left: 50px;\n            padding-top: 20px;\n            box-sizing: border-box;\n            display: none;\n            text-transform: uppercase;"
+    );
+  }
+  get locked() {
+    return this._locked;
+  }
+  set locked(value) {
+    this._locked = value;
+  }
+  ready() {
+    window.addEventListener("contextmenu", (e) => e.preventDefault());
+    this.mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (this.mobile) {
+      this.locked = true;
+    } else {
+      document.body.appendChild(this.overlay.dom);
+    }
+    this.keyboard.ready();
+  }
+};
+
+// ts/classes/util/utils.ts
+var Util = class {
+  static clamp(value, min2, max2) {
+    return Math.max(Math.min(value, max2), min2);
+  }
+  static to0(value, tolerance = 0.1) {
+    return Math.abs(value) < tolerance ? 0 : value;
+  }
+  static chunk(array, size) {
+    const output = [];
+    for (let i = 0; i < array.length; i += size) {
+      output.push(array.slice(i, i + size));
+    }
+    return output;
+  }
+  static padArray(ar, b, len2) {
+    return ar.concat(Array.from(Array(len2).fill(b))).slice(0, len2);
+  }
+  static addArrays(ar, br) {
+    return ar.map((a, i) => a + br[i]);
+  }
+  static subtractArrays(ar, br) {
+    return ar.map((a, i) => a - br[i]);
+  }
+  static multiplyArrays(ar, br) {
+    return ar.map((a, i) => a * br[i]);
+  }
+  static scaleArrays(ar, b) {
+    return ar.map((a, i) => a * b);
+  }
+  static radToDeg(r) {
+    return r * 180 / Math.PI;
+  }
+  static degToRad(d) {
+    return d * Math.PI / 180;
+  }
+  static closestVectorMagniture(vectors, target) {
+    let current;
+    vectors.forEach((v) => {
+      if (current === void 0 || Math.abs(v.magnitude()) < Math.abs(current.magnitude()))
+        current = v;
+      else {
+      }
+    });
+    return current;
+  }
+};
+
+// ts/classes/util/math/vector3.ts
+function v3(a, b, c) {
+  if (typeof a === "number") {
+    return Vector3.f(a, b, c);
+  } else if (typeof a === "undefined") {
+    return Vector3.f(0);
+  } else {
+    return Vector3.f(...a);
+  }
+}
+var Vector3 = class _Vector3 {
+  get pitch() {
+    return this.x;
+  }
+  set pitch(value) {
+    this.x = value;
+  }
+  get yaw() {
+    return this.y;
+  }
+  set yaw(value) {
+    this.y = value;
+  }
+  get roll() {
+    return this.z;
+  }
+  set roll(value) {
+    this.z = value;
+  }
+  get x() {
+    return this.vec[0];
+  }
+  set x(value) {
+    this.vec[0] = value;
+  }
+  get y() {
+    return this.vec[1];
+  }
+  set y(value) {
+    this.vec[1] = value;
+  }
+  get z() {
+    return this.vec[2];
+  }
+  set z(value) {
+    this.vec[2] = value;
+  }
+  get xy() {
+    return v2(this.x, this.y);
+  }
+  set xy(v) {
+    this.x = v.x;
+    this.y = v.y;
+  }
+  get xz() {
+    return v2(this.x, this.z);
+  }
+  set xz(v) {
+    this.x = v.x;
+    this.z = v.y;
+  }
+  get yx() {
+    return v2(this.y, this.x);
+  }
+  set yx(v) {
+    this.y = v.x;
+    this.x = v.y;
+  }
+  get yz() {
+    return v2(this.y, this.z);
+  }
+  set yz(v) {
+    this.y = v.x;
+    this.z = v.y;
+  }
+  get zx() {
+    return v2(this.z, this.x);
+  }
+  set zx(v) {
+    this.z = v.x;
+    this.x = v.y;
+  }
+  get zy() {
+    return v2(this.z, this.y);
+  }
+  set zy(v) {
+    this.z = v.x;
+    this.y = v.y;
+  }
+  get xzy() {
+    return v3(this.x, this.z, this.y);
+  }
+  set xzy(v) {
+    this.x = v.x;
+    this.z = v.y;
+    this.y = v.z;
+  }
+  get xyz() {
+    return v3(this.x, this.y, this.z);
+  }
+  set xyz(v) {
+    this.x = v.x;
+    this.y = v.y;
+    this.z = v.z;
+  }
+  get yxz() {
+    return v3(this.y, this.x, this.z);
+  }
+  set yxz(v) {
+    this.y = v.x;
+    this.x = v.y;
+    this.z = v.z;
+  }
+  get yzx() {
+    return v3(this.y, this.z, this.x);
+  }
+  set yzx(v) {
+    this.y = v.x;
+    this.z = v.y;
+    this.x = v.z;
+  }
+  get zxy() {
+    return v3(this.z, this.x, this.y);
+  }
+  set zxy(v) {
+    this.z = v.x;
+    this.x = v.y;
+    this.y = v.z;
+  }
+  get zyx() {
+    return v3(this.z, this.y, this.x);
+  }
+  set zyx(v) {
+    this.z = v.x;
+    this.y = v.y;
+    this.x = v.z;
+  }
+  get str() {
+    return this.vec.toString();
+  }
+  get log() {
+    console.log(this.str);
+    return this.str;
+  }
+  constructor(x = 0, y = 0, z = 0) {
+    this.vec = [x, y, z];
+  }
+  static from2(vector, z = 0) {
+    return new _Vector3(vector.x, vector.y, z);
+  }
+  static f(x = 0, y = x, z = x) {
+    return new _Vector3(x, y, z);
+  }
+  static get forwards() {
+    return new _Vector3(0, 0, 1);
+  }
+  static get backwards() {
+    return new _Vector3(0, 0, -1);
+  }
+  static get up() {
+    return new _Vector3(0, 1, 0);
+  }
+  static get down() {
+    return new _Vector3(0, -1, 0);
+  }
+  static get left() {
+    return new _Vector3(-1, 0, 0);
+  }
+  static get right() {
+    return new _Vector3(1, 0, 0);
+  }
+  static get PI() {
+    return new _Vector3(Math.PI, Math.PI, Math.PI);
+  }
+  static get TAU() {
+    return _Vector3.PI.scale(0.5);
+  }
+  get array() {
+    return [this.x, this.y, this.z];
+  }
+  set array(a) {
+    [this.x, this.y, this.z] = a;
+  }
+  forEach(callbackfn) {
+    this.array.forEach(callbackfn);
+  }
+  get c() {
+    return this.clone();
+  }
+  equals(vector) {
+    return this.x === vector.x && this.y === vector.y && this.z === vector.z;
+  }
+  clone() {
+    return new _Vector3(
+      this.x,
+      this.y,
+      this.z
+    );
+  }
+  add(...vectors) {
+    return new _Vector3(
+      this.x + vectors.reduce((a, b) => a + b.x, 0),
+      this.y + vectors.reduce((a, b) => a + b.y, 0),
+      this.z + vectors.reduce((a, b) => a + b.z, 0)
+    );
+  }
+  multiply(a, b, c) {
+    const [x, y, z] = typeof a === "number" ? [a, b, c] : a.array;
+    return new _Vector3(
+      this.x * x,
+      this.y * y,
+      this.z * z
+    );
+  }
+  subtract(...vectors) {
+    return new _Vector3(
+      this.x - vectors.reduce((a, b) => a + b.x, 0),
+      this.y - vectors.reduce((a, b) => a + b.y, 0),
+      this.z - vectors.reduce((a, b) => a + b.z, 0)
+    );
+  }
+  scale(...scalars) {
+    return new _Vector3(
+      this.x * scalars.reduce((a, b) => a * b, 1),
+      this.y * scalars.reduce((a, b) => a * b, 1),
+      this.z * scalars.reduce((a, b) => a * b, 1)
+    );
+  }
+  divide(...vectors) {
+    return new _Vector3(
+      this.x / vectors.reduce((a, b) => a * b.x, 1),
+      this.y / vectors.reduce((a, b) => a * b.y, 1),
+      this.z / vectors.reduce((a, b) => a * b.z, 1)
+    );
+  }
+  rotateXY(rad) {
+    const [a, b] = this.xy.rotate(rad).array;
+    return new _Vector3(
+      a,
+      this.y,
+      b
+    );
+  }
+  rotateXZ(rad) {
+    const [a, b] = this.xz.rotate(rad).array;
+    return new _Vector3(
+      a,
+      b,
+      this.z
+    );
+  }
+  rotateYZ(rad) {
+    const [a, b] = this.yz.rotate(rad).array;
+    return new _Vector3(
+      this.x,
+      a,
+      b
+    );
+  }
+  magnitude() {
+    return Math.sqrt(this.magnitudeSqr());
+  }
+  magnitudeSqr() {
+    return this.x * this.x + this.y * this.y + this.z * this.z;
+  }
+  mod(max2) {
+    return new _Vector3(
+      this.x % max2.x,
+      this.y % max2.y,
+      this.z % max2.z
+    );
+  }
+  clamp(min2, max2) {
+    return new _Vector3(
+      Util.clamp(this.x, min2.x, max2.x),
+      Util.clamp(this.y, min2.y, max2.y),
+      Util.clamp(this.z, min2.z, max2.z)
+    );
+  }
+  normalize() {
+    let len2 = this.x * this.x + this.y * this.y + this.z * this.z;
+    if (len2 > 0) {
+      len2 = 1 / Math.sqrt(len2);
+    }
+    return v3(
+      this.x * len2,
+      this.y * len2,
+      this.z * len2
+    );
+  }
+};
+
 // node_modules/gl-matrix/esm/common.js
 var EPSILON = 1e-6;
 var ARRAY_TYPE = typeof Float32Array !== "undefined" ? Float32Array : Array;
@@ -1672,1215 +2881,6 @@ var forEach = function() {
   };
 }();
 
-// ts/classes/util/math/vector2.ts
-function v2(n, y) {
-  if (typeof n === "number") {
-    return Vector2.f(n, y);
-  } else if (typeof n === "undefined") {
-    return Vector2.f(0);
-  } else {
-    return Vector2.f(...n);
-  }
-}
-var Vector2 = class _Vector2 {
-  constructor(x, y) {
-    this.x = x === void 0 ? 0 : x;
-    this.y = y === void 0 ? 0 : y;
-  }
-  static f(x = 0, y = x) {
-    return new _Vector2(x, y);
-  }
-  isZero() {
-    return this.x === 0 && this.y === 0;
-  }
-  clone() {
-    return new _Vector2(this.x, this.y);
-  }
-  add(vector) {
-    return new _Vector2(this.x + vector.x, this.y + vector.y);
-  }
-  multiply(vector) {
-    return new _Vector2(this.x * vector.x, this.y * vector.y);
-  }
-  subtract(vector) {
-    return new _Vector2(this.x - vector.x, this.y - vector.y);
-  }
-  scale(scalar) {
-    return new _Vector2(this.x * scalar, this.y * scalar);
-  }
-  dot(vector) {
-    return this.x * vector.x + this.y + vector.y;
-  }
-  moveTowards(vector, t) {
-    t = Math.min(t, 1);
-    var diff = vector.subtract(this);
-    return this.add(diff.scale(t));
-  }
-  magnitude() {
-    return Math.sqrt(this.magnitudeSqr());
-  }
-  magnitudeSqr() {
-    return this.x * this.x + this.y * this.y;
-  }
-  clampMagnitude(max2 = 1) {
-    if (this.magnitude() === 0)
-      return v2(0);
-    return this.scale(1 / this.magnitude() || 1).scale(Math.min(max2, this.magnitude()));
-  }
-  distance(vector) {
-    return Math.sqrt(this.distanceSqr(vector));
-  }
-  distanceSqr(vector) {
-    var deltaX = this.x - vector.x;
-    var deltaY = this.y - vector.y;
-    return deltaX * deltaX + deltaY * deltaY;
-  }
-  normalize() {
-    var mag = this.magnitude();
-    var vector = this.clone();
-    if (Math.abs(mag) < 1e-9) {
-      vector.x = 0;
-      vector.y = 0;
-    } else {
-      vector.x /= mag;
-      vector.y /= mag;
-    }
-    return vector;
-  }
-  angleDegrees() {
-    return this.angle() * (180 / Math.PI);
-  }
-  angle() {
-    return Math.atan2(this.y, this.x);
-  }
-  rotate(rad) {
-    var cos = Math.cos(rad);
-    var sin = Math.sin(rad);
-    return new _Vector2(
-      this.x * cos - this.y * sin,
-      this.x * sin + this.y * cos
-    );
-  }
-  toPrecision(precision) {
-    var vector = this.clone();
-    vector.x = +vector.x.toFixed(precision);
-    vector.y = +vector.y.toFixed(precision);
-    return vector;
-  }
-  toString() {
-    var vector = this.toPrecision(1);
-    return "[" + vector.x + "; " + vector.y + "]";
-  }
-  clamp(min2, max2) {
-    return _Vector2.clamp(this, min2, max2);
-  }
-  static min(a, b) {
-    return new _Vector2(
-      Math.min(a.x, b.x),
-      Math.min(a.y, b.y)
-    );
-  }
-  static max(a, b) {
-    return new _Vector2(
-      Math.max(a.x, b.x),
-      Math.max(a.y, b.y)
-    );
-  }
-  static clamp(value, min2, max2) {
-    return _Vector2.max(_Vector2.min(value, min2), max2);
-  }
-  clampMagnitute(mag) {
-    return _Vector2.clampMagnitute(this, mag);
-  }
-  get array() {
-    return [this.x, this.y];
-  }
-  set array(a) {
-    [this.x, this.y] = a;
-  }
-  get surfaceArea() {
-    return this.x * this.y;
-  }
-  static clampMagnitute(value, mag) {
-    var ratio = value.magnitude() / mag;
-    return new _Vector2(value.x / ratio, value.y / ratio);
-  }
-  static get zero() {
-    return new _Vector2(0, 0);
-  }
-  static get down() {
-    return new _Vector2(0, -1);
-  }
-  static get up() {
-    return new _Vector2(0, 1);
-  }
-  static get right() {
-    return new _Vector2(1, 0);
-  }
-  static get left() {
-    return new _Vector2(-1, 0);
-  }
-  static get fromDegree() {
-    return new _Vector2(0, 0);
-  }
-};
-
-// ts/classes/elements/element.ts
-var Element = class {
-  constructor() {
-    this.events = [];
-  }
-  get t() {
-    return glob.game.t;
-  }
-  build() {
-  }
-  addEvent(e) {
-    this.events.push(e);
-  }
-  getEvent(id) {
-    return this.events.find((e) => id === e.id);
-  }
-};
-
-// ts/classes/elements/domElement.ts
-var DomElement = class extends Element {
-  constructor(type, attr = {}) {
-    super();
-    this.children = [];
-    this.rendererType = "dom";
-    this._position = v2(0);
-    this.size = v2(0);
-    this.dom = document.createElement(type);
-    this.dom.style.position = "absolute";
-    this.dom.style.transformOrigin = "bottom left";
-    this.dom.style.pointerEvents = "none";
-    this.dom.style.bottom = "0px";
-    this.id = attr.id || "";
-    this.background = attr.background || "";
-    this.size = attr.size || Vector2.zero;
-    this.position = attr.position || Vector2.zero;
-  }
-  get position() {
-    return this._position;
-  }
-  set position(value) {
-    this._position = value;
-    this.x = value.x;
-    this.y = value.y;
-  }
-  get id() {
-    return this.dom.id;
-  }
-  set id(value) {
-    if (value) {
-      this.dom.id = value;
-    }
-  }
-  get x() {
-    return Math.round(Number(this.dom.style.left.replace(/\D/g, "")));
-  }
-  set x(n) {
-    if (this.dom) {
-      this.dom.style.left = "".concat(n, "px");
-    }
-  }
-  get y() {
-    return Math.round(Number(this.dom.style.bottom.replace(/\D/g, "")));
-  }
-  set y(n) {
-    if (this.dom) {
-      this.dom.style.bottom = "".concat(n, "px");
-    }
-  }
-  set visible(value) {
-    this.dom ? this.dom.style.display = value ? "block" : "none" : null;
-  }
-  set background(v) {
-    this.dom.style.background = v;
-  }
-  get width() {
-    return Math.round(Number(this.dom.style.width.replace(/\D/g, "")));
-  }
-  set width(value) {
-    if (this.dom) {
-      this.dom.style.width = "".concat(value, "px");
-      this.dom.setAttribute("width", String(value));
-    }
-  }
-  get height() {
-    return Math.round(Number(this.dom.style.height.replace(/\D/g, "")));
-  }
-  set height(value) {
-    if (this.dom) {
-      this.dom.style.height = "".concat(value, "px");
-      this.dom.setAttribute("height", String(value));
-    }
-  }
-  ready() {
-    this.build();
-  }
-  tick(obj) {
-    this.children.forEach((c) => {
-      c.tick(obj);
-    });
-  }
-  appendChild(e) {
-    this.dom.appendChild(e.dom);
-  }
-  addChild(child) {
-    this.children.push(child);
-    this.dom.appendChild(child.dom);
-  }
-  addEventListener(type, listener, options) {
-    this.dom.addEventListener(type, listener, options);
-  }
-  removeEventListener(type, listener, options) {
-    this.dom.removeEventListener(type, listener, options);
-  }
-};
-
-// ts/classes/util/event.ts
-var Events = class {
-  constructor(id) {
-    this.subscribers = {};
-    this.id = id;
-  }
-  subscribe(key, func) {
-    this.subscribers[key] = func;
-  }
-  alert(v) {
-    Object.values(this.subscribers).forEach((s) => {
-      s(v);
-    });
-  }
-};
-
-// ts/classes/webgl2/buffer.ts
-var Buffer2 = class {
-  constructor(gl, type = gl.ARRAY_BUFFER, usage = gl.STATIC_DRAW) {
-    this.gl = gl;
-    this.type = type;
-    this.usage = usage;
-    const buffer = gl.createBuffer();
-    if (!buffer) {
-      throw new Error("Failed to create buffer");
-    }
-    this.buffer = buffer;
-  }
-  bind() {
-    this.gl.bindBuffer(this.type, this.buffer);
-  }
-  unbind() {
-    this.gl.bindBuffer(this.type, null);
-  }
-  setData(data) {
-    this.bind();
-    this.gl.bufferData(this.type, data, this.usage);
-  }
-  updateData(data, offset = 0) {
-    this.bind();
-    this.gl.bufferSubData(this.type, offset, data);
-  }
-  dispose() {
-    this.gl.deleteBuffer(this.buffer);
-  }
-};
-var VertexArray = class {
-  constructor(gl) {
-    this.gl = gl;
-    const vao = gl.createVertexArray();
-    if (!vao) {
-      throw new Error("Failed to create vertex array object");
-    }
-    this.vao = vao;
-  }
-  bind() {
-    this.gl.bindVertexArray(this.vao);
-  }
-  unbind() {
-    this.gl.bindVertexArray(null);
-  }
-  setAttributePointer(location, size, type, normalized = false, stride = 0, offset = 0) {
-    this.gl.vertexAttribPointer(location, size, type, normalized, stride, offset);
-    this.gl.enableVertexAttribArray(location);
-  }
-  dispose() {
-    this.gl.deleteVertexArray(this.vao);
-  }
-};
-var VertexBuffer = class extends Buffer2 {
-  constructor(gl, usage = gl.STATIC_DRAW) {
-    super(gl, gl.ARRAY_BUFFER, usage);
-  }
-};
-var IndexBuffer = class extends Buffer2 {
-  constructor(gl, usage = gl.STATIC_DRAW) {
-    super(gl, gl.ELEMENT_ARRAY_BUFFER, usage);
-    this.count = 0;
-  }
-  setData(data) {
-    super.setData(data);
-    this.count = data.byteLength / 2;
-  }
-  getCount() {
-    return this.count;
-  }
-};
-
-// ts/classes/webgl2/shaderManager.ts
-var ShaderManager = class {
-  constructor(gl) {
-    this.currentProgram = null;
-    this.gl = gl;
-    this.shaderPrograms = /* @__PURE__ */ new Map();
-    this.uniforms = /* @__PURE__ */ new Map();
-    this.attributes = /* @__PURE__ */ new Map();
-  }
-  loadShaderProgram(name, vertexSource, fragmentSource) {
-    try {
-      const vertexShader = this.compileShader(vertexSource, this.gl.VERTEX_SHADER);
-      const fragmentShader = this.compileShader(fragmentSource, this.gl.FRAGMENT_SHADER);
-      const program = this.createProgram(vertexShader, fragmentShader);
-      this.shaderPrograms.set(name, program);
-      this.uniforms.set(name, /* @__PURE__ */ new Map());
-      this.attributes.set(name, /* @__PURE__ */ new Map());
-      this.gl.deleteShader(vertexShader);
-      this.gl.deleteShader(fragmentShader);
-      this.introspectShaderProgram(name);
-    } catch (error) {
-      console.error("Failed to load shader program '".concat(name, "':"), error);
-      throw error;
-    }
-  }
-  compileShader(source, type) {
-    const shader = this.gl.createShader(type);
-    if (!shader) {
-      throw new Error("Failed to create shader");
-    }
-    this.gl.shaderSource(shader, source);
-    this.gl.compileShader(shader);
-    if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
-      const info = this.gl.getShaderInfoLog(shader);
-      this.gl.deleteShader(shader);
-      throw new Error("Shader compilation error: ".concat(info));
-    }
-    return shader;
-  }
-  createProgram(vertexShader, fragmentShader) {
-    const program = this.gl.createProgram();
-    if (!program) {
-      throw new Error("Failed to create shader program");
-    }
-    this.gl.attachShader(program, vertexShader);
-    this.gl.attachShader(program, fragmentShader);
-    this.gl.linkProgram(program);
-    if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
-      const info = this.gl.getProgramInfoLog(program);
-      this.gl.deleteProgram(program);
-      throw new Error("Shader program linking error: ".concat(info));
-    }
-    return program;
-  }
-  introspectShaderProgram(name) {
-    const program = this.shaderPrograms.get(name);
-    if (!program) {
-      throw new Error("Shader program '".concat(name, "' not found"));
-    }
-    const numUniforms = this.gl.getProgramParameter(program, this.gl.ACTIVE_UNIFORMS);
-    const uniformMap = this.uniforms.get(name);
-    for (let i = 0; i < numUniforms; i++) {
-      const info = this.gl.getActiveUniform(program, i);
-      if (!info)
-        continue;
-      const location = this.gl.getUniformLocation(program, info.name);
-      if (!location)
-        continue;
-      const baseName = info.name.replace(/\[\d+\].*$/, "");
-      uniformMap.set(baseName, {
-        type: this.getUniformTypeName(info.type),
-        value: this.getDefaultValueForType(info.type),
-        location,
-        isArray: info.size > 1,
-        arraySize: info.size
-      });
-    }
-    const numAttributes = this.gl.getProgramParameter(program, this.gl.ACTIVE_ATTRIBUTES);
-    const attributeMap = this.attributes.get(name);
-    for (let i = 0; i < numAttributes; i++) {
-      const info = this.gl.getActiveAttrib(program, i);
-      if (!info)
-        continue;
-      const location = this.gl.getAttribLocation(program, info.name);
-      if (location === -1)
-        continue;
-      attributeMap.set(info.name, {
-        type: this.getAttributeTypeName(info.type),
-        size: this.getAttributeSize(info.type),
-        location
-      });
-    }
-  }
-  useProgram(name) {
-    const program = this.shaderPrograms.get(name);
-    if (!program) {
-      throw new Error("Shader program '".concat(name, "' not found"));
-    }
-    this.gl.useProgram(program);
-    this.currentProgram = name;
-  }
-  setUniform(name, value) {
-    if (!this.currentProgram) {
-      throw new Error("No shader program is currently in use");
-    }
-    const uniformMap = this.uniforms.get(this.currentProgram);
-    if (!uniformMap) {
-      throw new Error("Uniform map not found for program '".concat(this.currentProgram, "'"));
-    }
-    const uniform = uniformMap.get(name);
-    if (!uniform || !uniform.location) {
-      throw new Error("Uniform '".concat(name, "' not found in program '").concat(this.currentProgram, "'. Make sure to use the u_camelCase naming convention for uniforms, v_camelCase for varyings, and a_camelCase for attributes."));
-    }
-    this.setUniformValue(uniform.type, uniform.location, value);
-    uniform.value = value;
-  }
-  setUniformValue(type, location, value) {
-    switch (type) {
-      case "float":
-        if (Array.isArray(value) || value instanceof Float32Array) {
-          this.gl.uniform1fv(location, value);
-        } else {
-          this.gl.uniform1f(location, value);
-        }
-        break;
-      case "vec2":
-        this.gl.uniform2fv(location, value);
-        break;
-      case "vec3":
-        this.gl.uniform3fv(location, value);
-        break;
-      case "vec4":
-        this.gl.uniform4fv(location, value);
-        break;
-      case "mat4":
-        this.gl.uniformMatrix4fv(location, false, value);
-        break;
-      case "mat3":
-        this.gl.uniformMatrix3fv(location, false, value);
-        break;
-      case "int":
-      case "bool":
-        if (Array.isArray(value) || value instanceof Int32Array) {
-          this.gl.uniform1iv(location, value);
-        } else {
-          this.gl.uniform1i(location, value);
-        }
-        break;
-      case "sampler2D":
-        this.gl.uniform1i(location, value);
-        break;
-      case "Light":
-        const data = value;
-        this.gl.uniform1fv(location, data);
-        break;
-      default:
-        console.warn("Unsupported uniform type: ".concat(type));
-        break;
-    }
-  }
-  getAttributeLocation(name) {
-    if (!this.currentProgram) {
-      throw new Error("No shader program is currently in use");
-    }
-    const attributeMap = this.attributes.get(this.currentProgram);
-    if (!attributeMap) {
-      throw new Error("Attribute map not found for program '".concat(this.currentProgram, "'"));
-    }
-    const attribute = attributeMap.get(name);
-    if (!attribute) {
-      throw new Error("Attribute '".concat(name, "' not found in program '").concat(this.currentProgram, "'. Make sure to use the a_camelCase naming convention."));
-    }
-    return attribute.location;
-  }
-  getUniformTypeName(type) {
-    switch (type) {
-      case this.gl.FLOAT:
-        return "float";
-      case this.gl.FLOAT_VEC2:
-        return "vec2";
-      case this.gl.FLOAT_VEC3:
-        return "vec3";
-      case this.gl.FLOAT_VEC4:
-        return "vec4";
-      case this.gl.FLOAT_MAT4:
-        return "mat4";
-      case this.gl.FLOAT_MAT3:
-        return "mat3";
-      case this.gl.INT:
-        return "int";
-      case this.gl.BOOL:
-        return "bool";
-      case this.gl.SAMPLER_2D:
-        return "sampler2D";
-      case 35666:
-        return "Light";
-      default:
-        console.warn("Unknown uniform type: ".concat(type));
-        return "unknown";
-    }
-  }
-  getAttributeTypeName(type) {
-    switch (type) {
-      case this.gl.FLOAT:
-        return "float";
-      case this.gl.FLOAT_VEC2:
-        return "vec2";
-      case this.gl.FLOAT_VEC3:
-        return "vec3";
-      case this.gl.FLOAT_VEC4:
-        return "vec4";
-      default:
-        return "unknown";
-    }
-  }
-  getAttributeSize(type) {
-    switch (type) {
-      case this.gl.FLOAT:
-        return 1;
-      case this.gl.FLOAT_VEC2:
-        return 2;
-      case this.gl.FLOAT_VEC3:
-        return 3;
-      case this.gl.FLOAT_VEC4:
-        return 4;
-      default:
-        return 0;
-    }
-  }
-  getDefaultValueForType(type) {
-    switch (type) {
-      case this.gl.FLOAT:
-      case this.gl.INT:
-      case this.gl.BOOL:
-      case this.gl.SAMPLER_2D:
-        return 0;
-      case this.gl.FLOAT_VEC2:
-        return new Float32Array(2);
-      case this.gl.FLOAT_VEC3:
-        return new Float32Array(3);
-      case this.gl.FLOAT_VEC4:
-        return new Float32Array(4);
-      case this.gl.FLOAT_MAT4:
-        return new Float32Array(16);
-      default:
-        return 0;
-    }
-  }
-  dispose() {
-    for (const [name, program] of this.shaderPrograms) {
-      this.gl.deleteProgram(program);
-    }
-    this.shaderPrograms.clear();
-    this.uniforms.clear();
-    this.attributes.clear();
-    this.currentProgram = null;
-  }
-};
-
-// ts/classes/webgl2/shaders/fragmentShaderSource.ts
-var fragmentShaderSource = "#version 300 es\nprecision highp float;\n\n// Maximum number of lights\n#define MAX_LIGHTS 10\n\n// Light types\n#define LIGHT_TYPE_INACTIVE -1\n#define LIGHT_TYPE_AMBIENT 0\n#define LIGHT_TYPE_DIRECTIONAL 1\n#define LIGHT_TYPE_POINT 2\n#define LIGHT_TYPE_SPOT 3\n\n// Input from vertex shader\nin vec3 v_normal;\nin vec2 v_texCoord;\nin vec3 v_fragPos;\nin vec3 v_color;\nin vec4 v_fragPosLightSpace;\n\n// Material structure\nstruct Material {\n    vec3 ambient;\n    vec3 diffuse;\n    vec3 specular;\n    float shininess;\n    sampler2D diffuseMap;\n};\n\n// Light uniforms\nuniform int u_lightTypes[MAX_LIGHTS];\nuniform vec3 u_lightPositions[MAX_LIGHTS];\nuniform vec3 u_lightDirections[MAX_LIGHTS];\nuniform vec3 u_lightColors[MAX_LIGHTS];\nuniform float u_lightIntensities[MAX_LIGHTS];\nuniform float u_lightConstants[MAX_LIGHTS];\nuniform float u_lightLinears[MAX_LIGHTS];\nuniform float u_lightQuadratics[MAX_LIGHTS];\nuniform float u_lightCutOffs[MAX_LIGHTS];\nuniform float u_lightOuterCutOffs[MAX_LIGHTS];\nuniform int u_numLights;\n\n// Material uniforms\nuniform Material u_material;\nuniform bool u_useTexture;\n\n// Shadow mapping uniforms\nuniform sampler2D u_shadowMap;\nuniform mat4 u_lightSpaceMatrix;\n\n// Other uniforms\nuniform vec3 u_viewPos;\n\n// Output\nout vec4 fragColor;\n\nfloat ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir) {\n    // Perform perspective divide\n    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;\n    \n    // Transform to [0,1] range\n    projCoords = projCoords * 0.5 + 0.5;\n    \n    // Get closest depth value from light's perspective\n    float closestDepth = texture(u_shadowMap, projCoords.xy).r;\n    \n    // Get current depth\n    float currentDepth = projCoords.z;\n    \n    // Calculate bias based on surface angle\n    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);\n    \n    // PCF (Percentage Closer Filtering)\n    float shadow = 0.0;\n    vec2 texelSize = 1.0 / vec2(textureSize(u_shadowMap, 0));\n    for(int x = -1; x <= 1; ++x) {\n        for(int y = -1; y <= 1; ++y) {\n            float pcfDepth = texture(u_shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;\n            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;\n        }\n    }\n    shadow /= 9.0;\n    \n    // Keep shadow at 0.0 when outside the far plane region of the light's frustum\n    if(projCoords.z > 1.0)\n        shadow = 0.0;\n        \n    return shadow;\n}\n\n// Function to calculate directional light\nvec3 calcDirectionalLight(int index, vec3 normal, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(-u_lightDirections[index]);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_material.shininess);\n    \n    vec3 ambient = u_lightColors[index] * u_material.ambient;\n    vec3 diffuse = u_lightColors[index] * diff * baseColor;\n    vec3 specular = u_lightColors[index] * spec * u_material.specular;\n    \n    return (ambient + diffuse + specular) * u_lightIntensities[index];\n}\n\n// Function to calculate point light\nvec3 calcPointLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(u_lightPositions[index] - fragPos);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_material.shininess);\n    \n    // Attenuation\n    float distance = length(u_lightPositions[index] - fragPos);\n    float attenuation = 1.0 / (u_lightConstants[index] + u_lightLinears[index] * distance + u_lightQuadratics[index] * distance * distance);\n    \n    vec3 ambient = u_lightColors[index] * u_material.ambient;\n    vec3 diffuse = u_lightColors[index] * diff * baseColor;\n    vec3 specular = u_lightColors[index] * spec * u_material.specular;\n    \n    return (ambient + diffuse + specular) * attenuation * u_lightIntensities[index];\n}\n\n// Function to calculate spot light\nvec3 calcSpotLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(u_lightPositions[index] - fragPos);\n    \n    // Spot light intensity\n    float theta = dot(lightDir, normalize(-u_lightDirections[index]));\n    float epsilon = u_lightCutOffs[index] - u_lightOuterCutOffs[index];\n    float intensity = clamp((theta - u_lightOuterCutOffs[index]) / epsilon, 0.0, 1.0);\n    \n    // Use point light calculation and multiply by spot intensity\n    return calcPointLight(index, normal, fragPos, viewDir, baseColor) * intensity;\n}\n\nvoid main() {\n    vec3 normal = normalize(v_normal);\n    vec3 viewDir = normalize(u_viewPos - v_fragPos);\n    \n    // Get base color from texture or vertex color\n    vec3 baseColor;\n    if (u_useTexture) {\n        baseColor = texture(u_material.diffuseMap, v_texCoord).rgb;\n    } else {\n        baseColor = v_color;\n    }\n    \n    vec3 result = vec3(0.0);\n    float shadow = ShadowCalculation(v_fragPosLightSpace, normal, normalize(u_lightPositions[0] - v_fragPos));\n    \n    // Calculate contribution from each light\n    for(int i = 0; i < u_numLights; i++) {\n        if(i >= MAX_LIGHTS) break;\n        \n        // Skip inactive lights\n        if(u_lightTypes[i] == LIGHT_TYPE_INACTIVE) continue;\n        \n        if(u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            result += u_lightColors[i] * u_lightIntensities[i] * baseColor;\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            vec3 lighting = calcDirectionalLight(i, normal, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_POINT) {\n            vec3 lighting = calcPointLight(i, normal, v_fragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n            vec3 lighting = calcSpotLight(i, normal, v_fragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n    }\n    \n    fragColor = vec4(result, 1.0);\n}";
-
-// ts/classes/webgl2/shaders/vertexShaderSource.ts
-var vertexShaderSource = "#version 300 es\n\n// Attributes\nin vec3 a_position;\nin vec3 a_normal;\nin vec2 a_texCoord;\nin vec3 a_color;\n\n// Uniforms\nuniform mat4 u_modelMatrix;\nuniform mat4 u_viewMatrix;\nuniform mat4 u_projectionMatrix;\nuniform mat3 u_normalMatrix; // Added for correct normal transformation\nuniform mat4 u_lightSpaceMatrix; // Added for shadow mapping\n\n// Material uniforms\nstruct Material {\n    vec3 ambient;\n    vec3 diffuse;\n    vec3 specular;\n    float shininess;\n    sampler2D diffuseMap;\n};\nuniform Material u_material;\nuniform bool u_useTexture;\n\n// Varyings (output to fragment shader)\nout vec3 v_normal;\nout vec2 v_texCoord;\nout vec3 v_fragPos;\nout vec3 v_color;\nout vec4 v_fragPosLightSpace; // Added for shadow mapping\n\nvoid main() {\n    // Calculate world space position\n    vec4 worldPos = u_modelMatrix * vec4(a_position, 1.0);\n    v_fragPos = worldPos.xyz;\n    \n    // Transform normal to world space using normal matrix\n    v_normal = normalize(u_normalMatrix * a_normal);\n    \n    // Pass texture coordinates and color to fragment shader\n    v_texCoord = a_texCoord;\n    v_color = u_useTexture ? vec3(1.0) : (a_color * u_material.diffuse);\n    \n    // Calculate position in light space for shadow mapping\n    v_fragPosLightSpace = u_lightSpaceMatrix * worldPos;\n    \n    // Calculate final position\n    gl_Position = u_projectionMatrix * u_viewMatrix * worldPos;\n}";
-
-// ts/classes/webgl2/shaders/shadowVertexShader.ts
-var shadowVertexShaderSource = "#version 300 es\nprecision highp float;\n\nin vec3 a_position;\nuniform mat4 u_lightSpaceMatrix;\nuniform mat4 u_modelMatrix;\n\nvoid main() {\n    gl_Position = u_lightSpaceMatrix * u_modelMatrix * vec4(a_position, 1.0);\n}\n";
-
-// ts/classes/webgl2/initialise.ts
-var WebGL2Initializer = class {
-  constructor(canvas) {
-    this.ctx = null;
-    if (!canvas) {
-      throw new Error("Canvas not found");
-    }
-    this.canvas = canvas;
-    this.ctx = this.initializeWebGL2();
-    this.shaderManager = new ShaderManager(this.ctx);
-    this.vao = new VertexArray(this.ctx);
-    this.vertexBuffer = new VertexBuffer(this.ctx);
-    this.indexBuffer = new IndexBuffer(this.ctx);
-    this.shaderManager.loadShaderProgram("basic", vertexShaderSource, fragmentShaderSource);
-    this.shaderManager.loadShaderProgram("shadow", shadowVertexShaderSource, "#version 300 es\n            precision highp float;\n            out vec4 fragColor;\n            void main() {\n                // Only depth values are written\n            }\n        ");
-    this.shaderManager.useProgram("basic");
-    const numLights = 10;
-    const types = new Int32Array(numLights);
-    const positions = new Float32Array(numLights * 3);
-    const directions = new Float32Array(numLights * 3);
-    const colors = new Float32Array(numLights * 3);
-    const intensities = new Float32Array(numLights);
-    const constants = new Float32Array(numLights);
-    const linears = new Float32Array(numLights);
-    const quadratics = new Float32Array(numLights);
-    const cutOffs = new Float32Array(numLights);
-    const outerCutOffs = new Float32Array(numLights);
-    types.fill(-1);
-    constants.fill(1);
-    this.shaderManager.setUniform("u_numLights", 0);
-    this.shaderManager.setUniform("u_lightTypes", types);
-    this.shaderManager.setUniform("u_lightPositions", positions);
-    this.shaderManager.setUniform("u_lightDirections", directions);
-    this.shaderManager.setUniform("u_lightColors", colors);
-    this.shaderManager.setUniform("u_lightIntensities", intensities);
-    this.shaderManager.setUniform("u_lightConstants", constants);
-    this.shaderManager.setUniform("u_lightLinears", linears);
-    this.shaderManager.setUniform("u_lightQuadratics", quadratics);
-    this.shaderManager.setUniform("u_lightCutOffs", cutOffs);
-    this.shaderManager.setUniform("u_lightOuterCutOffs", outerCutOffs);
-    this.shaderManager.setUniform("u_material.ambient", new Float32Array([0.2, 0.2, 0.2]));
-    this.shaderManager.setUniform("u_material.diffuse", new Float32Array([0.8, 0.8, 0.8]));
-    this.shaderManager.setUniform("u_material.specular", new Float32Array([1, 1, 1]));
-    this.shaderManager.setUniform("u_material.shininess", 32);
-    this.shaderManager.setUniform("u_useTexture", 0);
-    this.shaderManager.setUniform("u_viewPos", new Float32Array([3, 2, 3]));
-    this.ctx.enable(this.ctx.DEPTH_TEST);
-    this.ctx.enable(this.ctx.CULL_FACE);
-  }
-  initializeWebGL2() {
-    const ctx = this.canvas.getContext("webgl2");
-    if (!ctx) {
-      throw new Error("WebGL 2 not supported");
-    }
-    return ctx;
-  }
-};
-
-// ts/classes/elements/renderer.ts
-var Renderer = class extends DomElement {
-  get ctx() {
-    return this.webgl.ctx;
-  }
-  get shaderManager() {
-    return this.webgl.shaderManager;
-  }
-  constructor() {
-    super("canvas");
-    this.dom.style.position = "absolute";
-    this.dom.style.pointerEvents = "all";
-    this.dom.style.bottom = "0px";
-    this.dom.style.touchAction = "none";
-    this.dom.tabIndex = 1;
-    this.webgl = new WebGL2Initializer(this.dom);
-    window.addEventListener("resize", () => {
-      this.resize();
-    });
-    glob.events.resize = new Events("resize");
-    this.resize();
-  }
-  resize() {
-    this.size = v2(document.body.clientWidth, document.body.clientHeight);
-    this.dom.style.width = "".concat(this.size.x, "px");
-    this.dom.setAttribute("width", String(this.size.x));
-    this.dom.style.height = "".concat(this.size.y, "px");
-    this.dom.setAttribute("height", String(this.size.y));
-    glob.events.resize.alert(this.size);
-    this.ctx.viewport(0, 0, this.size.x, this.size.y);
-  }
-  get width() {
-    return this.size.x;
-  }
-  set width(value) {
-    this.dom.style.width = "".concat(value, "px");
-    this.dom.setAttribute("width", String(value));
-    this.size.x = value;
-  }
-  get height() {
-    return this.size.y;
-  }
-  set height(value) {
-    this.dom.style.height = "".concat(value, "px");
-    this.dom.setAttribute("height", String(value));
-    this.size.y = value;
-  }
-  tick(obj) {
-    var _a, _b;
-    super.tick(obj);
-    this.tickerData = obj;
-    (_a = glob.game.active) == null ? void 0 : _a.tick(obj);
-    (_b = glob.game.active) == null ? void 0 : _b.afterTick(obj);
-  }
-};
-
-// ts/classes/input/gamepad.ts
-var Pad = class {
-  constructor(gamepad) {
-    this.gamepad = gamepad;
-  }
-  tick() {
-    this.recentPad = navigator.getGamepads().find((g) => g.id === this.gamepad.id);
-  }
-};
-
-// ts/classes/input/gamepadManager.ts
-var PadManager = class {
-  constructor() {
-    this.pads = {};
-    window.addEventListener("gamepadconnected", this.connect.bind(this));
-    window.addEventListener("gamepaddisconnected", this.disconnect.bind(this));
-  }
-  connect(e) {
-    this.pads[e.gamepad.id] = new Pad(e.gamepad);
-  }
-  disconnect(e) {
-    delete this.pads[e.gamepad.id];
-  }
-  tick() {
-    Object.values(this.pads).forEach((pad) => {
-      pad.tick();
-    });
-  }
-};
-
-// ts/classes/elements/domText.ts
-var DomText = class extends DomElement {
-  set color(v) {
-    this.dom.style.color = v;
-  }
-  set fontSize(v) {
-    this.dom.style.fontSize = String(v) + "px";
-  }
-  set fontWeight(v) {
-    this.dom.style.fontWeight = String(v);
-  }
-  set fontFamily(v) {
-    this.dom.style.fontFamily = v;
-  }
-  get text() {
-    return this.dom.innerHTML;
-  }
-  set text(v) {
-    this.dom.innerHTML = v ? v : "";
-  }
-  set padding(v) {
-    this.dom.style.padding = v.join("px ") + "px";
-  }
-  constructor(attr = {}) {
-    super("div", attr);
-    this.color = attr.color;
-    this.text = attr.text;
-    this.fontSize = attr.fontSize;
-    this.fontWeight = attr.fontWeight;
-    this.fontFamily = attr.fontFamily;
-    this.padding = attr.padding || [0, 0, 0, 0];
-    this.dom.style.pointerEvents = "none";
-    this.dom.style.userSelect = "none";
-    this.dom.style.zIndex = "1";
-    this.dom.style.whiteSpace = "pre-line";
-  }
-};
-
-// ts/classes/input/inputDevices.ts
-var Keyboard = class {
-  constructor() {
-    this.keyDown = {};
-    this.keyUp = {};
-  }
-  ready() {
-    glob.renderer.dom.addEventListener("keydown", (e) => {
-      var _a;
-      const k = e.key.toLowerCase();
-      (_a = this.keyDown[k]) == null ? void 0 : _a.forEach((c) => {
-        c(glob.frame);
-      });
-    });
-    glob.renderer.dom.addEventListener("keyup", (e) => {
-      var _a;
-      const k = e.key.toLowerCase();
-      (_a = this.keyUp[k]) == null ? void 0 : _a.forEach((c) => {
-        c();
-      });
-    });
-  }
-  register(key, down, up) {
-    const k = key.toLowerCase();
-    if (this.keyDown[k])
-      this.keyDown[k].push(down);
-    else
-      this.keyDown[k] = [down];
-    if (this.keyUp[k])
-      this.keyUp[k].push(up);
-    else
-      this.keyUp[k] = [up];
-  }
-};
-var InputDevices = class {
-  constructor() {
-    this.keyboard = new Keyboard();
-    this.overlay = new DomText({
-      text: "Pauzed"
-    });
-    this.overlay.dom.setAttribute(
-      "style",
-      "\n            transform-origin: left bottom;\n            pointer-events: none;\n            bottom: 0px;\n            left: 0px;\n            user-select: none;\n            z-index: 999;\n            position: absolute;\n            height: 100vh;\n            width: 100vw;\n            color: white !important;\n            font-family: monospace;\n            font-weight: bold;\n            font-size: 40px;\n            padding-left: 50px;\n            padding-top: 20px;\n            box-sizing: border-box;\n            display: none;\n            text-transform: uppercase;"
-    );
-  }
-  get locked() {
-    return this._locked;
-  }
-  set locked(value) {
-    this._locked = value;
-  }
-  ready() {
-    window.addEventListener("contextmenu", (e) => e.preventDefault());
-    this.mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (this.mobile) {
-      this.locked = true;
-    } else {
-      document.body.appendChild(this.overlay.dom);
-    }
-    this.keyboard.ready();
-  }
-};
-
-// ts/classes/util/utils.ts
-var Util = class {
-  static clamp(value, min2, max2) {
-    return Math.max(Math.min(value, max2), min2);
-  }
-  static to0(value, tolerance = 0.1) {
-    return Math.abs(value) < tolerance ? 0 : value;
-  }
-  static chunk(array, size) {
-    const output = [];
-    for (let i = 0; i < array.length; i += size) {
-      output.push(array.slice(i, i + size));
-    }
-    return output;
-  }
-  static padArray(ar, b, len2) {
-    return ar.concat(Array.from(Array(len2).fill(b))).slice(0, len2);
-  }
-  static addArrays(ar, br) {
-    return ar.map((a, i) => a + br[i]);
-  }
-  static subtractArrays(ar, br) {
-    return ar.map((a, i) => a - br[i]);
-  }
-  static multiplyArrays(ar, br) {
-    return ar.map((a, i) => a * br[i]);
-  }
-  static scaleArrays(ar, b) {
-    return ar.map((a, i) => a * b);
-  }
-  static radToDeg(r) {
-    return r * 180 / Math.PI;
-  }
-  static degToRad(d) {
-    return d * Math.PI / 180;
-  }
-  static closestVectorMagniture(vectors, target) {
-    let current;
-    vectors.forEach((v) => {
-      if (current === void 0 || Math.abs(v.magnitude()) < Math.abs(current.magnitude()))
-        current = v;
-      else {
-      }
-    });
-    return current;
-  }
-};
-
-// ts/classes/util/math/vector3.ts
-function v3(a, b, c) {
-  if (typeof a === "number") {
-    return Vector3.f(a, b, c);
-  } else if (typeof a === "undefined") {
-    return Vector3.f(0);
-  } else {
-    return Vector3.f(...a);
-  }
-}
-var Vector3 = class _Vector3 {
-  get pitch() {
-    return this.x;
-  }
-  set pitch(value) {
-    this.x = value;
-  }
-  get yaw() {
-    return this.y;
-  }
-  set yaw(value) {
-    this.y = value;
-  }
-  get roll() {
-    return this.z;
-  }
-  set roll(value) {
-    this.z = value;
-  }
-  get x() {
-    return this.vec[0];
-  }
-  set x(value) {
-    this.vec[0] = value;
-  }
-  get y() {
-    return this.vec[1];
-  }
-  set y(value) {
-    this.vec[1] = value;
-  }
-  get z() {
-    return this.vec[2];
-  }
-  set z(value) {
-    this.vec[2] = value;
-  }
-  get xy() {
-    return v2(this.x, this.y);
-  }
-  set xy(v) {
-    this.x = v.x;
-    this.y = v.y;
-  }
-  get xz() {
-    return v2(this.x, this.z);
-  }
-  set xz(v) {
-    this.x = v.x;
-    this.z = v.y;
-  }
-  get yx() {
-    return v2(this.y, this.x);
-  }
-  set yx(v) {
-    this.y = v.x;
-    this.x = v.y;
-  }
-  get yz() {
-    return v2(this.y, this.z);
-  }
-  set yz(v) {
-    this.y = v.x;
-    this.z = v.y;
-  }
-  get zx() {
-    return v2(this.z, this.x);
-  }
-  set zx(v) {
-    this.z = v.x;
-    this.x = v.y;
-  }
-  get zy() {
-    return v2(this.z, this.y);
-  }
-  set zy(v) {
-    this.z = v.x;
-    this.y = v.y;
-  }
-  get xzy() {
-    return v3(this.x, this.z, this.y);
-  }
-  set xzy(v) {
-    this.x = v.x;
-    this.z = v.y;
-    this.y = v.z;
-  }
-  get xyz() {
-    return v3(this.x, this.y, this.z);
-  }
-  set xyz(v) {
-    this.x = v.x;
-    this.y = v.y;
-    this.z = v.z;
-  }
-  get yxz() {
-    return v3(this.y, this.x, this.z);
-  }
-  set yxz(v) {
-    this.y = v.x;
-    this.x = v.y;
-    this.z = v.z;
-  }
-  get yzx() {
-    return v3(this.y, this.z, this.x);
-  }
-  set yzx(v) {
-    this.y = v.x;
-    this.z = v.y;
-    this.x = v.z;
-  }
-  get zxy() {
-    return v3(this.z, this.x, this.y);
-  }
-  set zxy(v) {
-    this.z = v.x;
-    this.x = v.y;
-    this.y = v.z;
-  }
-  get zyx() {
-    return v3(this.z, this.y, this.x);
-  }
-  set zyx(v) {
-    this.z = v.x;
-    this.y = v.y;
-    this.x = v.z;
-  }
-  get str() {
-    return this.vec.toString();
-  }
-  get log() {
-    console.log(this.str);
-    return this.str;
-  }
-  constructor(x = 0, y = 0, z = 0) {
-    this.vec = [x, y, z];
-  }
-  static from2(vector, z = 0) {
-    return new _Vector3(vector.x, vector.y, z);
-  }
-  static f(x = 0, y = x, z = x) {
-    return new _Vector3(x, y, z);
-  }
-  static get forwards() {
-    return new _Vector3(0, 0, 1);
-  }
-  static get backwards() {
-    return new _Vector3(0, 0, -1);
-  }
-  static get up() {
-    return new _Vector3(0, 1, 0);
-  }
-  static get down() {
-    return new _Vector3(0, -1, 0);
-  }
-  static get left() {
-    return new _Vector3(-1, 0, 0);
-  }
-  static get right() {
-    return new _Vector3(1, 0, 0);
-  }
-  static get PI() {
-    return new _Vector3(Math.PI, Math.PI, Math.PI);
-  }
-  static get TAU() {
-    return _Vector3.PI.scale(0.5);
-  }
-  get array() {
-    return [this.x, this.y, this.z];
-  }
-  set array(a) {
-    [this.x, this.y, this.z] = a;
-  }
-  forEach(callbackfn) {
-    this.array.forEach(callbackfn);
-  }
-  get c() {
-    return this.clone();
-  }
-  equals(vector) {
-    return this.x === vector.x && this.y === vector.y && this.z === vector.z;
-  }
-  clone() {
-    return new _Vector3(
-      this.x,
-      this.y,
-      this.z
-    );
-  }
-  add(...vectors) {
-    return new _Vector3(
-      this.x + vectors.reduce((a, b) => a + b.x, 0),
-      this.y + vectors.reduce((a, b) => a + b.y, 0),
-      this.z + vectors.reduce((a, b) => a + b.z, 0)
-    );
-  }
-  multiply(a, b, c) {
-    const [x, y, z] = typeof a === "number" ? [a, b, c] : a.array;
-    return new _Vector3(
-      this.x * x,
-      this.y * y,
-      this.z * z
-    );
-  }
-  subtract(...vectors) {
-    return new _Vector3(
-      this.x - vectors.reduce((a, b) => a + b.x, 0),
-      this.y - vectors.reduce((a, b) => a + b.y, 0),
-      this.z - vectors.reduce((a, b) => a + b.z, 0)
-    );
-  }
-  scale(...scalars) {
-    return new _Vector3(
-      this.x * scalars.reduce((a, b) => a * b, 1),
-      this.y * scalars.reduce((a, b) => a * b, 1),
-      this.z * scalars.reduce((a, b) => a * b, 1)
-    );
-  }
-  divide(...vectors) {
-    return new _Vector3(
-      this.x / vectors.reduce((a, b) => a * b.x, 1),
-      this.y / vectors.reduce((a, b) => a * b.y, 1),
-      this.z / vectors.reduce((a, b) => a * b.z, 1)
-    );
-  }
-  rotateXY(rad) {
-    const [a, b] = this.xy.rotate(rad).array;
-    return new _Vector3(
-      a,
-      this.y,
-      b
-    );
-  }
-  rotateXZ(rad) {
-    const [a, b] = this.xz.rotate(rad).array;
-    return new _Vector3(
-      a,
-      b,
-      this.z
-    );
-  }
-  rotateYZ(rad) {
-    const [a, b] = this.yz.rotate(rad).array;
-    return new _Vector3(
-      this.x,
-      a,
-      b
-    );
-  }
-  magnitude() {
-    return Math.sqrt(this.magnitudeSqr());
-  }
-  magnitudeSqr() {
-    return this.x * this.x + this.y * this.y + this.z * this.z;
-  }
-  mod(max2) {
-    return new _Vector3(
-      this.x % max2.x,
-      this.y % max2.y,
-      this.z % max2.z
-    );
-  }
-  clamp(min2, max2) {
-    return new _Vector3(
-      Util.clamp(this.x, min2.x, max2.x),
-      Util.clamp(this.y, min2.y, max2.y),
-      Util.clamp(this.z, min2.z, max2.z)
-    );
-  }
-  normalize() {
-    let len2 = this.x * this.x + this.y * this.y + this.z * this.z;
-    if (len2 > 0) {
-      len2 = 1 / Math.sqrt(len2);
-    }
-    return v3(
-      this.x * len2,
-      this.y * len2,
-      this.z * len2
-    );
-  }
-};
-
 // ts/classes/util/math/matrix4.ts
 function m4() {
   return Matrix4.f();
@@ -4064,54 +4064,156 @@ Plane.texCoords = new Float32Array([
   1
 ]);
 
-// ts/classes/webgl2/meshes/cube.ts
-var Cube = class {
-  static generateColors(colors) {
+// ts/classes/webgl2/meshes/cone.ts
+var Cone = class {
+  static generateMeshData(sides = 32, smoothShading = true, colors) {
+    const vertices = [];
+    const indices = [];
+    const normals = [];
+    const generatedColors = [];
+    const texCoords = [];
     const defaultColors = [
       [0.8, 0.2, 0.2],
-      // Front face (red)
-      [1, 1, 0],
-      // Back face (yellow)
-      [0.2, 0.8, 0.2],
-      // Right face (green)
-      [0.8, 0.2, 0.8],
-      // Left face (purple)
-      [0.2, 0.2, 0.8],
-      // Top face (blue)
-      [1, 0.5, 0]
-      // Bottom face (orange)
+      // sides
+      [0.2, 0.2, 0.8]
+      // bottom
     ];
-    let faceColors;
-    if (!colors) {
-      faceColors = defaultColors;
-    } else if (Array.isArray(colors[0])) {
-      faceColors = colors;
-      if (faceColors.length !== 6) {
-        throw new Error("Must provide exactly 6 colors for faces or a single color");
+    let [sideColor, bottomColor] = defaultColors;
+    if (colors) {
+      if (Array.isArray(colors[0])) {
+        [sideColor, bottomColor] = colors;
+      } else {
+        sideColor = bottomColor = colors;
+      }
+    }
+    if (smoothShading) {
+      vertices.push(0, 0.5, 0);
+      normals.push(0, 1, 0);
+      generatedColors.push(...sideColor);
+      texCoords.push(0.5, 1);
+      for (let i = 0; i <= sides; i++) {
+        const angle2 = i * Math.PI * 2 / sides;
+        const x = Math.cos(angle2);
+        const z = Math.sin(angle2);
+        vertices.push(x * 0.5, -0.5, z * 0.5);
+        const dx = x * 0.5;
+        const dy = -0.5;
+        const dz = z * 0.5;
+        const length2 = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        normals.push(dx / length2, dy / length2, dz / length2);
+        generatedColors.push(...sideColor);
+        texCoords.push(i / sides, 0);
+      }
+      for (let i = 0; i < sides; i++) {
+        indices.push(
+          0,
+          // apex
+          i + 2,
+          // next base vertex
+          i + 1
+          // current base vertex
+        );
       }
     } else {
-      const singleColor = colors;
-      faceColors = Array(6).fill(singleColor);
-    }
-    const colorArray = [];
-    faceColors.forEach((color) => {
-      for (let i = 0; i < 4; i++) {
-        colorArray.push(...color);
+      for (let i = 0; i < sides; i++) {
+        const angle1 = i * Math.PI * 2 / sides;
+        const angle2 = (i + 1) * Math.PI * 2 / sides;
+        const x1 = Math.cos(angle1) * 0.5;
+        const z1 = Math.sin(angle1) * 0.5;
+        const x2 = Math.cos(angle2) * 0.5;
+        const z2 = Math.sin(angle2) * 0.5;
+        vertices.push(
+          0,
+          0.5,
+          0,
+          // apex
+          x1,
+          -0.5,
+          z1,
+          // base point 1
+          x2,
+          -0.5,
+          z2
+          // base point 2
+        );
+        const v1x = x1;
+        const v1y = -1;
+        const v1z = z1;
+        const v2x = x2;
+        const v2y = -1;
+        const v2z = z2;
+        const nx = v2y * v1z - v2z * v1y;
+        const ny = v2z * v1x - v2x * v1z;
+        const nz = v2x * v1y - v2y * v1x;
+        const length2 = Math.sqrt(nx * nx + ny * ny + nz * nz);
+        const normalX = nx / length2;
+        const normalY = ny / length2;
+        const normalZ = nz / length2;
+        for (let j = 0; j < 3; j++) {
+          normals.push(normalX, normalY, normalZ);
+          generatedColors.push(...sideColor);
+        }
+        texCoords.push(
+          0.5,
+          1,
+          i / sides,
+          0,
+          (i + 1) / sides,
+          0
+        );
+        const baseIndex = i * 3;
+        indices.push(baseIndex, baseIndex + 2, baseIndex + 1);
       }
-    });
-    return new Float32Array(colorArray);
-  }
-  static createMeshData(props = {}) {
+    }
+    const baseVertexCount = vertices.length / 3;
+    vertices.push(0, -0.5, 0);
+    normals.push(0, -1, 0);
+    generatedColors.push(...bottomColor);
+    texCoords.push(0.5, 0.5);
+    for (let i = 0; i < sides; i++) {
+      const angle1 = i * Math.PI * 2 / sides;
+      const angle2 = (i + 1) * Math.PI * 2 / sides;
+      const x1 = Math.cos(angle1) * 0.5;
+      const z1 = Math.sin(angle1) * 0.5;
+      const x2 = Math.cos(angle2) * 0.5;
+      const z2 = Math.sin(angle2) * 0.5;
+      vertices.push(
+        x1,
+        -0.5,
+        z1,
+        x2,
+        -0.5,
+        z2
+      );
+      normals.push(0, -1, 0, 0, -1, 0);
+      generatedColors.push(...bottomColor, ...bottomColor);
+      texCoords.push(
+        x1 + 0.5,
+        z1 + 0.5,
+        x2 + 0.5,
+        z2 + 0.5
+      );
+      const offset = baseVertexCount + 1 + i * 2;
+      indices.push(
+        baseVertexCount,
+        // center
+        offset,
+        // current point
+        offset + 1
+        // next point
+      );
+    }
     return {
-      vertices: this.vertices,
-      indices: this.indices,
-      normals: this.normals,
-      texCoords: this.texCoords,
-      colors: this.generateColors(props.colors)
+      vertices: new Float32Array(vertices),
+      indices: new Uint16Array(indices),
+      normals: new Float32Array(normals),
+      colors: new Float32Array(generatedColors),
+      texCoords: new Float32Array(texCoords)
     };
   }
   static create(props = {}) {
-    const meshData = this.createMeshData(props);
+    var _a;
+    const meshData = this.generateMeshData(props.sides || 32, (_a = props.smoothShading) != null ? _a : true, props.colors);
     const vao = new VertexArray(glob.ctx);
     vao.bind();
     const vertexBuffer = new VertexBuffer(glob.ctx);
@@ -4163,287 +4265,76 @@ var Cube = class {
     }, props);
   }
 };
-Cube.vertices = new Float32Array([
-  // Front face
-  -0.5,
-  -0.5,
-  0.5,
-  // 0
-  0.5,
-  -0.5,
-  0.5,
-  // 1
-  0.5,
-  0.5,
-  0.5,
-  // 2
-  -0.5,
-  0.5,
-  0.5,
-  // 3
-  // Back face
-  -0.5,
-  -0.5,
-  -0.5,
-  // 4
-  0.5,
-  -0.5,
-  -0.5,
-  // 5
-  0.5,
-  0.5,
-  -0.5,
-  // 6
-  -0.5,
-  0.5,
-  -0.5,
-  // 7
-  // Right face
-  0.5,
-  -0.5,
-  0.5,
-  // 8 (1)
-  0.5,
-  -0.5,
-  -0.5,
-  // 9 (5)
-  0.5,
-  0.5,
-  -0.5,
-  // 10 (6)
-  0.5,
-  0.5,
-  0.5,
-  // 11 (2)
-  // Left face
-  -0.5,
-  -0.5,
-  -0.5,
-  // 12 (4)
-  -0.5,
-  -0.5,
-  0.5,
-  // 13 (0)
-  -0.5,
-  0.5,
-  0.5,
-  // 14 (3)
-  -0.5,
-  0.5,
-  -0.5,
-  // 15 (7)
-  // Top face
-  -0.5,
-  0.5,
-  0.5,
-  // 16 (3)
-  0.5,
-  0.5,
-  0.5,
-  // 17 (2)
-  0.5,
-  0.5,
-  -0.5,
-  // 18 (6)
-  -0.5,
-  0.5,
-  -0.5,
-  // 19 (7)
-  // Bottom face
-  -0.5,
-  -0.5,
-  -0.5,
-  // 20 (4)
-  0.5,
-  -0.5,
-  -0.5,
-  // 21 (5)
-  0.5,
-  -0.5,
-  0.5,
-  // 22 (1)
-  -0.5,
-  -0.5,
-  0.5
-  // 23 (0)
-]);
-Cube.indices = new Uint16Array([
-  // Front
-  0,
-  1,
-  2,
-  2,
-  3,
-  0,
-  // Back (reversed order)
-  4,
-  6,
-  5,
-  6,
-  4,
-  7,
-  // Right
-  8,
-  9,
-  10,
-  10,
-  11,
-  8,
-  // Left
-  12,
-  13,
-  14,
-  14,
-  15,
-  12,
-  // Top
-  16,
-  17,
-  18,
-  18,
-  19,
-  16,
-  // Bottom
-  20,
-  21,
-  22,
-  22,
-  23,
-  20
-]);
-Cube.normals = new Float32Array([
-  // Front face
-  0,
-  0,
-  1,
-  0,
-  0,
-  1,
-  0,
-  0,
-  1,
-  0,
-  0,
-  1,
-  // Back face
-  0,
-  0,
-  -1,
-  0,
-  0,
-  -1,
-  0,
-  0,
-  -1,
-  0,
-  0,
-  -1,
-  // Right face
-  1,
-  0,
-  0,
-  1,
-  0,
-  0,
-  1,
-  0,
-  0,
-  1,
-  0,
-  0,
-  // Left face
-  -1,
-  0,
-  0,
-  -1,
-  0,
-  0,
-  -1,
-  0,
-  0,
-  -1,
-  0,
-  0,
-  // Top face
-  0,
-  1,
-  0,
-  0,
-  1,
-  0,
-  0,
-  1,
-  0,
-  0,
-  1,
-  0,
-  // Bottom face
-  0,
-  -1,
-  0,
-  0,
-  -1,
-  0,
-  0,
-  -1,
-  0,
-  0,
-  -1,
-  0
-]);
-Cube.texCoords = new Float32Array([
-  // Front
-  0,
-  0,
-  1,
-  0,
-  1,
-  1,
-  0,
-  1,
-  // Back
-  1,
-  0,
-  0,
-  0,
-  0,
-  1,
-  1,
-  1
-]);
 
 // ts/classes/testLevel.ts
 var TestLevel = class extends Scene {
   // Match demo's black background
   constructor() {
-    const camera = new Camera(v3(3, 3, 5), v3(0, 0, 0));
-    super(camera);
+    super(new Camera(v3(3, 3, 3), v3(0, 0, 0), 45), {
+      ambientLightColor: v3(1, 1, 1),
+      ambientLightIntensity: 0.1
+      // reduced from 0 to allow some ambient light
+    });
     this.clearColor = [0, 0, 0, 1];
-    this.clearColor = [0, 0, 0, 1];
-    this.lightManager.setAmbientLight(new AmbientLight(v3(1, 1, 1), 0.2));
-    const plane = Plane.create({
-      position: v3(0, 0, 0),
-      scale: v3(5, 1, 5),
+    this.camera.setFov(45);
+    const rotation = new Quaternion();
+    rotation.setAxisAngle(v3(1, 0, 0), 0);
+    this.add(Plane.create({
+      position: v3(0, -1, 0),
+      scale: v3(10, 10, 10),
       material: new Material({
-        ambient: v3(0.7, 0.7, 0.7).scale(0.2).vec,
-        diffuse: v3(0.7, 0.7, 0.7).vec,
-        specular: v3(0.3, 0.3, 0.3).vec,
-        shininess: 32
+        ambient: v3(1, 0, 0).scale(0.2).vec,
+        diffuse: v3(1, 0, 0).vec,
+        specular: v3(1, 1, 1).vec
       })
-    });
-    this.add(plane);
-    const cube = Cube.create({
+    }));
+    this.add(this.cube = Cone.create({
+      sides: 4,
+      smoothShading: false,
+      rotation,
       position: v3(0, 1, 0),
-      scale: v3(1, 1, 1),
-      colors: [0.7, 0.7, 0.7]
-      // Gray color for all faces
-    });
-    this.add(cube);
-    const light = new PointLight(v3(5, 5, 5), v3(1, 1, 1), 1, 1, 0, 0, this);
-    this.lightManager.addLight(light);
+      scale: v3(1, 0.8, 1)
+    }));
+    this.addLight(new PointLight(
+      v3(4, 4, 2),
+      // higher position to cast better shadows
+      v3(1, 1, 1),
+      // white light
+      1.5,
+      // increased intensity
+      1,
+      // constant
+      0.09,
+      // linear
+      0.032,
+      // quadratic
+      this
+    ));
+    this.addLight(new PointLight(
+      v3(-2, 3, -2),
+      // opposite position
+      v3(0.8, 0.8, 1),
+      // slightly blue tint
+      1,
+      // intensity
+      1,
+      // constant
+      0.09,
+      // linear
+      0.032,
+      // quadratic
+      this
+    ));
   }
   tick(obj) {
     super.tick(obj);
+    if (this.cube) {
+      const rotation = new Quaternion();
+      rotation.setAxisAngle(v3(0, 1, 0), 0.01);
+      this.cube.transform.setRotation(
+        rotation.multiply(this.cube.transform.getLocalRotation())
+      );
+    }
   }
 };
 
@@ -4635,505 +4526,5 @@ var Game = class {
 document.addEventListener("DOMContentLoaded", async () => {
   const g = new Game();
   document.body.appendChild(g.renderer.dom);
-});
-var shadowVsSource = "#version 300 es\nprecision highp float;\n\nin vec3 aPosition;\n\nuniform mat4 uLightSpace;\nuniform mat4 uModel;\n\nvoid main() {\n    gl_Position = uLightSpace * uModel * vec4(aPosition, 1.0);\n}";
-var shadowFsSource = "#version 300 es\nprecision highp float;\nout vec4 fragColor;\n\nvoid main() {\n    // Only depth information is written\n}";
-var vsSource = "#version 300 es\nprecision highp float;\n\nin vec3 aPosition;\nin vec3 aNormal;\n\nuniform mat4 uModel;\nuniform mat4 uView;\nuniform mat4 uProjection;\nuniform mat4 uLightSpace;\n\nout vec3 vNormal;\nout vec3 vFragPos;\nout vec4 vFragPosLightSpace;\n\nvoid main() {\n    vec4 worldPos = uModel * vec4(aPosition, 1.0);\n    vFragPos = worldPos.xyz;\n    vNormal = mat3(transpose(inverse(uModel))) * aNormal;\n    vFragPosLightSpace = uLightSpace * worldPos;\n    gl_Position = uProjection * uView * worldPos;\n}";
-var fsSource = "#version 300 es\nprecision highp float;\n\nin vec3 vNormal;\nin vec3 vFragPos;\nin vec4 vFragPosLightSpace;\n\nuniform vec3 uLightPos;\nuniform vec3 uViewPos;\nuniform sampler2D uShadowMap;\n\nout vec4 fragColor;\n\nfloat calculateShadow(vec4 fragPosLightSpace) {\n    // Perspective divide\n    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;\n    // Transform to [0,1] range\n    projCoords = projCoords * 0.5 + 0.5;\n    \n    float closestDepth = texture(uShadowMap, projCoords.xy).r;\n    float currentDepth = projCoords.z;\n    \n    float bias = 0.005;\n    return currentDepth - bias > closestDepth ? 1.0 : 0.0;\n}\n\nvoid main() {\n    vec3 color = vec3(0.7);\n    vec3 normal = normalize(vNormal);\n    vec3 lightColor = vec3(1.0);\n    \n    // Ambient\n    vec3 ambient = 0.2 * color;\n    \n    // Diffuse\n    vec3 lightDir = normalize(uLightPos - vFragPos);\n    float diff = max(dot(normal, lightDir), 0.0);\n    vec3 diffuse = diff * lightColor;\n    \n    // Specular\n    vec3 viewDir = normalize(uViewPos - vFragPos);\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);\n    vec3 specular = spec * lightColor;\n    \n    float shadow = calculateShadow(vFragPosLightSpace);\n    vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;\n    \n    fragColor = vec4(lighting, 1.0);\n}";
-var ShadowDemo = class {
-  constructor(canvas) {
-    this.shadowMapSize = 1024;
-    this.gl = canvas.getContext("webgl2");
-    if (!this.gl) {
-      throw new Error("WebGL 2 not supported");
-    }
-    this.startTime = performance.now();
-    this.gl.enable(this.gl.DEPTH_TEST);
-    this.shadowProgram = this.createShaderProgram(shadowVsSource, shadowFsSource);
-    this.mainProgram = this.createShaderProgram(vsSource, fsSource);
-    [this.shadowFramebuffer, this.shadowMap] = this.createShadowMap();
-    this.cubeVAO = this.createCube();
-    this.planeVAO = this.createPlane();
-    this.debugQuadVAO = this.createDebugQuad();
-    this.debugProgram = this.createShaderProgram(
-      // Vertex shader for debug quad
-      "#version 300 es\n            precision highp float;\n            \n            in vec2 aPosition;\n            in vec2 aTexCoord;\n            out vec2 vTexCoord;\n            \n            void main() {\n                vTexCoord = aTexCoord;\n                gl_Position = vec4(aPosition, 0.0, 1.0);\n            }",
-      // Fragment shader for debug quad
-      "#version 300 es\n            precision highp float;\n            \n            uniform sampler2D uDepthMap;\n            in vec2 vTexCoord;\n            out vec4 fragColor;\n            \n            void main() {\n                float depthValue = texture(uDepthMap, vTexCoord).r;\n                fragColor = vec4(vec3(depthValue), 1.0);\n            }"
-    );
-  }
-  createShaderProgram(vsSource2, fsSource2) {
-    const gl = this.gl;
-    const vs = gl.createShader(gl.VERTEX_SHADER);
-    const fs = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(vs, vsSource2);
-    gl.shaderSource(fs, fsSource2);
-    gl.compileShader(vs);
-    gl.compileShader(fs);
-    if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
-      throw new Error(gl.getShaderInfoLog(vs));
-    }
-    if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
-      throw new Error(gl.getShaderInfoLog(fs));
-    }
-    const program = gl.createProgram();
-    gl.attachShader(program, vs);
-    gl.attachShader(program, fs);
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      throw new Error(gl.getProgramInfoLog(program));
-    }
-    return program;
-  }
-  createShadowMap() {
-    const gl = this.gl;
-    const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.DEPTH_COMPONENT32F,
-      this.shadowMapSize,
-      this.shadowMapSize,
-      0,
-      gl.DEPTH_COMPONENT,
-      gl.FLOAT,
-      null
-    );
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    const framebuffer = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-    gl.framebufferTexture2D(
-      gl.FRAMEBUFFER,
-      gl.DEPTH_ATTACHMENT,
-      gl.TEXTURE_2D,
-      texture,
-      0
-    );
-    gl.drawBuffers([gl.NONE]);
-    gl.readBuffer(gl.NONE);
-    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
-      throw new Error("Framebuffer is not complete");
-    }
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    return [framebuffer, texture];
-  }
-  createCube() {
-    const gl = this.gl;
-    const positions = new Float32Array([
-      // Front face
-      -0.5,
-      -0.5,
-      0.5,
-      0.5,
-      -0.5,
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      -0.5,
-      0.5,
-      0.5,
-      // Back face
-      -0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      0.5,
-      0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      // Top face
-      -0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      -0.5,
-      // Bottom face
-      -0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      // Right face
-      0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      0.5,
-      -0.5,
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      -0.5,
-      0.5,
-      // Left face
-      -0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      0.5,
-      0.5,
-      -0.5,
-      0.5,
-      -0.5
-    ]);
-    const normals = new Float32Array([
-      // Front
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      // Back
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      // Top
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      // Bottom
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      // Right
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      // Left
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0
-    ]);
-    const indices = new Uint16Array([
-      0,
-      1,
-      2,
-      0,
-      2,
-      3,
-      // Front
-      4,
-      5,
-      6,
-      4,
-      6,
-      7,
-      // Back
-      8,
-      9,
-      10,
-      8,
-      10,
-      11,
-      // Top
-      12,
-      13,
-      14,
-      12,
-      14,
-      15,
-      // Bottom
-      16,
-      17,
-      18,
-      16,
-      18,
-      19,
-      // Right
-      20,
-      21,
-      22,
-      20,
-      22,
-      23
-      // Left
-    ]);
-    const vao = gl.createVertexArray();
-    gl.bindVertexArray(vao);
-    const positionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
-    const normalBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, normals, gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(1);
-    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0);
-    const indexBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
-    gl.bindVertexArray(null);
-    return vao;
-  }
-  createPlane() {
-    const gl = this.gl;
-    const positions = new Float32Array([
-      -5,
-      0,
-      -5,
-      5,
-      0,
-      -5,
-      5,
-      0,
-      5,
-      -5,
-      0,
-      5
-    ]);
-    const normals = new Float32Array([
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0
-    ]);
-    const indices = new Uint16Array([
-      0,
-      1,
-      2,
-      0,
-      2,
-      3
-    ]);
-    const vao = gl.createVertexArray();
-    gl.bindVertexArray(vao);
-    const positionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
-    const normalBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, normals, gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(1);
-    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0);
-    const indexBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
-    gl.bindVertexArray(null);
-    return vao;
-  }
-  createDebugQuad() {
-    const gl = this.gl;
-    const positions = new Float32Array([
-      -1,
-      -1,
-      // bottom-left
-      -0.5,
-      -1,
-      // bottom-right
-      -0.5,
-      -0.5,
-      // top-right
-      -1,
-      -0.5
-      // top-left
-    ]);
-    const texCoords = new Float32Array([
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1
-    ]);
-    const indices = new Uint16Array([
-      0,
-      1,
-      2,
-      0,
-      2,
-      3
-    ]);
-    const vao = gl.createVertexArray();
-    gl.bindVertexArray(vao);
-    const positionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-    const texCoordBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, texCoords, gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(1);
-    gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0);
-    const indexBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
-    gl.bindVertexArray(null);
-    return vao;
-  }
-  render() {
-    const gl = this.gl;
-    const elapsedTime = (performance.now() - this.startTime) / 1e3;
-    const xOffset = Math.sin(elapsedTime) * 2;
-    const lightPos = vec3_exports.fromValues(5, 5, 5);
-    const lightView = mat4_exports.create();
-    mat4_exports.lookAt(lightView, lightPos, [0, 0, 0], [0, 1, 0]);
-    const lightProjection = mat4_exports.create();
-    mat4_exports.ortho(lightProjection, -10, 10, -10, 10, 1, 20);
-    const lightSpaceMatrix = mat4_exports.create();
-    mat4_exports.multiply(lightSpaceMatrix, lightProjection, lightView);
-    const viewPos = vec3_exports.fromValues(3, 3, 5);
-    const view = mat4_exports.create();
-    mat4_exports.lookAt(view, viewPos, [0, 0, 0], [0, 1, 0]);
-    const projection = mat4_exports.create();
-    mat4_exports.perspective(projection, 45 * Math.PI / 180, gl.canvas.width / gl.canvas.height, 0.1, 100);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFramebuffer);
-    gl.viewport(0, 0, this.shadowMapSize, this.shadowMapSize);
-    gl.clear(gl.DEPTH_BUFFER_BIT);
-    gl.useProgram(this.shadowProgram);
-    gl.uniformMatrix4fv(gl.getUniformLocation(this.shadowProgram, "uLightSpace"), false, lightSpaceMatrix);
-    let model = mat4_exports.create();
-    mat4_exports.translate(model, model, [xOffset, 1, 0]);
-    gl.uniformMatrix4fv(gl.getUniformLocation(this.shadowProgram, "uModel"), false, model);
-    gl.bindVertexArray(this.cubeVAO);
-    gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
-    model = mat4_exports.create();
-    gl.uniformMatrix4fv(gl.getUniformLocation(this.shadowProgram, "uModel"), false, model);
-    gl.bindVertexArray(this.planeVAO);
-    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    gl.clearColor(0, 0, 0, 1);
-    gl.useProgram(this.mainProgram);
-    gl.uniformMatrix4fv(gl.getUniformLocation(this.mainProgram, "uView"), false, view);
-    gl.uniformMatrix4fv(gl.getUniformLocation(this.mainProgram, "uProjection"), false, projection);
-    gl.uniformMatrix4fv(gl.getUniformLocation(this.mainProgram, "uLightSpace"), false, lightSpaceMatrix);
-    gl.uniform3fv(gl.getUniformLocation(this.mainProgram, "uLightPos"), lightPos);
-    gl.uniform3fv(gl.getUniformLocation(this.mainProgram, "uViewPos"), viewPos);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.shadowMap);
-    gl.uniform1i(gl.getUniformLocation(this.mainProgram, "uShadowMap"), 0);
-    model = mat4_exports.create();
-    mat4_exports.translate(model, model, [xOffset, 1, 0]);
-    gl.uniformMatrix4fv(gl.getUniformLocation(this.mainProgram, "uModel"), false, model);
-    gl.bindVertexArray(this.cubeVAO);
-    gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
-    model = mat4_exports.create();
-    gl.uniformMatrix4fv(gl.getUniformLocation(this.mainProgram, "uModel"), false, model);
-    gl.bindVertexArray(this.planeVAO);
-    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
-    gl.useProgram(this.debugProgram);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.shadowMap);
-    gl.uniform1i(gl.getUniformLocation(this.debugProgram, "uDepthMap"), 0);
-    gl.disable(gl.DEPTH_TEST);
-    gl.bindVertexArray(this.debugQuadVAO);
-    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
-    gl.enable(gl.DEPTH_TEST);
-  }
-};
-document.addEventListener("DOMContentLoaded", () => {
-  const canvas = document.createElement("canvas");
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  canvas.style.cssText = "z-index: 2; position: absolute;";
-  document.body.appendChild(canvas);
-  const demo = new ShadowDemo(canvas);
-  function animate() {
-    demo.render();
-    requestAnimationFrame(animate);
-  }
-  animate();
-  let isVisible = false;
-  canvas.style.display = "none";
-  document.body.addEventListener("keydown", (e) => {
-    if (e.key === " ") {
-      isVisible = !isVisible;
-      canvas.style.display = isVisible ? "block" : "none";
-    }
-  });
 });
 //# sourceMappingURL=index.js.map

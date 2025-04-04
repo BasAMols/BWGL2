@@ -1,0 +1,13 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+For javascript and typescript files we use camelCase for all variables and functions. Classes use CamelCase (capital first letter). Files always use camelCase, even if its for a class. 
+
+For WebGL2 we use 
+u_camelCase for uniforms, 
+v_camelCase for varyings,
+a_camelCase for attributes.
