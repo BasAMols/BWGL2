@@ -7,7 +7,6 @@ import { IcoSphere } from '../meshes/icoSphere';
 import { SceneObject } from '../meshes/sceneObject';
 import { Scene } from '../scene';
 import { ShadowMap } from './shadowMap';
-import { Material } from '../material';
 
 export enum LightType {
     AMBIENT = 0,
@@ -142,16 +141,10 @@ export class PointLight extends Light {
                 position: position,
                 scale: v3(0.2, 0.2, 0.2),
                 smoothShading: true,
-                subdivisions: 2,
-                ignoreLighting: true,
+                subdivisions: 0,
+                ignoreLighting: false,
                 pickColor: -1,
-                material: new Material({
-                    baseColor: v3(color.x, color.y, color.z),
-                    roughness: 0.5,
-                    metallic: 0.0,
-                    ambientOcclusion: 1.0,
-                    emissive: v3(color.x, color.y, color.z) // Make the light source self-illuminating
-                })
+                color: [color.x, color.y, color.z]
             }));
         }
     }

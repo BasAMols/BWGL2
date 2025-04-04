@@ -17,6 +17,7 @@ export interface ArrowProps extends SceneObjectProps {
     sides?: number;
     smoothShading?: boolean;
     lookAt?: Vector3;
+    color?: [number, number, number];
 }
 
 export class Arrow extends ContainerObject {

@@ -4511,17 +4511,10 @@ var PointLight = class extends Light {
         position,
         scale: v3(0.2, 0.2, 0.2),
         smoothShading: true,
-        subdivisions: 2,
-        ignoreLighting: true,
+        subdivisions: 0,
+        ignoreLighting: false,
         pickColor: -1,
-        material: new Material({
-          baseColor: v3(color.x, color.y, color.z),
-          roughness: 0.5,
-          metallic: 0,
-          ambientOcclusion: 1,
-          emissive: v3(color.x, color.y, color.z)
-          // Make the light source self-illuminating
-        })
+        color: [color.x, color.y, color.z]
       }));
     }
   }
