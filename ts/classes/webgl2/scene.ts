@@ -55,36 +55,46 @@ export class Scene {
 
     public render(): void {
         // First render pass: create shadow maps
-        for (const light of this.getLights()) {
-            if (light instanceof PointLight) {
-                const shadowMap = light.getShadowMap();
-                shadowMap.bind(glob.ctx);
-                
-                // Use shadow shader program
-                glob.shaderManager.useProgram('shadow');
-                
-                // Set light space matrix uniform for shadow pass
-                const lightSpaceMatrix = light.getLightSpaceMatrix();
-                glob.shaderManager.setUniform('u_lightSpaceMatrix', lightSpaceMatrix.mat4);
-                
-                // Set up depth state
-                glob.ctx.enable(glob.ctx.DEPTH_TEST);
-                glob.ctx.depthFunc(glob.ctx.LESS);  // Standard depth test
-                glob.ctx.clearDepth(1.0);  // Explicitly set clear depth to 1.0 (furthest)
-                glob.ctx.clear(glob.ctx.DEPTH_BUFFER_BIT);
-                
-                // Render scene from light's perspective
-                for (const object of this.objects) {
-                    // Set model matrix uniform
-                    glob.shaderManager.setUniform('u_modelMatrix', object.transform.getWorldMatrix().mat4);
-                    
-                    // Bind VAO and draw
-                    object.vao.bind();
-                    if (object.indexBuffer) {
-                        glob.ctx.drawElements(glob.ctx.TRIANGLES, object.indexBuffer.getCount(), glob.ctx.UNSIGNED_SHORT, 0);
-                    } else {
-                        glob.ctx.drawArrays(glob.ctx.TRIANGLES, 0, object.drawCount);
-                    }
+        const shadowCastingLights = this.getLights().filter(light => light instanceof PointLight);
+        const castsShadow = new Int32Array(10); // MAX_LIGHTS
+        const lightSpaceMatrices = new Float32Array(10 * 16); // MAX_LIGHTS * 4x4 matrix
+        const hasAmbientLight = this.ambientLight !== null;
+        const indexOffset = hasAmbientLight ? 1 : 0; // Account for ambient light being at index 0
+
+        // For each light that casts shadows
+        for (let i = 0; i < shadowCastingLights.length; i++) {
+            const light = shadowCastingLights[i] as PointLight;
+            const lightIndex = i + indexOffset; // Adjust index for ambient light offset
+            const shadowMap = light.getShadowMap();
+            shadowMap.bind(glob.ctx);
+            
+            // Use shadow shader program
+            glob.shaderManager.useProgram('shadow');
+            
+            // Set light space matrix uniform for shadow pass
+            const lightSpaceMatrix = light.getLightSpaceMatrix();
+            glob.shaderManager.setUniform('u_lightSpaceMatrix', lightSpaceMatrix.mat4);
+            
+            // Set up depth state
+            glob.ctx.enable(glob.ctx.DEPTH_TEST);
+            glob.ctx.depthFunc(glob.ctx.LESS);
+            glob.ctx.clearDepth(1.0);
+            glob.ctx.clear(glob.ctx.DEPTH_BUFFER_BIT);
+            
+            // Store light space matrix for main render pass
+            lightSpaceMatrix.mat4.forEach((value, index) => {
+                lightSpaceMatrices[lightIndex * 16 + index] = value;
+            });
+            castsShadow[lightIndex] = 1;
+            
+            // Render scene from light's perspective
+            for (const object of this.objects) {
+                glob.shaderManager.setUniform('u_modelMatrix', object.transform.getWorldMatrix().mat4);
+                object.vao.bind();
+                if (object.indexBuffer) {
+                    glob.ctx.drawElements(glob.ctx.TRIANGLES, object.indexBuffer.getCount(), glob.ctx.UNSIGNED_SHORT, 0);
+                } else {
+                    glob.ctx.drawArrays(glob.ctx.TRIANGLES, 0, object.drawCount);
                 }
             }
         }
@@ -105,17 +115,22 @@ export class Scene {
         // Update light uniforms including shadow maps
         this.lightManager.updateShaderUniforms();
 
+        // Set shadow mapping uniforms
+        glob.shaderManager.setUniform('u_lightSpaceMatrices', lightSpaceMatrices);
+        glob.shaderManager.setUniform('u_castsShadow', castsShadow);
+
+        // Bind all shadow maps to different texture units
+        shadowCastingLights.forEach((light, i) => {
+            if (light instanceof PointLight) {
+                const lightIndex = i + indexOffset;
+                const shadowMap = light.getShadowMap();
+                shadowMap.bindDepthTexture(glob.ctx, lightIndex + 1); // Start from texture unit 1
+                glob.shaderManager.setUniform(`u_shadowMap${lightIndex}`, lightIndex + 1);
+            }
+        });
+
         // For each object in the scene
         for (const object of this.objects) {
-            // Set shadow mapping uniforms
-            const light = this.getLights()[0]; // For now, just use the first light's shadow map
-            if (light instanceof PointLight) {
-                const shadowMap = light.getShadowMap();
-                glob.shaderManager.setUniform('u_lightSpaceMatrix', light.getLightSpaceMatrix().mat4);
-                glob.shaderManager.setUniform('u_shadowMap', 1); // Use texture unit 1 for shadow map
-                shadowMap.bindDepthTexture(glob.ctx, 1);
-            }
-
             object.render(viewMatrix, projectionMatrix);
         }
 

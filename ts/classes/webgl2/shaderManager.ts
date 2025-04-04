@@ -192,19 +192,22 @@ export class ShaderManager {
             case 'mat4':
                 this.gl.uniformMatrix4fv(location, false, value as Float32Array);
                 break;
+            case 'mat4[]':
+                // Handle array of mat4
+                this.gl.uniformMatrix4fv(location, false, value as Float32Array);
+                break;
             case 'mat3':
                 this.gl.uniformMatrix3fv(location, false, value as Float32Array);
                 break;
             case 'int':
             case 'bool':
+            case 'sampler2D':
+            case 'sampler2D[]':
                 if (Array.isArray(value) || value instanceof Int32Array) {
                     this.gl.uniform1iv(location, value);
                 } else {
                     this.gl.uniform1i(location, value as number);
                 }
-                break;
-            case 'sampler2D':
-                this.gl.uniform1i(location, value as number);
                 break;
             case 'Light':
                 // Handle Light struct array
@@ -241,11 +244,17 @@ export class ShaderManager {
             case this.gl.FLOAT_VEC2: return 'vec2';
             case this.gl.FLOAT_VEC3: return 'vec3';
             case this.gl.FLOAT_VEC4: return 'vec4';
-            case this.gl.FLOAT_MAT4: return 'mat4';
+            case this.gl.FLOAT_MAT4: 
+                return 'mat4';
+            case this.gl.FLOAT_MAT4 | 0x20: // Array flag
+                return 'mat4[]';
             case this.gl.FLOAT_MAT3: return 'mat3';
             case this.gl.INT: return 'int';
             case this.gl.BOOL: return 'bool';
-            case this.gl.SAMPLER_2D: return 'sampler2D';
+            case this.gl.SAMPLER_2D: 
+                return 'sampler2D';
+            case this.gl.SAMPLER_2D | 0x20: // Array flag
+                return 'sampler2D[]';
             case 0x8B52: // GL_STRUCT
                 return 'Light'; // Handle Light struct type
             default:

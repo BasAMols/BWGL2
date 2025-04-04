@@ -45,8 +45,18 @@ uniform Material u_material;
 uniform bool u_useTexture;
 
 // Shadow mapping uniforms
-uniform sampler2D u_shadowMap;
-uniform mat4 u_lightSpaceMatrix;
+uniform sampler2D u_shadowMap0;
+uniform sampler2D u_shadowMap1;
+uniform sampler2D u_shadowMap2;
+uniform sampler2D u_shadowMap3;
+uniform sampler2D u_shadowMap4;
+uniform sampler2D u_shadowMap5;
+uniform sampler2D u_shadowMap6;
+uniform sampler2D u_shadowMap7;
+uniform sampler2D u_shadowMap8;
+uniform sampler2D u_shadowMap9;
+uniform mat4 u_lightSpaceMatrices[MAX_LIGHTS];
+uniform bool u_castsShadow[MAX_LIGHTS];
 
 // Other uniforms
 uniform vec3 u_viewPos;
@@ -54,29 +64,50 @@ uniform vec3 u_viewPos;
 // Output
 out vec4 fragColor;
 
-float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir) {
+float getShadowMap(int index, vec2 coords) {
+    // We have to use a switch statement because WebGL2 requires constant array indices for samplers
+    switch(index) {
+        case 0: return texture(u_shadowMap0, coords).r;
+        case 1: return texture(u_shadowMap1, coords).r;
+        case 2: return texture(u_shadowMap2, coords).r;
+        case 3: return texture(u_shadowMap3, coords).r;
+        case 4: return texture(u_shadowMap4, coords).r;
+        case 5: return texture(u_shadowMap5, coords).r;
+        case 6: return texture(u_shadowMap6, coords).r;
+        case 7: return texture(u_shadowMap7, coords).r;
+        case 8: return texture(u_shadowMap8, coords).r;
+        case 9: return texture(u_shadowMap9, coords).r;
+        default: return 1.0; // No shadow if invalid index
+    }
+}
+
+float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir, int shadowMapIndex) {
     // Perform perspective divide
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     
     // Transform to [0,1] range
     projCoords = projCoords * 0.5 + 0.5;
     
-    // Get closest depth value from light's perspective
-    float closestDepth = texture(u_shadowMap, projCoords.xy).r;
+    // Get closest depth value from light's perspective using the helper function
+    float closestDepth = getShadowMap(shadowMapIndex, projCoords.xy);
     
     // Get current depth
     float currentDepth = projCoords.z;
     
     // Calculate bias based on surface angle
-    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
+    float cosTheta = dot(normal, lightDir);
+    float bias = 0.001; // Moderate base bias
+    
+    // Add angle-dependent component
+    bias += 0.02 * (1.0 - max(cosTheta, 0.0));
     
     // PCF (Percentage Closer Filtering)
     float shadow = 0.0;
-    vec2 texelSize = 1.0 / vec2(textureSize(u_shadowMap, 0));
+    vec2 texelSize = 1.0 / vec2(textureSize(u_shadowMap0, 0)); // All shadow maps are same size
     for(int x = -1; x <= 1; ++x) {
         for(int y = -1; y <= 1; ++y) {
-            float pcfDepth = texture(u_shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
-            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+            float pcfDepth = getShadowMap(shadowMapIndex, projCoords.xy + vec2(x, y) * texelSize);
+            shadow += (currentDepth - bias) > pcfDepth ? 1.0 : 0.0;
         }
     }
     shadow /= 9.0;
@@ -154,7 +185,6 @@ void main() {
     }
     
     vec3 result = vec3(0.0);
-    float shadow = ShadowCalculation(v_fragPosLightSpace, normal, normalize(u_lightPositions[0] - v_fragPos));
     
     // Calculate contribution from each light
     for(int i = 0; i < u_numLights; i++) {
@@ -162,6 +192,12 @@ void main() {
         
         // Skip inactive lights
         if(u_lightTypes[i] == LIGHT_TYPE_INACTIVE) continue;
+        
+        float shadow = 0.0;
+        if(u_castsShadow[i]) {
+            vec4 fragPosLightSpace = u_lightSpaceMatrices[i] * vec4(v_fragPos, 1.0);
+            shadow = ShadowCalculation(fragPosLightSpace, normal, normalize(u_lightPositions[i] - v_fragPos), i);
+        }
         
         if(u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {
             result += u_lightColors[i] * u_lightIntensities[i] * baseColor;
@@ -181,4 +217,4 @@ void main() {
     }
     
     fragColor = vec4(result, 1.0);
-}`; 
+}`

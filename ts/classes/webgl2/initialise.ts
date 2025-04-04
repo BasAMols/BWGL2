@@ -67,6 +67,14 @@ export class WebGL2Initializer {
         this.shaderManager.setUniform('u_lightCutOffs', cutOffs);
         this.shaderManager.setUniform('u_lightOuterCutOffs', outerCutOffs);
 
+        // Initialize shadow mapping arrays
+        const castsShadow = new Int32Array(numLights);
+        const lightSpaceMatrices = new Float32Array(numLights * 16); // 4x4 matrices
+        castsShadow.fill(0); // Default to not casting shadows
+
+        this.shaderManager.setUniform('u_castsShadow', castsShadow);
+        this.shaderManager.setUniform('u_lightSpaceMatrices', lightSpaceMatrices);
+
         // Set default material values
         this.shaderManager.setUniform('u_material.ambient', new Float32Array([0.2, 0.2, 0.2]));
         this.shaderManager.setUniform('u_material.diffuse', new Float32Array([0.8, 0.8, 0.8]));

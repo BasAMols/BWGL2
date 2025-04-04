@@ -24,7 +24,7 @@ export class TestLevel extends Scene {
         rotation.setAxisAngle(v3(1, 0, 0), 0);
 
         this.add(Plane.create({
-            position: v3(0, -1, 0),
+            position: v3(0, -0.1, 0),
             scale: v3(10, 10, 10),
             material: new Material({
                 ambient: v3(1,0,0).scale(0.2).vec,
@@ -43,7 +43,7 @@ export class TestLevel extends Scene {
 
         // Add point light from a good angle to cast shadows
         this.addLight(new PointLight(
-            v3(4, 4, 2),     // higher position to cast better shadows
+            v3(0, 4, 2),     // higher position to cast better shadows
             v3(1, 1, 1),     // white light
             1.5,             // increased intensity
             1.0,             // constant
@@ -54,7 +54,7 @@ export class TestLevel extends Scene {
 
         // Add second point light for better illumination
         this.addLight(new PointLight(
-            v3(-2, 3, -2),   // opposite position
+            v3(4, 3, -2),   // opposite position
             v3(0.8, 0.8, 1.0), // slightly blue tint
             1.0,             // intensity
             1.0,             // constant
