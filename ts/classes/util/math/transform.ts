@@ -1,6 +1,9 @@
 import { Matrix4, m4 } from './matrix4';
 import { Quaternion } from './quaternion';
 import { Vector3, v3 } from './vector3';
+import { Vector2, v2 } from './vector2';
+import { Camera } from '../../webgl2/camera';
+import { glob } from '../../../game';
 
 export class Transform {
     private _localPosition: Vector3;
@@ -121,5 +124,36 @@ export class Transform {
         }
         
         return this._localMatrix.clone();
+    }
+
+    public getScreenPosition(camera: Camera, scaleToScreen: boolean = false): Vector2 {
+        // Get world position
+        const worldPos = this.getWorldPosition().clone();
+        
+        // Get view-projection matrix
+        const viewMatrix = camera.getViewMatrix().clone();
+        const projectionMatrix = camera.getProjectionMatrix().clone();
+        
+        // Combine view and projection matrices
+        const viewProjectionMatrix = projectionMatrix.multiply(viewMatrix);
+        const m = viewProjectionMatrix.mat4;
+        
+        // Transform world position to clip space
+        const x = m[0] * worldPos.x + m[4] * worldPos.y + m[8] * worldPos.z + m[12];
+        const y = m[1] * worldPos.x + m[5] * worldPos.y + m[9] * worldPos.z + m[13];
+        const z = m[2] * worldPos.x + m[6] * worldPos.y + m[10] * worldPos.z + m[14];
+        const w = m[3] * worldPos.x + m[7] * worldPos.y + m[11] * worldPos.z + m[15];
+        
+        // Perform perspective divide to get NDC (Normalized Device Coordinates)
+        if (Math.abs(w) < 1e-7) return v2(0); // Return zero if point is too close to camera
+        
+        const ndcX = x / w;
+        const ndcY = y / w;
+        
+        // Convert NDC to screen space (0 to 1 range)
+        return v2(
+            (ndcX + 1) * 0.5,
+            (1 - ndcY) * 0.5  // Flip Y because screen space is top-down
+        ).multiply(scaleToScreen ? v2(glob.renderer.width, glob.renderer.height): v2(1));
     }
 } 

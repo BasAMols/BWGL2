@@ -717,14 +717,9 @@ var WebGL2Initializer = class {
 
 // ts/classes/elements/renderer.ts
 var Renderer = class extends DomElement {
-  get ctx() {
-    return this.webgl.ctx;
-  }
-  get shaderManager() {
-    return this.webgl.shaderManager;
-  }
   constructor() {
     super("canvas");
+    this.held = false;
     this.dom.style.position = "absolute";
     this.dom.style.pointerEvents = "all";
     this.dom.style.bottom = "0px";
@@ -735,7 +730,24 @@ var Renderer = class extends DomElement {
       this.resize();
     });
     glob.events.resize = new Events("resize");
+    this.dom.addEventListener("mousedown", (e) => {
+      this.lastClick = v2(e.offsetX / this.width, e.offsetY / this.height);
+    });
+    this.dom.addEventListener("mousemove", (e) => {
+      if (this.lastClick) {
+        this.lastClick = v2(e.offsetX / this.width, e.offsetY / this.height);
+      }
+    });
+    this.dom.addEventListener("mouseup", (e) => {
+      this.lastClick = null;
+    });
     this.resize();
+  }
+  get ctx() {
+    return this.webgl.ctx;
+  }
+  get shaderManager() {
+    return this.webgl.shaderManager;
   }
   resize() {
     this.size = v2(document.body.clientWidth, document.body.clientHeight);
@@ -763,11 +775,14 @@ var Renderer = class extends DomElement {
     this.size.y = value;
   }
   tick(obj) {
-    var _a, _b;
+    var _a, _b, _c;
     super.tick(obj);
     this.tickerData = obj;
-    (_a = glob.game.active) == null ? void 0 : _a.tick(obj);
-    (_b = glob.game.active) == null ? void 0 : _b.afterTick(obj);
+    if (this.lastClick) {
+      (_a = glob.game.active) == null ? void 0 : _a.click(this.lastClick);
+    }
+    (_b = glob.game.active) == null ? void 0 : _b.tick(obj);
+    (_c = glob.game.active) == null ? void 0 : _c.afterTick(obj);
   }
 };
 
@@ -1264,6 +1279,45 @@ var Vector3 = class _Vector3 {
       this.z * other.x - this.x * other.z,
       this.x * other.y - this.y * other.x
     );
+  }
+  dot(other) {
+    return this.x * other.x + this.y * other.y + this.z * other.z;
+  }
+  /**
+   * Converts a screen space coordinate to a world position on a plane
+   * @param screenPos Screen position in normalized coordinates (0-1)
+   * @param camera Camera used for the projection
+   * @param planeTransform Transform of the plane to intersect with
+   * @returns World position where the ray intersects the plane, or null if ray is parallel to plane
+   */
+  static screenToWorldPlane(screenPos, camera, planeTransform) {
+    const ndcX = screenPos.x * 2 - 1;
+    const ndcY = (1 - screenPos.y) * 2 - 1;
+    const projMatrix = camera.getProjectionMatrix();
+    const viewMatrix = camera.getViewMatrix();
+    const invProj = projMatrix.clone().invert();
+    const invView = viewMatrix.clone().invert();
+    const nearPoint = v3(ndcX, ndcY, -1);
+    const rayDir = v3(
+      invProj.mat4[0] * nearPoint.x + invProj.mat4[4] * nearPoint.y + invProj.mat4[8] * nearPoint.z + invProj.mat4[12],
+      invProj.mat4[1] * nearPoint.x + invProj.mat4[5] * nearPoint.y + invProj.mat4[9] * nearPoint.z + invProj.mat4[13],
+      invProj.mat4[2] * nearPoint.x + invProj.mat4[6] * nearPoint.y + invProj.mat4[10] * nearPoint.z + invProj.mat4[14]
+    ).normalize();
+    const worldRayDir = v3(
+      invView.mat4[0] * rayDir.x + invView.mat4[4] * rayDir.y + invView.mat4[8] * rayDir.z,
+      invView.mat4[1] * rayDir.x + invView.mat4[5] * rayDir.y + invView.mat4[9] * rayDir.z,
+      invView.mat4[2] * rayDir.x + invView.mat4[6] * rayDir.y + invView.mat4[10] * rayDir.z
+    ).normalize();
+    const rayOrigin = camera.getPosition();
+    const worldRot = planeTransform.getWorldRotation();
+    const planeNormal = v3(0, 1, 0).applyQuaternion(worldRot);
+    const planePoint = planeTransform.getWorldPosition();
+    const denom = worldRayDir.dot(planeNormal);
+    if (Math.abs(denom) < 1e-6) {
+      return null;
+    }
+    const t = planePoint.subtract(rayOrigin).dot(planeNormal) / denom;
+    return rayOrigin.add(worldRayDir.scale(t));
   }
 };
 
@@ -3201,6 +3255,26 @@ var Transform = class {
     }
     return this._localMatrix.clone();
   }
+  getScreenPosition(camera, scaleToScreen = false) {
+    const worldPos = this.getWorldPosition().clone();
+    const viewMatrix = camera.getViewMatrix().clone();
+    const projectionMatrix = camera.getProjectionMatrix().clone();
+    const viewProjectionMatrix = projectionMatrix.multiply(viewMatrix);
+    const m = viewProjectionMatrix.mat4;
+    const x = m[0] * worldPos.x + m[4] * worldPos.y + m[8] * worldPos.z + m[12];
+    const y = m[1] * worldPos.x + m[5] * worldPos.y + m[9] * worldPos.z + m[13];
+    const z = m[2] * worldPos.x + m[6] * worldPos.y + m[10] * worldPos.z + m[14];
+    const w = m[3] * worldPos.x + m[7] * worldPos.y + m[11] * worldPos.z + m[15];
+    if (Math.abs(w) < 1e-7)
+      return v2(0);
+    const ndcX = x / w;
+    const ndcY = y / w;
+    return v2(
+      (ndcX + 1) * 0.5,
+      (1 - ndcY) * 0.5
+      // Flip Y because screen space is top-down
+    ).multiply(scaleToScreen ? v2(glob.renderer.width, glob.renderer.height) : v2(1));
+  }
 };
 
 // ts/classes/webgl2/meshes/sceneObject.ts
@@ -4423,6 +4497,9 @@ var Scene = class {
     this._ambientLight = value;
     this.lightManager.setAmbientLight(this.ambientLight);
   }
+  click(vector2) {
+    this.lastClick = vector2;
+  }
   add(object) {
     this.objects.push(object);
   }
@@ -5235,7 +5312,7 @@ var TestLevel = class extends Scene {
     this.clearColor = [0, 0, 0, 1];
     const rotation = new Quaternion();
     rotation.setAxisAngle(v3(1, 0, 0), 0);
-    this.add(Plane.create({
+    this.add(this.floorPlane = Plane.create({
       position: v3(0, -2, 0),
       scale: v2(10, 10),
       material: new Material({
@@ -5254,6 +5331,17 @@ var TestLevel = class extends Scene {
         shininess: 3
       })
     }));
+    this.add(this.backPlane = Plane.create({
+      position: v3(0, 0.5, 4),
+      flipNormal: true,
+      scale: v2(5, 10),
+      rotation: Quaternion.fromEuler(-Math.PI / 2, 0, Math.PI / 2),
+      material: new Material({
+        diffuse: v3(1, 1, 1),
+        specular: v3(1, 1, 1),
+        shininess: 3
+      })
+    }));
     this.add(this.mesh = IcoSphere.create({
       position: v3(0, 0, 0),
       scale: v3(2.5, 2.5, 2.5),
@@ -5261,6 +5349,9 @@ var TestLevel = class extends Scene {
       smoothShading: false,
       subdivisions: 0
       // ignoreLighting: true,
+    }));
+    this.add(this.static = new ContainerObject({
+      position: v3(1, 2, -1)
     }));
     for (let i = 0; i < 2; i++) {
       const container = new ContainerObject({
@@ -5322,6 +5413,21 @@ var TestLevel = class extends Scene {
         outerCutOff: 0.9
       });
       this.addLight(this[vari]);
+    }
+    this.spotLight4 = new SpotLight({
+      color: v3(1, 1, 1),
+      intensity: 0.7,
+      cutOff: 0.99,
+      outerCutOff: 0.9,
+      meshContainer: this
+    });
+    this.addLight(this.spotLight4);
+  }
+  click(vector2) {
+    const pos2 = Vector3.screenToWorldPlane(vector2, this.camera, this.floorPlane.transform);
+    if (pos2) {
+      this.spotLight4.setPosition(pos2);
+      this.spotLight4.lookAt(v3(0, 0, 0));
     }
   }
   tick(obj) {
@@ -5530,6 +5636,9 @@ var Game = class {
     this.renderer.addChild(this.loader);
     this.ticker = new Ticker();
     this.ticker.add(this.tick.bind(this));
+    this.test2d = document.createElement("div");
+    this.test2d.style.cssText = "\n            position: absolute;\n            top: 0;\n            left: 0;\n            width: 100px;\n            background-color: #ff0000cc;\n            margin-left: -50px;\n            text-align: center;\n            font-size: 20px;\n            color: white;\n            z-index: 9;\n            pointer-events: none;\n        ";
+    document.body.appendChild(this.test2d);
     this.addLevel("test", new TestLevel());
     if (this.waitCount === 0) {
       this.start();

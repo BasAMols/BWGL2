@@ -22,6 +22,8 @@ export class Renderer extends DomElement<'canvas'> {
     public get shaderManager() {
         return this.webgl.shaderManager;
     }
+    private held: boolean = false;
+    private lastClick: Vector2;
 
 
     constructor() {
@@ -39,8 +41,22 @@ export class Renderer extends DomElement<'canvas'> {
         });
 
         glob.events.resize = new Events('resize');
+
+        this.dom.addEventListener('mousedown', (e) => {
+            this.lastClick = v2(e.offsetX / this.width, e.offsetY / this.height);
+        });
+
+        this.dom.addEventListener('mousemove', (e) => {
+            if (this.lastClick) {
+                this.lastClick = v2(e.offsetX / this.width, e.offsetY / this.height);
+            }
+        });
+        this.dom.addEventListener('mouseup', (e) => {
+            this.lastClick = null;
+        });
         this.resize();
     }
+
 
     resize() {
         this.size = v2(document.body.clientWidth, document.body.clientHeight);
@@ -74,6 +90,9 @@ export class Renderer extends DomElement<'canvas'> {
     public tick(obj: TickerReturnData) {
         super.tick(obj);
         this.tickerData = obj;
+        if (this.lastClick) {
+            glob.game.active?.click(this.lastClick);
+        }
         glob.game.active?.tick(obj);
         glob.game.active?.afterTick(obj);
     }

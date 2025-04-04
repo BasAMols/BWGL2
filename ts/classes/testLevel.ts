@@ -1,4 +1,4 @@
-import { v3 } from './util/math/vector3';
+import { v3, Vector3 } from './util/math/vector3';
 import { SceneObject } from './webgl2/meshes/sceneObject';
 import { TickerReturnData } from './ticker';
 import { Scene } from './webgl2/scene';
@@ -9,7 +9,7 @@ import { Arrow } from './webgl2/meshes/arrow';
 import { IcoSphere } from './webgl2/meshes/icoSphere';
 import { Plane } from './webgl2/meshes/plane';
 import { Material } from './webgl2/material';
-import { v2 } from './util/math/vector2';
+import { v2, Vector2 } from './util/math/vector2';
 import { Cube } from './webgl2/meshes/cube';
 import { Wedge } from './webgl2/meshes/wedge';
 import { Cone } from './webgl2/meshes/cone';
@@ -22,6 +22,12 @@ export class TestLevel extends Scene {
     spotLight: SpotLight;
     spotLight2: SpotLight;
     spotLight3: SpotLight;
+    static: SceneObject;
+    mesh2: SceneObject;
+    dynamic: SceneObject;
+    backPlane: SceneObject;
+    spotLight4: any;
+    floorPlane: SceneObject;
 
     constructor() {
         super(new Camera({ position: v3(0, 1, 6), target: v3(0, 0, 0), fov: 40 }), {
@@ -32,7 +38,7 @@ export class TestLevel extends Scene {
         const rotation = new Quaternion();
         rotation.setAxisAngle(v3(1, 0, 0), 0);
 
-        this.add(Plane.create({
+        this.add(this.floorPlane = Plane.create({
             position: v3(0, -2, 0),
             scale: v2(10, 10),
             material: new Material({
@@ -54,6 +60,19 @@ export class TestLevel extends Scene {
 
         }));
 
+        this.add(this.backPlane = Plane.create({
+            position: v3(0, 0.5, 4),
+            flipNormal: true,
+            scale: v2(5, 10),
+            rotation: Quaternion.fromEuler(-Math.PI / 2, 0, Math.PI / 2),
+            material: new Material({
+                diffuse: v3(1, 1, 1),
+                specular: v3(1, 1, 1),
+                shininess: 3
+            }),
+
+        }));
+
 
         this.add(this.mesh = IcoSphere.create({
             position: v3(0, 0, 0),
@@ -64,13 +83,23 @@ export class TestLevel extends Scene {
             // ignoreLighting: true,
         }));
 
+
+
+        this.add(this.static = new ContainerObject({
+            position: v3(1, 2, -1),
+        }));
+        // this.add(this.dynamic = IcoSphere.create({
+        //     position: v3(1, 2, -1),
+        //     scale: v3(1.5, 1.5, 1.5),
+        // }));
+
         for (let i = 0; i < 2; i++) {
             const container = new ContainerObject({
-                position: v3(4.5*i, 0, -4*i),
-                rotation: Quaternion.fromEuler(0, (Math.PI)*i, 0),
+                position: v3(4.5 * i, 0, -4 * i),
+                rotation: Quaternion.fromEuler(0, (Math.PI) * i, 0),
             });
             const positions = [
-                v3(-2 + 5.5 * i, -1.25, -2 - 1), 
+                v3(-2 + 5.5 * i, -1.25, -2 - 1),
                 v3(-3.5 + 5.5 * i, -1.25, -2 - 1),
                 v3(-2.75 + 5.5 * i, -1.25, -1),
                 v3(-2.75 + 5.5 * i, 0.25, -1.64 - 0.6)
@@ -145,7 +174,26 @@ export class TestLevel extends Scene {
             });
             this.addLight(this[vari]);
         }
+        this.spotLight4 = new SpotLight({
+            color: v3(1, 1, 1),
+            intensity: 0.7,
+            cutOff: 0.99,
+            outerCutOff: 0.9,
+            meshContainer: this,
+        });
+        this.addLight(this.spotLight4);
     }
+
+            
+    click(vector2: Vector2) {
+        const pos2 = Vector3.screenToWorldPlane(vector2, this.camera, this.floorPlane.transform);
+
+        if (pos2) {
+            this.spotLight4.setPosition(pos2);
+            this.spotLight4.lookAt(v3(0, 0, 0));
+        }
+    }
+
 
     tick(obj: TickerReturnData) {
         super.tick(obj);
@@ -200,5 +248,19 @@ export class TestLevel extends Scene {
             )
         );
 
+        // const pos = this.static.transform.getScreenPosition(this.camera, false);
+        // glob.game.test2d.style.left = `${Util.clamp(pos.x * glob.renderer.width, 50, glob.renderer.width - 50)}px`;
+        // glob.game.test2d.style.top = `${Util.clamp(pos.y * glob.renderer.height, 50, glob.renderer.height - 50)}px`;
+        // glob.game.test2d.innerText = `${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}`;
+
+        // const pos2 = Vector3.screenToWorldPlane(pos, this.camera, this.backPlane.transform);
+
+        // // console.log(pos2.vec);
+
+        // if (pos2) {
+        //     this.spotLight4.setPosition(pos2);
+        //     this.spotLight4.lookAt(v3(0, 0, 0));
+        //     // this.dynamic.transform.setPosition(pos2);
+        // }
     }
 }

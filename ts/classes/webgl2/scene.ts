@@ -5,6 +5,7 @@ import { SceneObject } from './meshes/sceneObject';
 import { Light, AmbientLight, PointLight } from './lights/light';
 import { LightManager } from './lights/lightManager';
 import { v3, Vector3 } from '../util/math/vector3';
+import { Vector2 } from '../util/math/vector2';
 
 export interface SceneOptions {
     ambientLightColor?: Vector3;
@@ -26,6 +27,11 @@ export class Scene {
     }
     protected showShadowMap: boolean = false;
     protected frameCount: number = 0;
+    protected lastClick: Vector2;
+
+    public click(vector2: Vector2) {
+        this.lastClick = vector2;
+    }
 
     constructor(camera: Camera, options: SceneOptions = {}) {
         this.camera = camera;

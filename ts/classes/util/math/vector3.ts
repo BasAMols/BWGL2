@@ -2,6 +2,8 @@ import { vec3 } from 'gl-matrix';
 import { Vector2, v2 } from './vector2';
 import { Util } from '../utils';
 import { Quaternion } from './quaternion';
+import { Camera } from '../../webgl2/camera';
+import { Transform } from './transform';
 
 export function v3(): Vector3;
 export function v3(a?: [number?, number?, number?]): Vector3;
@@ -287,5 +289,71 @@ export class Vector3 {
 			this.z * other.x - this.x * other.z,
 			this.x * other.y - this.y * other.x
 		);
+	}
+
+	dot(other: Vector3): number {
+		return this.x * other.x + this.y * other.y + this.z * other.z;
+	}
+
+	/**
+	 * Converts a screen space coordinate to a world position on a plane
+	 * @param screenPos Screen position in normalized coordinates (0-1)
+	 * @param camera Camera used for the projection
+	 * @param planeTransform Transform of the plane to intersect with
+	 * @returns World position where the ray intersects the plane, or null if ray is parallel to plane
+	 */
+	public static screenToWorldPlane(screenPos: Vector2, camera: Camera, planeTransform: Transform): Vector3 | null {
+		// Convert screen position to NDC (-1 to 1)
+		const ndcX = screenPos.x * 2 - 1;
+		const ndcY = (1 - screenPos.y) * 2 - 1; // Flip Y back to OpenGL coordinates
+
+		// Get camera matrices
+		const projMatrix = camera.getProjectionMatrix();
+		const viewMatrix = camera.getViewMatrix();
+
+		// Create inverse matrices
+		const invProj = projMatrix.clone().invert();
+		const invView = viewMatrix.clone().invert();
+
+		// Reconstruct position on near plane
+		const nearPoint = v3(ndcX, ndcY, -1);
+		
+		// Unproject point to get ray direction in view space
+		const rayDir = v3(
+			invProj.mat4[0] * nearPoint.x + invProj.mat4[4] * nearPoint.y + invProj.mat4[8] * nearPoint.z + invProj.mat4[12],
+			invProj.mat4[1] * nearPoint.x + invProj.mat4[5] * nearPoint.y + invProj.mat4[9] * nearPoint.z + invProj.mat4[13],
+			invProj.mat4[2] * nearPoint.x + invProj.mat4[6] * nearPoint.y + invProj.mat4[10] * nearPoint.z + invProj.mat4[14]
+		).normalize();
+
+		// Transform ray to world space
+		const worldRayDir = v3(
+			invView.mat4[0] * rayDir.x + invView.mat4[4] * rayDir.y + invView.mat4[8] * rayDir.z,
+			invView.mat4[1] * rayDir.x + invView.mat4[5] * rayDir.y + invView.mat4[9] * rayDir.z,
+			invView.mat4[2] * rayDir.x + invView.mat4[6] * rayDir.y + invView.mat4[10] * rayDir.z
+		).normalize();
+
+		const rayOrigin = camera.getPosition();
+
+		// For a plane, we use the local up vector (0,1,0) as the normal in local space
+		// and transform it by the plane's world rotation to get the world-space normal
+		const worldRot = planeTransform.getWorldRotation();
+		const planeNormal = v3(0, 1, 0).applyQuaternion(worldRot);
+		const planePoint = planeTransform.getWorldPosition();
+
+		// Calculate intersection using the plane equation: dot(planeNormal, (point - planePoint)) = 0
+		const denom = worldRayDir.dot(planeNormal);
+
+		// If denominator is close to 0, ray is parallel to the plane
+		if (Math.abs(denom) < 1e-6) {
+			return null;
+		}
+
+		// Calculate t where the ray intersects the plane
+		// Using: planePoint + t * rayDir = intersectionPoint
+		// Where: dot(planeNormal, (intersectionPoint - planePoint)) = 0
+		const t = planePoint.subtract(rayOrigin).dot(planeNormal) / denom;
+
+		// Calculate the intersection point
+		return rayOrigin.add(worldRayDir.scale(t));
 	}
 }
