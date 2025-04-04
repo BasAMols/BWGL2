@@ -137,17 +137,16 @@ export class LightManager {
 
         // Update shader uniforms
         const numLights = this.lights.length + (this.ambientLight ? 1 : 0);
-        this.shaderManager.setUniform('uNumLights', numLights);
-        this.shaderManager.setUniform('uLightTypes', types);
-        this.shaderManager.setUniform('uLightPositions', positions);
-        this.shaderManager.setUniform('uLightDirections', directions);
-        this.shaderManager.setUniform('uLightColors', colors);
-        this.shaderManager.setUniform('uLightIntensities', intensities);
-        this.shaderManager.setUniform('uLightConstants', constants);
-        this.shaderManager.setUniform('uLightLinears', linears);
-        this.shaderManager.setUniform('uLightQuadratics', quadratics);
-        this.shaderManager.setUniform('uLightCutOffs', cutOffs);
-        this.shaderManager.setUniform('uLightOuterCutOffs', outerCutOffs);
+        this.shaderManager.setUniform('u_numLights', numLights);
+        this.shaderManager.setUniform('u_lightTypes', types);
+        this.shaderManager.setUniform('u_lightPositions', positions);
+        this.shaderManager.setUniform('u_lightDirections', directions);
+        this.shaderManager.setUniform('u_lightColors', colors);
+        this.shaderManager.setUniform('u_lightIntensities', intensities);
+        this.shaderManager.setUniform('u_lightConstants', constants);
+        this.shaderManager.setUniform('u_lightLinears', linears);
+        this.shaderManager.setUniform('u_lightQuadratics', quadratics);
+        this.shaderManager.setUniform('u_lightCutOffs', cutOffs);
+        this.shaderManager.setUniform('u_lightOuterCutOffs', outerCutOffs);
     }
-
 } 

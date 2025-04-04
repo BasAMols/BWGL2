@@ -551,7 +551,9 @@ document.addEventListener("DOMContentLoaded", () => {
         requestAnimationFrame(animate);
     }
     animate();
-    let isVisible = true;
+    let isVisible = false;
+    canvas.style.display = 'none';
+
     document.body.addEventListener('keydown', (e) => {
         if (e.key === ' ') {
             isVisible = !isVisible;

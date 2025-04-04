@@ -160,7 +160,7 @@ export class ShaderManager {
 
         const uniform = uniformMap.get(name);
         if (!uniform || !uniform.location) {
-            throw new Error(`Uniform '${name}' not found in program '${this.currentProgram}'`);
+            throw new Error(`Uniform '${name}' not found in program '${this.currentProgram}'. Make sure to use the u_camelCase naming convention for uniforms, v_camelCase for varyings, and a_camelCase for attributes.`);
         }
 
         this.setUniformValue(uniform.type, uniform.location, value);
@@ -229,7 +229,7 @@ export class ShaderManager {
 
         const attribute = attributeMap.get(name);
         if (!attribute) {
-            throw new Error(`Attribute '${name}' not found in program '${this.currentProgram}'`);
+            throw new Error(`Attribute '${name}' not found in program '${this.currentProgram}'. Make sure to use the a_camelCase naming convention.`);
         }
 
         return attribute.location;

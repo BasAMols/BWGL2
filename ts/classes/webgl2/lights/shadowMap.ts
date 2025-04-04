@@ -56,4 +56,8 @@ export class ShadowMap {
     getDepthTexture(): WebGLTexture {
         return this.depthTexture;
     }
+
+    getSize(): number {
+        return this.size;
+    }
 } 

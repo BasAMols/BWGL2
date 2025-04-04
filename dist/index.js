@@ -2139,7 +2139,7 @@ var ShaderManager = class {
     }
     const uniform = uniformMap.get(name);
     if (!uniform || !uniform.location) {
-      throw new Error("Uniform '".concat(name, "' not found in program '").concat(this.currentProgram, "'"));
+      throw new Error("Uniform '".concat(name, "' not found in program '").concat(this.currentProgram, "'. Make sure to use the u_camelCase naming convention for uniforms, v_camelCase for varyings, and a_camelCase for attributes."));
     }
     this.setUniformValue(uniform.type, uniform.location, value);
     uniform.value = value;
@@ -2198,7 +2198,7 @@ var ShaderManager = class {
     }
     const attribute = attributeMap.get(name);
     if (!attribute) {
-      throw new Error("Attribute '".concat(name, "' not found in program '").concat(this.currentProgram, "'"));
+      throw new Error("Attribute '".concat(name, "' not found in program '").concat(this.currentProgram, "'. Make sure to use the a_camelCase naming convention."));
     }
     return attribute.location;
   }
@@ -2288,13 +2288,13 @@ var ShaderManager = class {
 };
 
 // ts/classes/webgl2/shaders/fragmentShaderSource.ts
-var fragmentShaderSource = "#version 300 es\nprecision highp float;\n\n// Maximum number of lights\n#define MAX_LIGHTS 10\n\n// Light types\n#define LIGHT_TYPE_INACTIVE -1\n#define LIGHT_TYPE_AMBIENT 0\n#define LIGHT_TYPE_DIRECTIONAL 1\n#define LIGHT_TYPE_POINT 2\n#define LIGHT_TYPE_SPOT 3\n\n// Input from vertex shader\nin vec3 vNormal;\nin vec2 vTexCoord;\nin vec3 vFragPos;\nin vec3 vColor;\nin vec4 vFragPosLightSpace;\n\n// Material structure\nstruct Material {\n    vec3 ambient;\n    vec3 diffuse;\n    vec3 specular;\n    float shininess;\n    sampler2D diffuseMap;\n};\n\n// Light uniforms\nuniform int uLightTypes[MAX_LIGHTS];\nuniform vec3 uLightPositions[MAX_LIGHTS];\nuniform vec3 uLightDirections[MAX_LIGHTS];\nuniform vec3 uLightColors[MAX_LIGHTS];\nuniform float uLightIntensities[MAX_LIGHTS];\nuniform float uLightConstants[MAX_LIGHTS];\nuniform float uLightLinears[MAX_LIGHTS];\nuniform float uLightQuadratics[MAX_LIGHTS];\nuniform float uLightCutOffs[MAX_LIGHTS];\nuniform float uLightOuterCutOffs[MAX_LIGHTS];\nuniform int uNumLights;\n\n// Material uniforms\nuniform Material uMaterial;\nuniform bool uUseTexture;\n\n// Shadow mapping uniforms\nuniform sampler2D uShadowMap;\nuniform mat4 uLightSpaceMatrix;\n\n// Other uniforms\nuniform vec3 uViewPos;\n\n// Output\nout vec4 fragColor;\n\nfloat ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir) {\n    // Perform perspective divide\n    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;\n    \n    // Transform to [0,1] range\n    projCoords = projCoords * 0.5 + 0.5;\n    \n    // Get closest depth value from light's perspective\n    float closestDepth = texture(uShadowMap, projCoords.xy).r;\n    \n    // Get current depth\n    float currentDepth = projCoords.z;\n    \n    // Calculate bias based on surface angle\n    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);\n    \n    // PCF (Percentage Closer Filtering)\n    float shadow = 0.0;\n    vec2 texelSize = 1.0 / vec2(textureSize(uShadowMap, 0));\n    for(int x = -1; x <= 1; ++x) {\n        for(int y = -1; y <= 1; ++y) {\n            float pcfDepth = texture(uShadowMap, projCoords.xy + vec2(x, y) * texelSize).r;\n            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;\n        }\n    }\n    shadow /= 9.0;\n    \n    // Keep shadow at 0.0 when outside the far plane region of the light's frustum\n    if(projCoords.z > 1.0)\n        shadow = 0.0;\n        \n    return shadow;\n}\n\n// Function to calculate directional light\nvec3 calcDirectionalLight(int index, vec3 normal, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(-uLightDirections[index]);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), uMaterial.shininess);\n    \n    vec3 ambient = uLightColors[index] * uMaterial.ambient;\n    vec3 diffuse = uLightColors[index] * diff * baseColor;\n    vec3 specular = uLightColors[index] * spec * uMaterial.specular;\n    \n    return (ambient + diffuse + specular) * uLightIntensities[index];\n}\n\n// Function to calculate point light\nvec3 calcPointLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(uLightPositions[index] - fragPos);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), uMaterial.shininess);\n    \n    // Attenuation\n    float distance = length(uLightPositions[index] - fragPos);\n    float attenuation = 1.0 / (uLightConstants[index] + uLightLinears[index] * distance + uLightQuadratics[index] * distance * distance);\n    \n    vec3 ambient = uLightColors[index] * uMaterial.ambient;\n    vec3 diffuse = uLightColors[index] * diff * baseColor;\n    vec3 specular = uLightColors[index] * spec * uMaterial.specular;\n    \n    return (ambient + diffuse + specular) * attenuation * uLightIntensities[index];\n}\n\n// Function to calculate spot light\nvec3 calcSpotLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(uLightPositions[index] - fragPos);\n    \n    // Spot light intensity\n    float theta = dot(lightDir, normalize(-uLightDirections[index]));\n    float epsilon = uLightCutOffs[index] - uLightOuterCutOffs[index];\n    float intensity = clamp((theta - uLightOuterCutOffs[index]) / epsilon, 0.0, 1.0);\n    \n    // Use point light calculation and multiply by spot intensity\n    return calcPointLight(index, normal, fragPos, viewDir, baseColor) * intensity;\n}\n\nvoid main() {\n    vec3 normal = normalize(vNormal);\n    vec3 viewDir = normalize(uViewPos - vFragPos);\n    \n    // Get base color from texture or vertex color\n    vec3 baseColor;\n    if (uUseTexture) {\n        baseColor = texture(uMaterial.diffuseMap, vTexCoord).rgb;\n    } else {\n        baseColor = vColor;\n    }\n    \n    vec3 result = vec3(0.0);\n    float shadow = ShadowCalculation(vFragPosLightSpace, normal, normalize(uLightPositions[0] - vFragPos));\n    \n    // Calculate contribution from each light\n    for(int i = 0; i < uNumLights; i++) {\n        if(i >= MAX_LIGHTS) break;\n        \n        // Skip inactive lights\n        if(uLightTypes[i] == LIGHT_TYPE_INACTIVE) continue;\n        \n        if(uLightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            result += uLightColors[i] * uLightIntensities[i] * baseColor;\n        }\n        else if(uLightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            vec3 lighting = calcDirectionalLight(i, normal, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(uLightTypes[i] == LIGHT_TYPE_POINT) {\n            vec3 lighting = calcPointLight(i, normal, vFragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(uLightTypes[i] == LIGHT_TYPE_SPOT) {\n            vec3 lighting = calcSpotLight(i, normal, vFragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n    }\n    \n    fragColor = vec4(result, 1.0);\n}";
+var fragmentShaderSource = "#version 300 es\nprecision highp float;\n\n// Maximum number of lights\n#define MAX_LIGHTS 10\n\n// Light types\n#define LIGHT_TYPE_INACTIVE -1\n#define LIGHT_TYPE_AMBIENT 0\n#define LIGHT_TYPE_DIRECTIONAL 1\n#define LIGHT_TYPE_POINT 2\n#define LIGHT_TYPE_SPOT 3\n\n// Input from vertex shader\nin vec3 v_normal;\nin vec2 v_texCoord;\nin vec3 v_fragPos;\nin vec3 v_color;\nin vec4 v_fragPosLightSpace;\n\n// Material structure\nstruct Material {\n    vec3 ambient;\n    vec3 diffuse;\n    vec3 specular;\n    float shininess;\n    sampler2D diffuseMap;\n};\n\n// Light uniforms\nuniform int u_lightTypes[MAX_LIGHTS];\nuniform vec3 u_lightPositions[MAX_LIGHTS];\nuniform vec3 u_lightDirections[MAX_LIGHTS];\nuniform vec3 u_lightColors[MAX_LIGHTS];\nuniform float u_lightIntensities[MAX_LIGHTS];\nuniform float u_lightConstants[MAX_LIGHTS];\nuniform float u_lightLinears[MAX_LIGHTS];\nuniform float u_lightQuadratics[MAX_LIGHTS];\nuniform float u_lightCutOffs[MAX_LIGHTS];\nuniform float u_lightOuterCutOffs[MAX_LIGHTS];\nuniform int u_numLights;\n\n// Material uniforms\nuniform Material u_material;\nuniform bool u_useTexture;\n\n// Shadow mapping uniforms\nuniform sampler2D u_shadowMap;\nuniform mat4 u_lightSpaceMatrix;\n\n// Other uniforms\nuniform vec3 u_viewPos;\n\n// Output\nout vec4 fragColor;\n\nfloat ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir) {\n    // Perform perspective divide\n    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;\n    \n    // Transform to [0,1] range\n    projCoords = projCoords * 0.5 + 0.5;\n    \n    // Get closest depth value from light's perspective\n    float closestDepth = texture(u_shadowMap, projCoords.xy).r;\n    \n    // Get current depth\n    float currentDepth = projCoords.z;\n    \n    // Calculate bias based on surface angle\n    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);\n    \n    // PCF (Percentage Closer Filtering)\n    float shadow = 0.0;\n    vec2 texelSize = 1.0 / vec2(textureSize(u_shadowMap, 0));\n    for(int x = -1; x <= 1; ++x) {\n        for(int y = -1; y <= 1; ++y) {\n            float pcfDepth = texture(u_shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;\n            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;\n        }\n    }\n    shadow /= 9.0;\n    \n    // Keep shadow at 0.0 when outside the far plane region of the light's frustum\n    if(projCoords.z > 1.0)\n        shadow = 0.0;\n        \n    return shadow;\n}\n\n// Function to calculate directional light\nvec3 calcDirectionalLight(int index, vec3 normal, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(-u_lightDirections[index]);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_material.shininess);\n    \n    vec3 ambient = u_lightColors[index] * u_material.ambient;\n    vec3 diffuse = u_lightColors[index] * diff * baseColor;\n    vec3 specular = u_lightColors[index] * spec * u_material.specular;\n    \n    return (ambient + diffuse + specular) * u_lightIntensities[index];\n}\n\n// Function to calculate point light\nvec3 calcPointLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(u_lightPositions[index] - fragPos);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_material.shininess);\n    \n    // Attenuation\n    float distance = length(u_lightPositions[index] - fragPos);\n    float attenuation = 1.0 / (u_lightConstants[index] + u_lightLinears[index] * distance + u_lightQuadratics[index] * distance * distance);\n    \n    vec3 ambient = u_lightColors[index] * u_material.ambient;\n    vec3 diffuse = u_lightColors[index] * diff * baseColor;\n    vec3 specular = u_lightColors[index] * spec * u_material.specular;\n    \n    return (ambient + diffuse + specular) * attenuation * u_lightIntensities[index];\n}\n\n// Function to calculate spot light\nvec3 calcSpotLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(u_lightPositions[index] - fragPos);\n    \n    // Spot light intensity\n    float theta = dot(lightDir, normalize(-u_lightDirections[index]));\n    float epsilon = u_lightCutOffs[index] - u_lightOuterCutOffs[index];\n    float intensity = clamp((theta - u_lightOuterCutOffs[index]) / epsilon, 0.0, 1.0);\n    \n    // Use point light calculation and multiply by spot intensity\n    return calcPointLight(index, normal, fragPos, viewDir, baseColor) * intensity;\n}\n\nvoid main() {\n    vec3 normal = normalize(v_normal);\n    vec3 viewDir = normalize(u_viewPos - v_fragPos);\n    \n    // Get base color from texture or vertex color\n    vec3 baseColor;\n    if (u_useTexture) {\n        baseColor = texture(u_material.diffuseMap, v_texCoord).rgb;\n    } else {\n        baseColor = v_color;\n    }\n    \n    vec3 result = vec3(0.0);\n    float shadow = ShadowCalculation(v_fragPosLightSpace, normal, normalize(u_lightPositions[0] - v_fragPos));\n    \n    // Calculate contribution from each light\n    for(int i = 0; i < u_numLights; i++) {\n        if(i >= MAX_LIGHTS) break;\n        \n        // Skip inactive lights\n        if(u_lightTypes[i] == LIGHT_TYPE_INACTIVE) continue;\n        \n        if(u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            result += u_lightColors[i] * u_lightIntensities[i] * baseColor;\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            vec3 lighting = calcDirectionalLight(i, normal, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_POINT) {\n            vec3 lighting = calcPointLight(i, normal, v_fragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n            vec3 lighting = calcSpotLight(i, normal, v_fragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n    }\n    \n    fragColor = vec4(result, 1.0);\n}";
 
 // ts/classes/webgl2/shaders/vertexShaderSource.ts
-var vertexShaderSource = "#version 300 es\n\n// Attributes\nin vec3 aPosition;\nin vec3 aNormal;\nin vec2 aTexCoord;\nin vec3 aColor;\n\n// Uniforms\nuniform mat4 uModelMatrix;\nuniform mat4 uViewMatrix;\nuniform mat4 uProjectionMatrix;\nuniform mat3 uNormalMatrix; // Added for correct normal transformation\nuniform mat4 uLightSpaceMatrix; // Added for shadow mapping\n\n// Material uniforms\nstruct Material {\n    vec3 ambient;\n    vec3 diffuse;\n    vec3 specular;\n    float shininess;\n    sampler2D diffuseMap;\n};\nuniform Material uMaterial;\nuniform bool uUseTexture;\n\n// Varyings (output to fragment shader)\nout vec3 vNormal;\nout vec2 vTexCoord;\nout vec3 vFragPos;\nout vec3 vColor;\nout vec4 vFragPosLightSpace; // Added for shadow mapping\n\nvoid main() {\n    // Calculate world space position\n    vec4 worldPos = uModelMatrix * vec4(aPosition, 1.0);\n    vFragPos = worldPos.xyz;\n    \n    // Transform normal to world space using normal matrix\n    vNormal = normalize(uNormalMatrix * aNormal);\n    \n    // Pass texture coordinates and color to fragment shader\n    vTexCoord = aTexCoord;\n    vColor = uUseTexture ? vec3(1.0) : (aColor * uMaterial.diffuse);\n    \n    // Calculate position in light space for shadow mapping\n    vFragPosLightSpace = uLightSpaceMatrix * worldPos;\n    \n    // Calculate final position\n    gl_Position = uProjectionMatrix * uViewMatrix * worldPos;\n}";
+var vertexShaderSource = "#version 300 es\n\n// Attributes\nin vec3 a_position;\nin vec3 a_normal;\nin vec2 a_texCoord;\nin vec3 a_color;\n\n// Uniforms\nuniform mat4 u_modelMatrix;\nuniform mat4 u_viewMatrix;\nuniform mat4 u_projectionMatrix;\nuniform mat3 u_normalMatrix; // Added for correct normal transformation\nuniform mat4 u_lightSpaceMatrix; // Added for shadow mapping\n\n// Material uniforms\nstruct Material {\n    vec3 ambient;\n    vec3 diffuse;\n    vec3 specular;\n    float shininess;\n    sampler2D diffuseMap;\n};\nuniform Material u_material;\nuniform bool u_useTexture;\n\n// Varyings (output to fragment shader)\nout vec3 v_normal;\nout vec2 v_texCoord;\nout vec3 v_fragPos;\nout vec3 v_color;\nout vec4 v_fragPosLightSpace; // Added for shadow mapping\n\nvoid main() {\n    // Calculate world space position\n    vec4 worldPos = u_modelMatrix * vec4(a_position, 1.0);\n    v_fragPos = worldPos.xyz;\n    \n    // Transform normal to world space using normal matrix\n    v_normal = normalize(u_normalMatrix * a_normal);\n    \n    // Pass texture coordinates and color to fragment shader\n    v_texCoord = a_texCoord;\n    v_color = u_useTexture ? vec3(1.0) : (a_color * u_material.diffuse);\n    \n    // Calculate position in light space for shadow mapping\n    v_fragPosLightSpace = u_lightSpaceMatrix * worldPos;\n    \n    // Calculate final position\n    gl_Position = u_projectionMatrix * u_viewMatrix * worldPos;\n}";
 
 // ts/classes/webgl2/shaders/shadowVertexShader.ts
-var shadowVertexShaderSource = "#version 300 es\nprecision highp float;\n\nin vec3 aPosition;\nuniform mat4 u_lightSpaceMatrix;\nuniform mat4 u_model;\n\nvoid main() {\n    gl_Position = u_lightSpaceMatrix * u_model * vec4(aPosition, 1.0);\n}\n";
+var shadowVertexShaderSource = "#version 300 es\nprecision highp float;\n\nin vec3 a_position;\nuniform mat4 u_lightSpaceMatrix;\nuniform mat4 u_modelMatrix;\n\nvoid main() {\n    gl_Position = u_lightSpaceMatrix * u_modelMatrix * vec4(a_position, 1.0);\n}\n";
 
 // ts/classes/webgl2/initialise.ts
 var WebGL2Initializer = class {
@@ -2325,23 +2325,23 @@ var WebGL2Initializer = class {
     const outerCutOffs = new Float32Array(numLights);
     types.fill(-1);
     constants.fill(1);
-    this.shaderManager.setUniform("uNumLights", 0);
-    this.shaderManager.setUniform("uLightTypes", types);
-    this.shaderManager.setUniform("uLightPositions", positions);
-    this.shaderManager.setUniform("uLightDirections", directions);
-    this.shaderManager.setUniform("uLightColors", colors);
-    this.shaderManager.setUniform("uLightIntensities", intensities);
-    this.shaderManager.setUniform("uLightConstants", constants);
-    this.shaderManager.setUniform("uLightLinears", linears);
-    this.shaderManager.setUniform("uLightQuadratics", quadratics);
-    this.shaderManager.setUniform("uLightCutOffs", cutOffs);
-    this.shaderManager.setUniform("uLightOuterCutOffs", outerCutOffs);
-    this.shaderManager.setUniform("uMaterial.ambient", new Float32Array([0.2, 0.2, 0.2]));
-    this.shaderManager.setUniform("uMaterial.diffuse", new Float32Array([0.8, 0.8, 0.8]));
-    this.shaderManager.setUniform("uMaterial.specular", new Float32Array([1, 1, 1]));
-    this.shaderManager.setUniform("uMaterial.shininess", 32);
-    this.shaderManager.setUniform("uUseTexture", 0);
-    this.shaderManager.setUniform("uViewPos", new Float32Array([3, 2, 3]));
+    this.shaderManager.setUniform("u_numLights", 0);
+    this.shaderManager.setUniform("u_lightTypes", types);
+    this.shaderManager.setUniform("u_lightPositions", positions);
+    this.shaderManager.setUniform("u_lightDirections", directions);
+    this.shaderManager.setUniform("u_lightColors", colors);
+    this.shaderManager.setUniform("u_lightIntensities", intensities);
+    this.shaderManager.setUniform("u_lightConstants", constants);
+    this.shaderManager.setUniform("u_lightLinears", linears);
+    this.shaderManager.setUniform("u_lightQuadratics", quadratics);
+    this.shaderManager.setUniform("u_lightCutOffs", cutOffs);
+    this.shaderManager.setUniform("u_lightOuterCutOffs", outerCutOffs);
+    this.shaderManager.setUniform("u_material.ambient", new Float32Array([0.2, 0.2, 0.2]));
+    this.shaderManager.setUniform("u_material.diffuse", new Float32Array([0.8, 0.8, 0.8]));
+    this.shaderManager.setUniform("u_material.specular", new Float32Array([1, 1, 1]));
+    this.shaderManager.setUniform("u_material.shininess", 32);
+    this.shaderManager.setUniform("u_useTexture", 0);
+    this.shaderManager.setUniform("u_viewPos", new Float32Array([3, 2, 3]));
     this.ctx.enable(this.ctx.DEPTH_TEST);
     this.ctx.enable(this.ctx.CULL_FACE);
   }
@@ -3187,11 +3187,14 @@ var SceneObject = class {
       this.transform.setParent(props.parent.transform);
     }
   }
+  static getAttributeLocation(name) {
+    return glob.shaderManager.getAttributeLocation("a_".concat(name));
+  }
   render(viewMatrix, projectionMatrix) {
     const modelMatrix = this.transform.getWorldMatrix();
-    this.shaderManager.setUniform("uModelMatrix", modelMatrix.mat4);
-    this.shaderManager.setUniform("uViewMatrix", viewMatrix.mat4);
-    this.shaderManager.setUniform("uProjectionMatrix", projectionMatrix.mat4);
+    this.shaderManager.setUniform("u_modelMatrix", modelMatrix.mat4);
+    this.shaderManager.setUniform("u_viewMatrix", viewMatrix.mat4);
+    this.shaderManager.setUniform("u_projectionMatrix", projectionMatrix.mat4);
     const normalMatrix = modelMatrix.clone();
     normalMatrix.invert();
     normalMatrix.transpose();
@@ -3206,7 +3209,7 @@ var SceneObject = class {
       normalMatrix.mat4[9],
       normalMatrix.mat4[10]
     ]);
-    this.shaderManager.setUniform("uNormalMatrix", normalMat3);
+    this.shaderManager.setUniform("u_normalMatrix", normalMat3);
     this.vao.bind();
     if (this.indexBuffer) {
       glob.ctx.drawElements(
@@ -3342,7 +3345,7 @@ var _IcoSphere = class _IcoSphere {
     const vertexBuffer = new VertexBuffer(glob.ctx);
     vertexBuffer.setData(meshData.vertices);
     vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aPosition"),
+      SceneObject.getAttributeLocation("position"),
       3,
       glob.ctx.FLOAT,
       false,
@@ -3352,7 +3355,7 @@ var _IcoSphere = class _IcoSphere {
     const colorBuffer = new VertexBuffer(glob.ctx);
     colorBuffer.setData(meshData.colors);
     vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aColor"),
+      SceneObject.getAttributeLocation("color"),
       3,
       glob.ctx.FLOAT,
       false,
@@ -3362,7 +3365,7 @@ var _IcoSphere = class _IcoSphere {
     const normalBuffer = new VertexBuffer(glob.ctx);
     normalBuffer.setData(meshData.normals);
     vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aNormal"),
+      SceneObject.getAttributeLocation("normal"),
       3,
       glob.ctx.FLOAT,
       false,
@@ -3372,7 +3375,7 @@ var _IcoSphere = class _IcoSphere {
     const texCoordBuffer = new VertexBuffer(glob.ctx);
     texCoordBuffer.setData(meshData.texCoords);
     vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aTexCoord"),
+      SceneObject.getAttributeLocation("texCoord"),
       2,
       glob.ctx.FLOAT,
       false,
@@ -3514,6 +3517,9 @@ var ShadowMap = class {
   }
   getDepthTexture() {
     return this.depthTexture;
+  }
+  getSize() {
+    return this.size;
   }
 };
 
@@ -3699,17 +3705,107 @@ var LightManager = class {
       }
     }
     const numLights = this.lights.length + (this.ambientLight ? 1 : 0);
-    this.shaderManager.setUniform("uNumLights", numLights);
-    this.shaderManager.setUniform("uLightTypes", types);
-    this.shaderManager.setUniform("uLightPositions", positions);
-    this.shaderManager.setUniform("uLightDirections", directions);
-    this.shaderManager.setUniform("uLightColors", colors);
-    this.shaderManager.setUniform("uLightIntensities", intensities);
-    this.shaderManager.setUniform("uLightConstants", constants);
-    this.shaderManager.setUniform("uLightLinears", linears);
-    this.shaderManager.setUniform("uLightQuadratics", quadratics);
-    this.shaderManager.setUniform("uLightCutOffs", cutOffs);
-    this.shaderManager.setUniform("uLightOuterCutOffs", outerCutOffs);
+    this.shaderManager.setUniform("u_numLights", numLights);
+    this.shaderManager.setUniform("u_lightTypes", types);
+    this.shaderManager.setUniform("u_lightPositions", positions);
+    this.shaderManager.setUniform("u_lightDirections", directions);
+    this.shaderManager.setUniform("u_lightColors", colors);
+    this.shaderManager.setUniform("u_lightIntensities", intensities);
+    this.shaderManager.setUniform("u_lightConstants", constants);
+    this.shaderManager.setUniform("u_lightLinears", linears);
+    this.shaderManager.setUniform("u_lightQuadratics", quadratics);
+    this.shaderManager.setUniform("u_lightCutOffs", cutOffs);
+    this.shaderManager.setUniform("u_lightOuterCutOffs", outerCutOffs);
+  }
+};
+
+// ts/classes/webgl2/debug/debugQuad.ts
+var debugQuadVsSource = "#version 300 es\nprecision highp float;\n\nin vec2 a_position;\nin vec2 a_texCoord;\nout vec2 v_texCoord;\n\nvoid main() {\n    v_texCoord = a_texCoord;\n    gl_Position = vec4(a_position, 0.0, 1.0);\n}";
+var debugQuadFsSource = "#version 300 es\nprecision highp float;\n\nuniform sampler2D u_texture;\nuniform int u_textureType;  // 0 = color, 1 = depth\nin vec2 v_texCoord;\nout vec4 fragColor;\n\nvoid main() {\n    if (u_textureType == 1) {\n        // For depth textures\n        float depthValue = texture(u_texture, v_texCoord).r;\n        fragColor = vec4(vec3(depthValue), 1.0);\n    } else {\n        // For color textures\n        fragColor = texture(u_texture, v_texCoord);\n    }\n}";
+var DebugQuad = class {
+  constructor(gl, shaderManager, x = -1, y = -1, width = 0.5, height = 0.5) {
+    this.gl = gl;
+    this.shaderManager = shaderManager;
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.shaderManager.loadShaderProgram("debug_quad", debugQuadVsSource, debugQuadFsSource);
+    this.vao = new VertexArray(this.gl);
+    this.vertexBuffer = new VertexBuffer(this.gl);
+    this.texCoordBuffer = new VertexBuffer(this.gl);
+    this.indexBuffer = new IndexBuffer(this.gl);
+    this.setupGeometry();
+  }
+  setupGeometry() {
+    const positions = new Float32Array([
+      this.x,
+      this.y,
+      // bottom-left
+      this.x + this.width,
+      this.y,
+      // bottom-right
+      this.x + this.width,
+      this.y + this.height,
+      // top-right
+      this.x,
+      this.y + this.height
+      // top-left
+    ]);
+    const texCoords = new Float32Array([
+      0,
+      0,
+      // bottom-left
+      1,
+      0,
+      // bottom-right
+      1,
+      1,
+      // top-right
+      0,
+      1
+      // top-left
+    ]);
+    const indices = new Uint16Array([
+      0,
+      1,
+      2,
+      0,
+      2,
+      3
+    ]);
+    this.vao.bind();
+    this.vertexBuffer.setData(positions);
+    this.vao.setAttributePointer(
+      this.shaderManager.getAttributeLocation("a_position"),
+      2,
+      this.gl.FLOAT,
+      false,
+      0,
+      0
+    );
+    this.texCoordBuffer.setData(texCoords);
+    this.vao.setAttributePointer(
+      this.shaderManager.getAttributeLocation("a_texCoord"),
+      2,
+      this.gl.FLOAT,
+      false,
+      0,
+      0
+    );
+    this.indexBuffer.setData(indices);
+    this.drawCount = indices.length;
+  }
+  render(texture, isDepthTexture = false) {
+    this.shaderManager.useProgram("debug_quad");
+    this.gl.activeTexture(this.gl.TEXTURE0);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
+    this.shaderManager.setUniform("u_texture", 0);
+    this.shaderManager.setUniform("u_textureType", isDepthTexture ? 1 : 0);
+    this.gl.disable(this.gl.DEPTH_TEST);
+    this.vao.bind();
+    this.gl.drawElements(this.gl.TRIANGLES, this.drawCount, this.gl.UNSIGNED_SHORT, 0);
+    this.gl.enable(this.gl.DEPTH_TEST);
   }
 };
 
@@ -3718,6 +3814,9 @@ var Scene = class {
   constructor(camera, options = {}) {
     this.objects = [];
     this.clearColor = [0, 0, 0, 1];
+    this.debugQuad = null;
+    this.showShadowMap = false;
+    this.frameCount = 0;
     var _a;
     this.camera = camera;
     this.lightManager = new LightManager(glob.shaderManager);
@@ -3740,6 +3839,15 @@ var Scene = class {
       this.objects.splice(index, 1);
     }
   }
+  getLights() {
+    return this.lightManager.getLights();
+  }
+  toggleShadowMapDebug(show) {
+    this.showShadowMap = show;
+    if (show && !this.debugQuad) {
+      this.debugQuad = new DebugQuad(glob.ctx, glob.shaderManager);
+    }
+  }
   render() {
     for (const light of this.getLights()) {
       if (light instanceof PointLight) {
@@ -3750,13 +3858,58 @@ var Scene = class {
         const lightSpaceMatrix = light.getLightSpaceMatrix();
         glob.shaderManager.setUniform("u_lightSpaceMatrix", lightSpaceMatrix.mat4);
         for (const object of this.objects) {
-          glob.shaderManager.setUniform("u_model", object.transform.getWorldMatrix().mat4);
+          glob.shaderManager.setUniform("u_modelMatrix", object.transform.getWorldMatrix().mat4);
           object.vao.bind();
           if (object.indexBuffer) {
             glob.ctx.drawElements(glob.ctx.TRIANGLES, object.indexBuffer.getCount(), glob.ctx.UNSIGNED_SHORT, 0);
           } else {
             glob.ctx.drawArrays(glob.ctx.TRIANGLES, 0, object.drawCount);
           }
+        }
+        if (this.frameCount % 60 === 0) {
+          const size = shadowMap.getSize();
+          const tempTexture = glob.ctx.createTexture();
+          glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, tempTexture);
+          glob.ctx.texImage2D(
+            glob.ctx.TEXTURE_2D,
+            0,
+            glob.ctx.RGBA8,
+            1,
+            1,
+            // Just need one pixel
+            0,
+            glob.ctx.RGBA,
+            glob.ctx.UNSIGNED_BYTE,
+            null
+          );
+          glob.ctx.texParameteri(glob.ctx.TEXTURE_2D, glob.ctx.TEXTURE_MIN_FILTER, glob.ctx.NEAREST);
+          glob.ctx.texParameteri(glob.ctx.TEXTURE_2D, glob.ctx.TEXTURE_MAG_FILTER, glob.ctx.NEAREST);
+          const tempFb = glob.ctx.createFramebuffer();
+          glob.ctx.bindFramebuffer(glob.ctx.FRAMEBUFFER, tempFb);
+          glob.ctx.framebufferTexture2D(
+            glob.ctx.FRAMEBUFFER,
+            glob.ctx.COLOR_ATTACHMENT0,
+            glob.ctx.TEXTURE_2D,
+            tempTexture,
+            0
+          );
+          const status = glob.ctx.checkFramebufferStatus(glob.ctx.FRAMEBUFFER);
+          if (status !== glob.ctx.FRAMEBUFFER_COMPLETE) {
+            console.error("Framebuffer is incomplete:", status);
+          } else {
+            glob.ctx.clearColor(0, 0, 0, 1);
+            glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT);
+            if (this.debugQuad) {
+              this.debugQuad.render(shadowMap.getDepthTexture(), true);
+            }
+            const pixels = new Uint8Array(4);
+            glob.ctx.readPixels(0, 0, 1, 1, glob.ctx.RGBA, glob.ctx.UNSIGNED_BYTE, pixels);
+            const depth = pixels[0] / 255;
+            console.log("Shadow map center depth:", depth, "Shadow map size:", size);
+          }
+          glob.ctx.deleteFramebuffer(tempFb);
+          glob.ctx.deleteTexture(tempTexture);
+          shadowMap.bind(glob.ctx);
         }
       }
     }
@@ -3772,12 +3925,20 @@ var Scene = class {
       const light = this.getLights()[0];
       if (light instanceof PointLight) {
         const shadowMap = light.getShadowMap();
-        glob.shaderManager.setUniform("uLightSpaceMatrix", light.getLightSpaceMatrix().mat4);
-        glob.shaderManager.setUniform("uShadowMap", 1);
+        glob.shaderManager.setUniform("u_lightSpaceMatrix", light.getLightSpaceMatrix().mat4);
+        glob.shaderManager.setUniform("u_shadowMap", 1);
         shadowMap.bindDepthTexture(glob.ctx, 1);
       }
       object.render(viewMatrix, projectionMatrix);
     }
+    if (this.showShadowMap && this.debugQuad) {
+      const light = this.getLights()[0];
+      if (light instanceof PointLight) {
+        const shadowMap = light.getShadowMap();
+        this.debugQuad.render(shadowMap.getDepthTexture(), true);
+      }
+    }
+    this.frameCount++;
   }
   dispose() {
     var _a;
@@ -3809,8 +3970,7 @@ var Scene = class {
     }
     this.lightManager.removeLight(light);
   }
-  getLights() {
-    return this.lightManager.getLights();
+  update(data) {
   }
 };
 
@@ -3944,7 +4104,7 @@ var Plane = class {
     const vertexBuffer = new VertexBuffer(glob.ctx);
     vertexBuffer.setData(meshData.vertices);
     vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aPosition"),
+      SceneObject.getAttributeLocation("position"),
       3,
       glob.ctx.FLOAT,
       false,
@@ -3954,7 +4114,7 @@ var Plane = class {
     const colorBuffer = new VertexBuffer(glob.ctx);
     colorBuffer.setData(meshData.colors);
     vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aColor"),
+      SceneObject.getAttributeLocation("color"),
       3,
       glob.ctx.FLOAT,
       false,
@@ -3964,7 +4124,7 @@ var Plane = class {
     const normalBuffer = new VertexBuffer(glob.ctx);
     normalBuffer.setData(meshData.normals);
     vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aNormal"),
+      SceneObject.getAttributeLocation("normal"),
       3,
       glob.ctx.FLOAT,
       false,
@@ -3974,7 +4134,7 @@ var Plane = class {
     const texCoordBuffer = new VertexBuffer(glob.ctx);
     texCoordBuffer.setData(meshData.texCoords);
     vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aTexCoord"),
+      SceneObject.getAttributeLocation("texCoord"),
       2,
       glob.ctx.FLOAT,
       false,
@@ -3989,17 +4149,17 @@ var Plane = class {
       drawCount: meshData.indices.length
     }, props);
     if (props.material) {
-      glob.shaderManager.setUniform("uMaterial.ambient", new Float32Array(props.material.ambient));
-      glob.shaderManager.setUniform("uMaterial.diffuse", new Float32Array(props.material.diffuse));
-      glob.shaderManager.setUniform("uMaterial.specular", new Float32Array(props.material.specular));
-      glob.shaderManager.setUniform("uMaterial.shininess", props.material.shininess);
+      glob.shaderManager.setUniform("u_material.ambient", new Float32Array(props.material.ambient));
+      glob.shaderManager.setUniform("u_material.diffuse", new Float32Array(props.material.diffuse));
+      glob.shaderManager.setUniform("u_material.specular", new Float32Array(props.material.specular));
+      glob.shaderManager.setUniform("u_material.shininess", props.material.shininess);
       if (props.material.diffuseMap) {
-        glob.shaderManager.setUniform("uUseTexture", 1);
+        glob.shaderManager.setUniform("u_useTexture", 1);
         glob.ctx.activeTexture(glob.ctx.TEXTURE0);
         glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, props.material.diffuseMap);
-        glob.shaderManager.setUniform("uMaterial.diffuseMap", 0);
+        glob.shaderManager.setUniform("u_material.diffuseMap", 0);
       } else {
-        glob.shaderManager.setUniform("uUseTexture", 0);
+        glob.shaderManager.setUniform("u_useTexture", 0);
       }
     }
     return sceneObject;
@@ -4088,7 +4248,7 @@ var Cube = class {
     const vertexBuffer = new VertexBuffer(glob.ctx);
     vertexBuffer.setData(meshData.vertices);
     vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aPosition"),
+      SceneObject.getAttributeLocation("position"),
       3,
       glob.ctx.FLOAT,
       false,
@@ -4098,7 +4258,7 @@ var Cube = class {
     const colorBuffer = new VertexBuffer(glob.ctx);
     colorBuffer.setData(meshData.colors);
     vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aColor"),
+      SceneObject.getAttributeLocation("color"),
       3,
       glob.ctx.FLOAT,
       false,
@@ -4108,7 +4268,7 @@ var Cube = class {
     const normalBuffer = new VertexBuffer(glob.ctx);
     normalBuffer.setData(meshData.normals);
     vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aNormal"),
+      SceneObject.getAttributeLocation("normal"),
       3,
       glob.ctx.FLOAT,
       false,
@@ -4118,7 +4278,7 @@ var Cube = class {
     const texCoordBuffer = new VertexBuffer(glob.ctx);
     texCoordBuffer.setData(meshData.texCoords);
     vao.setAttributePointer(
-      glob.shaderManager.getAttributeLocation("aTexCoord"),
+      SceneObject.getAttributeLocation("texCoord"),
       2,
       glob.ctx.FLOAT,
       false,
@@ -4387,43 +4547,32 @@ Cube.texCoords = new Float32Array([
 var TestLevel = class extends Scene {
   // Match demo's black background
   constructor() {
-    super(new Camera(v3(3, 3, 5), v3(0, 0, 0), 45));
+    const camera = new Camera(v3(3, 3, 5), v3(0, 0, 0));
+    super(camera);
+    this.clearColor = [0, 0, 0, 1];
     this.clearColor = [0, 0, 0, 1];
     this.lightManager.setAmbientLight(new AmbientLight(v3(1, 1, 1), 0.2));
-    this.add(Plane.create({
+    const plane = Plane.create({
       position: v3(0, 0, 0),
-      // At origin like demo
       scale: v3(5, 1, 5),
-      // Match demo's plane size
       material: new Material({
         ambient: v3(0.7, 0.7, 0.7).scale(0.2).vec,
         diffuse: v3(0.7, 0.7, 0.7).vec,
-        specular: v3(1, 1, 1).vec,
+        specular: v3(0.3, 0.3, 0.3).vec,
         shininess: 32
       })
-    }));
-    this.add(this.cube = Cube.create({
+    });
+    this.add(plane);
+    const cube = Cube.create({
       position: v3(0, 1, 0),
-      // 1 unit above ground like demo
       scale: v3(1, 1, 1),
-      // Unit size like demo
       colors: [0.7, 0.7, 0.7]
-      // Match demo's gray color
-    }));
-    this.addLight(new PointLight(
-      v3(5, 5, 5),
-      // Match demo's light position exactly
-      v3(1, 1, 1),
-      // White light like demo
-      1,
-      // Full intensity
-      1,
-      // Default attenuation values
-      0,
-      // No distance falloff to match demo
-      0,
-      this
-    ));
+      // Gray color for all faces
+    });
+    this.add(cube);
+    const light = new PointLight(v3(5, 5, 5), v3(1, 1, 1), 1, 1, 0, 0, this);
+    this.lightManager.addLight(light);
+    this.toggleShadowMapDebug(true);
   }
   tick(obj) {
     super.tick(obj);
@@ -5110,7 +5259,8 @@ document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(animate);
   }
   animate();
-  let isVisible = true;
+  let isVisible = false;
+  canvas.style.display = "none";
   document.body.addEventListener("keydown", (e) => {
     if (e.key === " ") {
       isVisible = !isVisible;

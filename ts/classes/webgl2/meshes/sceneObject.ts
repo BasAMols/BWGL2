@@ -31,6 +31,10 @@ export class SceneObject implements SceneObjectData {
     public readonly drawCount: number;
     public readonly drawType: number = glob.ctx.UNSIGNED_SHORT;
 
+    public static getAttributeLocation(name: string): number {
+        return glob.shaderManager.getAttributeLocation(`a_${name}`);
+    }
+
     constructor(data: Omit<SceneObjectData, 'shaderManager' | 'drawMode' |'drawType'>, props: SceneObjectProps = {}) {
         this.vao = data.vao;
         this.indexBuffer = data.indexBuffer;
@@ -50,9 +54,9 @@ export class SceneObject implements SceneObjectData {
         const modelMatrix = this.transform.getWorldMatrix();
 
         // Set uniforms
-        this.shaderManager.setUniform('uModelMatrix', modelMatrix.mat4 as Float32Array);
-        this.shaderManager.setUniform('uViewMatrix', viewMatrix.mat4 as Float32Array);
-        this.shaderManager.setUniform('uProjectionMatrix', projectionMatrix.mat4 as Float32Array);
+        this.shaderManager.setUniform('u_modelMatrix', modelMatrix.mat4 as Float32Array);
+        this.shaderManager.setUniform('u_viewMatrix', viewMatrix.mat4 as Float32Array);
+        this.shaderManager.setUniform('u_projectionMatrix', projectionMatrix.mat4 as Float32Array);
 
         // Calculate and set normal matrix (inverse transpose of model matrix)
         const normalMatrix = modelMatrix.clone();
@@ -63,7 +67,7 @@ export class SceneObject implements SceneObjectData {
             normalMatrix.mat4[4], normalMatrix.mat4[5], normalMatrix.mat4[6],
             normalMatrix.mat4[8], normalMatrix.mat4[9], normalMatrix.mat4[10]
         ]);
-        this.shaderManager.setUniform('uNormalMatrix', normalMat3);
+        this.shaderManager.setUniform('u_normalMatrix', normalMat3);
 
         // Bind VAO
         this.vao.bind();

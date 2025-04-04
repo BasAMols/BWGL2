@@ -84,7 +84,7 @@ export class Plane {
         const vertexBuffer = new VertexBuffer(glob.ctx);
         vertexBuffer.setData(meshData.vertices);
         vao.setAttributePointer(
-            glob.shaderManager.getAttributeLocation('aPosition'),
+            SceneObject.getAttributeLocation('position'),
             3,
             glob.ctx.FLOAT,
             false,
@@ -96,7 +96,7 @@ export class Plane {
         const colorBuffer = new VertexBuffer(glob.ctx);
         colorBuffer.setData(meshData.colors!);
         vao.setAttributePointer(
-            glob.shaderManager.getAttributeLocation('aColor'),
+            SceneObject.getAttributeLocation('color'),
             3,
             glob.ctx.FLOAT,
             false,
@@ -108,7 +108,7 @@ export class Plane {
         const normalBuffer = new VertexBuffer(glob.ctx);
         normalBuffer.setData(meshData.normals!);
         vao.setAttributePointer(
-            glob.shaderManager.getAttributeLocation('aNormal'),
+            SceneObject.getAttributeLocation('normal'),
             3,
             glob.ctx.FLOAT,
             false,
@@ -120,7 +120,7 @@ export class Plane {
         const texCoordBuffer = new VertexBuffer(glob.ctx);
         texCoordBuffer.setData(meshData.texCoords!);
         vao.setAttributePointer(
-            glob.shaderManager.getAttributeLocation('aTexCoord'),
+            SceneObject.getAttributeLocation('texCoord'),
             2,
             glob.ctx.FLOAT,
             false,
@@ -141,19 +141,19 @@ export class Plane {
         // Set material uniforms
         if (props.material) {
             // Set material properties
-            glob.shaderManager.setUniform('uMaterial.ambient', new Float32Array(props.material.ambient));
-            glob.shaderManager.setUniform('uMaterial.diffuse', new Float32Array(props.material.diffuse));
-            glob.shaderManager.setUniform('uMaterial.specular', new Float32Array(props.material.specular));
-            glob.shaderManager.setUniform('uMaterial.shininess', props.material.shininess);
+            glob.shaderManager.setUniform('u_material.ambient', new Float32Array(props.material.ambient));
+            glob.shaderManager.setUniform('u_material.diffuse', new Float32Array(props.material.diffuse));
+            glob.shaderManager.setUniform('u_material.specular', new Float32Array(props.material.specular));
+            glob.shaderManager.setUniform('u_material.shininess', props.material.shininess);
 
             if (props.material.diffuseMap) {
-                glob.shaderManager.setUniform('uUseTexture', 1);
+                glob.shaderManager.setUniform('u_useTexture', 1);
                 // Bind texture to texture unit 0
                 glob.ctx.activeTexture(glob.ctx.TEXTURE0);
                 glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, props.material.diffuseMap);
-                glob.shaderManager.setUniform('uMaterial.diffuseMap', 0); // Use texture unit 0
+                glob.shaderManager.setUniform('u_material.diffuseMap', 0); // Use texture unit 0
             } else {
-                glob.shaderManager.setUniform('uUseTexture', 0);
+                glob.shaderManager.setUniform('u_useTexture', 0);
             }
         }
 

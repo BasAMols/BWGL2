@@ -189,7 +189,7 @@ export class Cone {
         const vertexBuffer = new VertexBuffer(glob.ctx);
         vertexBuffer.setData(meshData.vertices);
         vao.setAttributePointer(
-            glob.shaderManager.getAttributeLocation('aPosition'),
+            SceneObject.getAttributeLocation('position'),
             3,
             glob.ctx.FLOAT,
             false,
@@ -201,7 +201,7 @@ export class Cone {
         const colorBuffer = new VertexBuffer(glob.ctx);
         colorBuffer.setData(meshData.colors!);
         vao.setAttributePointer(
-            glob.shaderManager.getAttributeLocation('aColor'),
+            SceneObject.getAttributeLocation('color'),
             3,
             glob.ctx.FLOAT,
             false,
@@ -213,7 +213,7 @@ export class Cone {
         const normalBuffer = new VertexBuffer(glob.ctx);
         normalBuffer.setData(meshData.normals!);
         vao.setAttributePointer(
-            glob.shaderManager.getAttributeLocation('aNormal'),
+            SceneObject.getAttributeLocation('normal'),
             3,
             glob.ctx.FLOAT,
             false,
@@ -225,7 +225,7 @@ export class Cone {
         const texCoordBuffer = new VertexBuffer(glob.ctx);
         texCoordBuffer.setData(meshData.texCoords!);
         vao.setAttributePointer(
-            glob.shaderManager.getAttributeLocation('aTexCoord'),
+            SceneObject.getAttributeLocation('texCoord'),
             2,
             glob.ctx.FLOAT,
             false,

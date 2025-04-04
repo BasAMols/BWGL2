@@ -1,17 +1,17 @@
 export const vertexShaderSource = `#version 300 es
 
 // Attributes
-in vec3 aPosition;
-in vec3 aNormal;
-in vec2 aTexCoord;
-in vec3 aColor;
+in vec3 a_position;
+in vec3 a_normal;
+in vec2 a_texCoord;
+in vec3 a_color;
 
 // Uniforms
-uniform mat4 uModelMatrix;
-uniform mat4 uViewMatrix;
-uniform mat4 uProjectionMatrix;
-uniform mat3 uNormalMatrix; // Added for correct normal transformation
-uniform mat4 uLightSpaceMatrix; // Added for shadow mapping
+uniform mat4 u_modelMatrix;
+uniform mat4 u_viewMatrix;
+uniform mat4 u_projectionMatrix;
+uniform mat3 u_normalMatrix; // Added for correct normal transformation
+uniform mat4 u_lightSpaceMatrix; // Added for shadow mapping
 
 // Material uniforms
 struct Material {
@@ -21,31 +21,31 @@ struct Material {
     float shininess;
     sampler2D diffuseMap;
 };
-uniform Material uMaterial;
-uniform bool uUseTexture;
+uniform Material u_material;
+uniform bool u_useTexture;
 
 // Varyings (output to fragment shader)
-out vec3 vNormal;
-out vec2 vTexCoord;
-out vec3 vFragPos;
-out vec3 vColor;
-out vec4 vFragPosLightSpace; // Added for shadow mapping
+out vec3 v_normal;
+out vec2 v_texCoord;
+out vec3 v_fragPos;
+out vec3 v_color;
+out vec4 v_fragPosLightSpace; // Added for shadow mapping
 
 void main() {
     // Calculate world space position
-    vec4 worldPos = uModelMatrix * vec4(aPosition, 1.0);
-    vFragPos = worldPos.xyz;
+    vec4 worldPos = u_modelMatrix * vec4(a_position, 1.0);
+    v_fragPos = worldPos.xyz;
     
     // Transform normal to world space using normal matrix
-    vNormal = normalize(uNormalMatrix * aNormal);
+    v_normal = normalize(u_normalMatrix * a_normal);
     
     // Pass texture coordinates and color to fragment shader
-    vTexCoord = aTexCoord;
-    vColor = uUseTexture ? vec3(1.0) : (aColor * uMaterial.diffuse);
+    v_texCoord = a_texCoord;
+    v_color = u_useTexture ? vec3(1.0) : (a_color * u_material.diffuse);
     
     // Calculate position in light space for shadow mapping
-    vFragPosLightSpace = uLightSpaceMatrix * worldPos;
+    v_fragPosLightSpace = u_lightSpaceMatrix * worldPos;
     
     // Calculate final position
-    gl_Position = uProjectionMatrix * uViewMatrix * worldPos;
+    gl_Position = u_projectionMatrix * u_viewMatrix * worldPos;
 }`;

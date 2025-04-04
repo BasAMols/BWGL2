@@ -12,11 +12,11 @@ precision highp float;
 #define LIGHT_TYPE_SPOT 3
 
 // Input from vertex shader
-in vec3 vNormal;
-in vec2 vTexCoord;
-in vec3 vFragPos;
-in vec3 vColor;
-in vec4 vFragPosLightSpace;
+in vec3 v_normal;
+in vec2 v_texCoord;
+in vec3 v_fragPos;
+in vec3 v_color;
+in vec4 v_fragPosLightSpace;
 
 // Material structure
 struct Material {
@@ -28,28 +28,28 @@ struct Material {
 };
 
 // Light uniforms
-uniform int uLightTypes[MAX_LIGHTS];
-uniform vec3 uLightPositions[MAX_LIGHTS];
-uniform vec3 uLightDirections[MAX_LIGHTS];
-uniform vec3 uLightColors[MAX_LIGHTS];
-uniform float uLightIntensities[MAX_LIGHTS];
-uniform float uLightConstants[MAX_LIGHTS];
-uniform float uLightLinears[MAX_LIGHTS];
-uniform float uLightQuadratics[MAX_LIGHTS];
-uniform float uLightCutOffs[MAX_LIGHTS];
-uniform float uLightOuterCutOffs[MAX_LIGHTS];
-uniform int uNumLights;
+uniform int u_lightTypes[MAX_LIGHTS];
+uniform vec3 u_lightPositions[MAX_LIGHTS];
+uniform vec3 u_lightDirections[MAX_LIGHTS];
+uniform vec3 u_lightColors[MAX_LIGHTS];
+uniform float u_lightIntensities[MAX_LIGHTS];
+uniform float u_lightConstants[MAX_LIGHTS];
+uniform float u_lightLinears[MAX_LIGHTS];
+uniform float u_lightQuadratics[MAX_LIGHTS];
+uniform float u_lightCutOffs[MAX_LIGHTS];
+uniform float u_lightOuterCutOffs[MAX_LIGHTS];
+uniform int u_numLights;
 
 // Material uniforms
-uniform Material uMaterial;
-uniform bool uUseTexture;
+uniform Material u_material;
+uniform bool u_useTexture;
 
 // Shadow mapping uniforms
-uniform sampler2D uShadowMap;
-uniform mat4 uLightSpaceMatrix;
+uniform sampler2D u_shadowMap;
+uniform mat4 u_lightSpaceMatrix;
 
 // Other uniforms
-uniform vec3 uViewPos;
+uniform vec3 u_viewPos;
 
 // Output
 out vec4 fragColor;
@@ -62,7 +62,7 @@ float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir) {
     projCoords = projCoords * 0.5 + 0.5;
     
     // Get closest depth value from light's perspective
-    float closestDepth = texture(uShadowMap, projCoords.xy).r;
+    float closestDepth = texture(u_shadowMap, projCoords.xy).r;
     
     // Get current depth
     float currentDepth = projCoords.z;
@@ -72,10 +72,10 @@ float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir) {
     
     // PCF (Percentage Closer Filtering)
     float shadow = 0.0;
-    vec2 texelSize = 1.0 / vec2(textureSize(uShadowMap, 0));
+    vec2 texelSize = 1.0 / vec2(textureSize(u_shadowMap, 0));
     for(int x = -1; x <= 1; ++x) {
         for(int y = -1; y <= 1; ++y) {
-            float pcfDepth = texture(uShadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
+            float pcfDepth = texture(u_shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
             shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
         }
     }
@@ -90,92 +90,92 @@ float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir) {
 
 // Function to calculate directional light
 vec3 calcDirectionalLight(int index, vec3 normal, vec3 viewDir, vec3 baseColor) {
-    vec3 lightDir = normalize(-uLightDirections[index]);
+    vec3 lightDir = normalize(-u_lightDirections[index]);
     
     // Diffuse
     float diff = max(dot(normal, lightDir), 0.0);
     
     // Specular
     vec3 reflectDir = reflect(-lightDir, normal);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), uMaterial.shininess);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_material.shininess);
     
-    vec3 ambient = uLightColors[index] * uMaterial.ambient;
-    vec3 diffuse = uLightColors[index] * diff * baseColor;
-    vec3 specular = uLightColors[index] * spec * uMaterial.specular;
+    vec3 ambient = u_lightColors[index] * u_material.ambient;
+    vec3 diffuse = u_lightColors[index] * diff * baseColor;
+    vec3 specular = u_lightColors[index] * spec * u_material.specular;
     
-    return (ambient + diffuse + specular) * uLightIntensities[index];
+    return (ambient + diffuse + specular) * u_lightIntensities[index];
 }
 
 // Function to calculate point light
 vec3 calcPointLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {
-    vec3 lightDir = normalize(uLightPositions[index] - fragPos);
+    vec3 lightDir = normalize(u_lightPositions[index] - fragPos);
     
     // Diffuse
     float diff = max(dot(normal, lightDir), 0.0);
     
     // Specular
     vec3 reflectDir = reflect(-lightDir, normal);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), uMaterial.shininess);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_material.shininess);
     
     // Attenuation
-    float distance = length(uLightPositions[index] - fragPos);
-    float attenuation = 1.0 / (uLightConstants[index] + uLightLinears[index] * distance + uLightQuadratics[index] * distance * distance);
+    float distance = length(u_lightPositions[index] - fragPos);
+    float attenuation = 1.0 / (u_lightConstants[index] + u_lightLinears[index] * distance + u_lightQuadratics[index] * distance * distance);
     
-    vec3 ambient = uLightColors[index] * uMaterial.ambient;
-    vec3 diffuse = uLightColors[index] * diff * baseColor;
-    vec3 specular = uLightColors[index] * spec * uMaterial.specular;
+    vec3 ambient = u_lightColors[index] * u_material.ambient;
+    vec3 diffuse = u_lightColors[index] * diff * baseColor;
+    vec3 specular = u_lightColors[index] * spec * u_material.specular;
     
-    return (ambient + diffuse + specular) * attenuation * uLightIntensities[index];
+    return (ambient + diffuse + specular) * attenuation * u_lightIntensities[index];
 }
 
 // Function to calculate spot light
 vec3 calcSpotLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {
-    vec3 lightDir = normalize(uLightPositions[index] - fragPos);
+    vec3 lightDir = normalize(u_lightPositions[index] - fragPos);
     
     // Spot light intensity
-    float theta = dot(lightDir, normalize(-uLightDirections[index]));
-    float epsilon = uLightCutOffs[index] - uLightOuterCutOffs[index];
-    float intensity = clamp((theta - uLightOuterCutOffs[index]) / epsilon, 0.0, 1.0);
+    float theta = dot(lightDir, normalize(-u_lightDirections[index]));
+    float epsilon = u_lightCutOffs[index] - u_lightOuterCutOffs[index];
+    float intensity = clamp((theta - u_lightOuterCutOffs[index]) / epsilon, 0.0, 1.0);
     
     // Use point light calculation and multiply by spot intensity
     return calcPointLight(index, normal, fragPos, viewDir, baseColor) * intensity;
 }
 
 void main() {
-    vec3 normal = normalize(vNormal);
-    vec3 viewDir = normalize(uViewPos - vFragPos);
+    vec3 normal = normalize(v_normal);
+    vec3 viewDir = normalize(u_viewPos - v_fragPos);
     
     // Get base color from texture or vertex color
     vec3 baseColor;
-    if (uUseTexture) {
-        baseColor = texture(uMaterial.diffuseMap, vTexCoord).rgb;
+    if (u_useTexture) {
+        baseColor = texture(u_material.diffuseMap, v_texCoord).rgb;
     } else {
-        baseColor = vColor;
+        baseColor = v_color;
     }
     
     vec3 result = vec3(0.0);
-    float shadow = ShadowCalculation(vFragPosLightSpace, normal, normalize(uLightPositions[0] - vFragPos));
+    float shadow = ShadowCalculation(v_fragPosLightSpace, normal, normalize(u_lightPositions[0] - v_fragPos));
     
     // Calculate contribution from each light
-    for(int i = 0; i < uNumLights; i++) {
+    for(int i = 0; i < u_numLights; i++) {
         if(i >= MAX_LIGHTS) break;
         
         // Skip inactive lights
-        if(uLightTypes[i] == LIGHT_TYPE_INACTIVE) continue;
+        if(u_lightTypes[i] == LIGHT_TYPE_INACTIVE) continue;
         
-        if(uLightTypes[i] == LIGHT_TYPE_AMBIENT) {
-            result += uLightColors[i] * uLightIntensities[i] * baseColor;
+        if(u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {
+            result += u_lightColors[i] * u_lightIntensities[i] * baseColor;
         }
-        else if(uLightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {
+        else if(u_lightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {
             vec3 lighting = calcDirectionalLight(i, normal, viewDir, baseColor);
             result += lighting * (1.0 - shadow);
         }
-        else if(uLightTypes[i] == LIGHT_TYPE_POINT) {
-            vec3 lighting = calcPointLight(i, normal, vFragPos, viewDir, baseColor);
+        else if(u_lightTypes[i] == LIGHT_TYPE_POINT) {
+            vec3 lighting = calcPointLight(i, normal, v_fragPos, viewDir, baseColor);
             result += lighting * (1.0 - shadow);
         }
-        else if(uLightTypes[i] == LIGHT_TYPE_SPOT) {
-            vec3 lighting = calcSpotLight(i, normal, vFragPos, viewDir, baseColor);
+        else if(u_lightTypes[i] == LIGHT_TYPE_SPOT) {
+            vec3 lighting = calcSpotLight(i, normal, v_fragPos, viewDir, baseColor);
             result += lighting * (1.0 - shadow);
         }
     }

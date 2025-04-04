@@ -13,41 +13,42 @@ export class TestLevel extends Scene {
     protected clearColor: [number, number, number, number] = [0, 0, 0, 1];  // Match demo's black background
 
     constructor() {
-        // Match demo's camera position exactly
-        super(new Camera(v3(3, 3, 5), v3(0, 0, 0), 45));
+        const camera = new Camera(v3(3, 3, 5), v3(0, 0, 0));
+        super(camera);
 
-        // Set ambient light to match demo
+        // Set clear color to black
+        this.clearColor = [0, 0, 0, 1];
+
+        // Set ambient light
         this.lightManager.setAmbientLight(new AmbientLight(v3(1, 1, 1), 0.2));
 
-        // Create the plane with demo dimensions
-        this.add(Plane.create({
-            position: v3(0, 0, 0),  // At origin like demo
-            scale: v3(5, 1, 5),     // Match demo's plane size
+        // Create a plane at the origin
+        const plane = Plane.create({
+            position: v3(0, 0, 0),
+            scale: v3(5, 1, 5),
             material: new Material({
                 ambient: v3(0.7, 0.7, 0.7).scale(0.2).vec,
                 diffuse: v3(0.7, 0.7, 0.7).vec,
-                specular: v3(1, 1, 1).vec,
+                specular: v3(0.3, 0.3, 0.3).vec,
                 shininess: 32.0
             })
-        }));
+        });
+        this.add(plane);
 
-        // Create cube with demo properties
-        this.add(this.cube = Cube.create({
-            position: v3(0, 1, 0),  // 1 unit above ground like demo
-            scale: v3(1, 1, 1),     // Unit size like demo
-            colors: [0.7, 0.7, 0.7]  // Match demo's gray color
-        }));
+        // Create a cube above the plane
+        const cube = Cube.create({
+            position: v3(0, 1, 0),
+            scale: v3(1, 1, 1),
+            colors: [0.7, 0.7, 0.7]  // Gray color for all faces
+        });
+        this.add(cube);
 
-        // Single light matching demo's position and properties
-        this.addLight(new PointLight(
-            v3(5, 5, 5),      // Match demo's light position exactly
-            v3(1, 1, 1),      // White light like demo
-            1.0,              // Full intensity
-            1.0,              // Default attenuation values
-            0.0,              // No distance falloff to match demo
-            0.0,
-            this
-        ));
+        // Add a point light
+        const light = new PointLight(v3(5, 5, 5), v3(1, 1, 1), 1.0, 1.0, 0.0, 0.0, this);
+        this.lightManager.addLight(light);
+
+        // Enable shadow map visualization
+        this.toggleShadowMapDebug(true);
     }
 
     tick(obj: TickerReturnData) {

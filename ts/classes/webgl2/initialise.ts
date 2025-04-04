@@ -55,26 +55,26 @@ export class WebGL2Initializer {
         constants.fill(1.0); // Default attenuation constant
 
         // Set default uniform values
-        this.shaderManager.setUniform('uNumLights', 0);
-        this.shaderManager.setUniform('uLightTypes', types);
-        this.shaderManager.setUniform('uLightPositions', positions);
-        this.shaderManager.setUniform('uLightDirections', directions);
-        this.shaderManager.setUniform('uLightColors', colors);
-        this.shaderManager.setUniform('uLightIntensities', intensities);
-        this.shaderManager.setUniform('uLightConstants', constants);
-        this.shaderManager.setUniform('uLightLinears', linears);
-        this.shaderManager.setUniform('uLightQuadratics', quadratics);
-        this.shaderManager.setUniform('uLightCutOffs', cutOffs);
-        this.shaderManager.setUniform('uLightOuterCutOffs', outerCutOffs);
+        this.shaderManager.setUniform('u_numLights', 0);
+        this.shaderManager.setUniform('u_lightTypes', types);
+        this.shaderManager.setUniform('u_lightPositions', positions);
+        this.shaderManager.setUniform('u_lightDirections', directions);
+        this.shaderManager.setUniform('u_lightColors', colors);
+        this.shaderManager.setUniform('u_lightIntensities', intensities);
+        this.shaderManager.setUniform('u_lightConstants', constants);
+        this.shaderManager.setUniform('u_lightLinears', linears);
+        this.shaderManager.setUniform('u_lightQuadratics', quadratics);
+        this.shaderManager.setUniform('u_lightCutOffs', cutOffs);
+        this.shaderManager.setUniform('u_lightOuterCutOffs', outerCutOffs);
 
         // Set default material values
-        this.shaderManager.setUniform('uMaterial.ambient', new Float32Array([0.2, 0.2, 0.2]));
-        this.shaderManager.setUniform('uMaterial.diffuse', new Float32Array([0.8, 0.8, 0.8]));
-        this.shaderManager.setUniform('uMaterial.specular', new Float32Array([1.0, 1.0, 1.0]));
-        this.shaderManager.setUniform('uMaterial.shininess', 32.0);
-        this.shaderManager.setUniform('uUseTexture', 0);
+        this.shaderManager.setUniform('u_material.ambient', new Float32Array([0.2, 0.2, 0.2]));
+        this.shaderManager.setUniform('u_material.diffuse', new Float32Array([0.8, 0.8, 0.8]));
+        this.shaderManager.setUniform('u_material.specular', new Float32Array([1.0, 1.0, 1.0]));
+        this.shaderManager.setUniform('u_material.shininess', 32.0);
+        this.shaderManager.setUniform('u_useTexture', 0);
 
-        this.shaderManager.setUniform('uViewPos', new Float32Array([3.0, 2.0, 3.0]));
+        this.shaderManager.setUniform('u_viewPos', new Float32Array([3.0, 2.0, 3.0]));
 
         // Enable depth testing and backface culling
         this.ctx.enable(this.ctx.DEPTH_TEST);
