@@ -18,7 +18,7 @@ void main() {
 const debugQuadFsSource = `#version 300 es
 precision highp float;
 
-uniform sampler2D u_texture;
+uniform sampler2D u_depthMap;
 uniform int u_textureType;  // 0 = color, 1 = depth
 in vec2 v_texCoord;
 out vec4 fragColor;
@@ -26,11 +26,13 @@ out vec4 fragColor;
 void main() {
     if (u_textureType == 1) {
         // For depth textures
-        float depthValue = texture(u_texture, v_texCoord).r;
-        fragColor = vec4(vec3(depthValue), 1.0);
+        float depthValue = texture(u_depthMap, v_texCoord).r;
+        // Visualize depth values more clearly by using a non-linear mapping
+        float visualDepth = pow(depthValue, 0.5); // Use square root to make differences more visible
+        fragColor = vec4(vec3(visualDepth), 1.0);
     } else {
         // For color textures
-        fragColor = texture(u_texture, v_texCoord);
+        fragColor = texture(u_depthMap, v_texCoord);
     }
 }`;
 
@@ -118,7 +120,7 @@ export class DebugQuad {
         // Bind the texture
         this.gl.activeTexture(this.gl.TEXTURE0);
         this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
-        this.shaderManager.setUniform('u_texture', 0);
+        this.shaderManager.setUniform('u_depthMap', 0);
         
         // Set texture type
         this.shaderManager.setUniform('u_textureType', isDepthTexture ? 1 : 0);

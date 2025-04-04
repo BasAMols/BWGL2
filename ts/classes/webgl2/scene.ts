@@ -5,7 +5,6 @@ import { SceneObject } from './meshes/sceneObject';
 import { Light, AmbientLight, PointLight } from './lights/light';
 import { LightManager } from './lights/lightManager';
 import { v3, Vector3 } from '../util/math/vector3';
-import { DebugQuad } from './debug/debugQuad';
 
 export interface SceneOptions {
     ambientLightColor?: Vector3;
@@ -18,7 +17,6 @@ export class Scene {
     protected clearColor: [number, number, number, number] = [0, 0, 0, 1];
     protected lightManager: LightManager;
     protected ambientLight: AmbientLight;
-    protected debugQuad: DebugQuad | null = null;
     protected showShadowMap: boolean = false;
     protected frameCount: number = 0;
 
@@ -55,13 +53,6 @@ export class Scene {
         return this.lightManager.getLights();
     }
 
-    public toggleShadowMapDebug(show: boolean): void {
-        this.showShadowMap = show;
-        if (show && !this.debugQuad) {
-            this.debugQuad = new DebugQuad(glob.ctx, glob.shaderManager);
-        }
-    }
-
     public render(): void {
         // First render pass: create shadow maps
         for (const light of this.getLights()) {
@@ -75,16 +66,6 @@ export class Scene {
                 // Set light space matrix uniform for shadow pass
                 const lightSpaceMatrix = light.getLightSpaceMatrix();
                 glob.shaderManager.setUniform('u_lightSpaceMatrix', lightSpaceMatrix.mat4);
-                
-                // Debug: Log light matrix and object positions every 60 frames
-                if (this.frameCount % 60 === 0) {
-                    console.log('Light space matrix:', JSON.stringify(lightSpaceMatrix.mat4));
-                    console.log('Scene objects:');
-                    for (const object of this.objects) {
-                        const worldPos = object.transform.getWorldMatrix().position;
-                        console.log('- Object position:', JSON.stringify(worldPos.array));
-                    }
-                }
                 
                 // Set up depth state
                 glob.ctx.enable(glob.ctx.DEPTH_TEST);
@@ -136,17 +117,6 @@ export class Scene {
             }
 
             object.render(viewMatrix, projectionMatrix);
-        }
-
-        // Render debug quad if enabled
-        if (this.showShadowMap && this.debugQuad) {
-            const light = this.getLights()[0];
-            if (light instanceof PointLight) {
-                const shadowMap = light.getShadowMap();
-                // Switch to debug quad shader and render the depth texture
-                glob.shaderManager.useProgram('debug_quad');
-                this.debugQuad.render(shadowMap.getDepthTexture(), true);
-            }
         }
 
         this.frameCount++;

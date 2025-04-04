@@ -3734,102 +3734,11 @@ var LightManager = class {
   }
 };
 
-// ts/classes/webgl2/debug/debugQuad.ts
-var debugQuadVsSource = "#version 300 es\nprecision highp float;\n\nin vec2 a_position;\nin vec2 a_texCoord;\nout vec2 v_texCoord;\n\nvoid main() {\n    v_texCoord = a_texCoord;\n    gl_Position = vec4(a_position, 0.0, 1.0);\n}";
-var debugQuadFsSource = "#version 300 es\nprecision highp float;\n\nuniform sampler2D u_texture;\nuniform int u_textureType;  // 0 = color, 1 = depth\nin vec2 v_texCoord;\nout vec4 fragColor;\n\nvoid main() {\n    if (u_textureType == 1) {\n        // For depth textures\n        float depthValue = texture(u_texture, v_texCoord).r;\n        fragColor = vec4(vec3(depthValue), 1.0);\n    } else {\n        // For color textures\n        fragColor = texture(u_texture, v_texCoord);\n    }\n}";
-var DebugQuad = class {
-  constructor(gl, shaderManager, x = -1, y = -1, width = 0.5, height = 0.5) {
-    this.gl = gl;
-    this.shaderManager = shaderManager;
-    this.x = x;
-    this.y = y;
-    this.width = width;
-    this.height = height;
-    this.shaderManager.loadShaderProgram("debug_quad", debugQuadVsSource, debugQuadFsSource);
-    this.vao = new VertexArray(this.gl);
-    this.vertexBuffer = new VertexBuffer(this.gl);
-    this.texCoordBuffer = new VertexBuffer(this.gl);
-    this.indexBuffer = new IndexBuffer(this.gl);
-    this.setupGeometry();
-  }
-  setupGeometry() {
-    const positions = new Float32Array([
-      this.x,
-      this.y,
-      // bottom-left
-      this.x + this.width,
-      this.y,
-      // bottom-right
-      this.x + this.width,
-      this.y + this.height,
-      // top-right
-      this.x,
-      this.y + this.height
-      // top-left
-    ]);
-    const texCoords = new Float32Array([
-      0,
-      0,
-      // bottom-left
-      1,
-      0,
-      // bottom-right
-      1,
-      1,
-      // top-right
-      0,
-      1
-      // top-left
-    ]);
-    const indices = new Uint16Array([
-      0,
-      1,
-      2,
-      0,
-      2,
-      3
-    ]);
-    this.vao.bind();
-    this.vertexBuffer.setData(positions);
-    this.vao.setAttributePointer(
-      this.shaderManager.getAttributeLocation("a_position"),
-      2,
-      this.gl.FLOAT,
-      false,
-      0,
-      0
-    );
-    this.texCoordBuffer.setData(texCoords);
-    this.vao.setAttributePointer(
-      this.shaderManager.getAttributeLocation("a_texCoord"),
-      2,
-      this.gl.FLOAT,
-      false,
-      0,
-      0
-    );
-    this.indexBuffer.setData(indices);
-    this.drawCount = indices.length;
-  }
-  render(texture, isDepthTexture = false) {
-    this.shaderManager.useProgram("debug_quad");
-    this.gl.activeTexture(this.gl.TEXTURE0);
-    this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
-    this.shaderManager.setUniform("u_texture", 0);
-    this.shaderManager.setUniform("u_textureType", isDepthTexture ? 1 : 0);
-    this.gl.disable(this.gl.DEPTH_TEST);
-    this.vao.bind();
-    this.gl.drawElements(this.gl.TRIANGLES, this.drawCount, this.gl.UNSIGNED_SHORT, 0);
-    this.gl.enable(this.gl.DEPTH_TEST);
-  }
-};
-
 // ts/classes/webgl2/scene.ts
 var Scene = class {
   constructor(camera, options = {}) {
     this.objects = [];
     this.clearColor = [0, 0, 0, 1];
-    this.debugQuad = null;
     this.showShadowMap = false;
     this.frameCount = 0;
     var _a;
@@ -3857,12 +3766,6 @@ var Scene = class {
   getLights() {
     return this.lightManager.getLights();
   }
-  toggleShadowMapDebug(show) {
-    this.showShadowMap = show;
-    if (show && !this.debugQuad) {
-      this.debugQuad = new DebugQuad(glob.ctx, glob.shaderManager);
-    }
-  }
   render() {
     for (const light of this.getLights()) {
       if (light instanceof PointLight) {
@@ -3871,14 +3774,6 @@ var Scene = class {
         glob.shaderManager.useProgram("shadow");
         const lightSpaceMatrix = light.getLightSpaceMatrix();
         glob.shaderManager.setUniform("u_lightSpaceMatrix", lightSpaceMatrix.mat4);
-        if (this.frameCount % 60 === 0) {
-          console.log("Light space matrix:", JSON.stringify(lightSpaceMatrix.mat4));
-          console.log("Scene objects:");
-          for (const object of this.objects) {
-            const worldPos = object.transform.getWorldMatrix().position;
-            console.log("- Object position:", JSON.stringify(worldPos.array));
-          }
-        }
         glob.ctx.enable(glob.ctx.DEPTH_TEST);
         glob.ctx.depthFunc(glob.ctx.LESS);
         glob.ctx.clearDepth(1);
@@ -3911,14 +3806,6 @@ var Scene = class {
         shadowMap.bindDepthTexture(glob.ctx, 1);
       }
       object.render(viewMatrix, projectionMatrix);
-    }
-    if (this.showShadowMap && this.debugQuad) {
-      const light = this.getLights()[0];
-      if (light instanceof PointLight) {
-        const shadowMap = light.getShadowMap();
-        glob.shaderManager.useProgram("debug_quad");
-        this.debugQuad.render(shadowMap.getDepthTexture(), true);
-      }
     }
     this.frameCount++;
   }
@@ -4554,7 +4441,6 @@ var TestLevel = class extends Scene {
     this.add(cube);
     const light = new PointLight(v3(5, 5, 5), v3(1, 1, 1), 1, 1, 0, 0, this);
     this.lightManager.addLight(light);
-    this.toggleShadowMapDebug(true);
   }
   tick(obj) {
     super.tick(obj);

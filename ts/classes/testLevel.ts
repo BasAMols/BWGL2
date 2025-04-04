@@ -47,8 +47,6 @@ export class TestLevel extends Scene {
         const light = new PointLight(v3(5, 5, 5), v3(1, 1, 1), 1.0, 1.0, 0.0, 0.0, this);
         this.lightManager.addLight(light);
 
-        // Enable shadow map visualization
-        this.toggleShadowMapDebug(true);
     }
 
     tick(obj: TickerReturnData) {
