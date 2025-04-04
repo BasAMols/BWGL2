@@ -1287,10 +1287,11 @@ var Vector3 = class _Vector3 {
    * Converts a screen space coordinate to a world position on a plane
    * @param screenPos Screen position in normalized coordinates (0-1)
    * @param camera Camera used for the projection
-   * @param planeTransform Transform of the plane to intersect with
+   * @param planeNormal Normal vector of the plane (must be normalized)
+   * @param planeCoordinate The world coordinate value where the plane intersects the axis defined by the normal
    * @returns World position where the ray intersects the plane, or null if ray is parallel to plane
    */
-  static screenToWorldPlane(screenPos, camera, planeTransform) {
+  static screenToWorldPlane(screenPos, camera, planeNormal, planeCoordinate) {
     const ndcX = screenPos.x * 2 - 1;
     const ndcY = (1 - screenPos.y) * 2 - 1;
     const projMatrix = camera.getProjectionMatrix();
@@ -1309,13 +1310,11 @@ var Vector3 = class _Vector3 {
       invView.mat4[2] * rayDir.x + invView.mat4[6] * rayDir.y + invView.mat4[10] * rayDir.z
     ).normalize();
     const rayOrigin = camera.getPosition();
-    const worldRot = planeTransform.getWorldRotation();
-    const planeNormal = v3(0, 1, 0).applyQuaternion(worldRot);
-    const planePoint = planeTransform.getWorldPosition();
     const denom = worldRayDir.dot(planeNormal);
     if (Math.abs(denom) < 1e-6) {
       return null;
     }
+    const planePoint = planeNormal.scale(planeCoordinate);
     const t = planePoint.subtract(rayOrigin).dot(planeNormal) / denom;
     return rayOrigin.add(worldRayDir.scale(t));
   }
@@ -5424,7 +5423,7 @@ var TestLevel = class extends Scene {
     this.addLight(this.spotLight4);
   }
   click(vector2) {
-    const pos2 = Vector3.screenToWorldPlane(vector2, this.camera, this.floorPlane.transform);
+    const pos2 = Vector3.screenToWorldPlane(vector2, this.camera, v3(0, 0, 1), 4);
     if (pos2) {
       this.spotLight4.setPosition(pos2);
       this.spotLight4.lookAt(v3(0, 0, 0));

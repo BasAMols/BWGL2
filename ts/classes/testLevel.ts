@@ -186,7 +186,7 @@ export class TestLevel extends Scene {
 
             
     click(vector2: Vector2) {
-        const pos2 = Vector3.screenToWorldPlane(vector2, this.camera, this.floorPlane.transform);
+        const pos2 = Vector3.screenToWorldPlane(vector2, this.camera, v3(0, 0, 1), 4);
 
         if (pos2) {
             this.spotLight4.setPosition(pos2);

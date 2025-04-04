@@ -3,7 +3,6 @@ import { Vector2, v2 } from './vector2';
 import { Util } from '../utils';
 import { Quaternion } from './quaternion';
 import { Camera } from '../../webgl2/camera';
-import { Transform } from './transform';
 
 export function v3(): Vector3;
 export function v3(a?: [number?, number?, number?]): Vector3;
@@ -299,10 +298,16 @@ export class Vector3 {
 	 * Converts a screen space coordinate to a world position on a plane
 	 * @param screenPos Screen position in normalized coordinates (0-1)
 	 * @param camera Camera used for the projection
-	 * @param planeTransform Transform of the plane to intersect with
+	 * @param planeNormal Normal vector of the plane (must be normalized)
+	 * @param planeCoordinate The world coordinate value where the plane intersects the axis defined by the normal
 	 * @returns World position where the ray intersects the plane, or null if ray is parallel to plane
 	 */
-	public static screenToWorldPlane(screenPos: Vector2, camera: Camera, planeTransform: Transform): Vector3 | null {
+	public static screenToWorldPlane(
+		screenPos: Vector2, 
+		camera: Camera, 
+		planeNormal: Vector3,
+		planeCoordinate: number
+	): Vector3 | null {
 		// Convert screen position to NDC (-1 to 1)
 		const ndcX = screenPos.x * 2 - 1;
 		const ndcY = (1 - screenPos.y) * 2 - 1; // Flip Y back to OpenGL coordinates
@@ -334,13 +339,7 @@ export class Vector3 {
 
 		const rayOrigin = camera.getPosition();
 
-		// For a plane, we use the local up vector (0,1,0) as the normal in local space
-		// and transform it by the plane's world rotation to get the world-space normal
-		const worldRot = planeTransform.getWorldRotation();
-		const planeNormal = v3(0, 1, 0).applyQuaternion(worldRot);
-		const planePoint = planeTransform.getWorldPosition();
-
-		// Calculate intersection using the plane equation: dot(planeNormal, (point - planePoint)) = 0
+		// Calculate intersection with the plane
 		const denom = worldRayDir.dot(planeNormal);
 
 		// If denominator is close to 0, ray is parallel to the plane
@@ -348,12 +347,13 @@ export class Vector3 {
 			return null;
 		}
 
-		// Calculate t where the ray intersects the plane
-		// Using: planePoint + t * rayDir = intersectionPoint
-		// Where: dot(planeNormal, (intersectionPoint - planePoint)) = 0
+		// For a given normal (nx,ny,nz) and coordinate c, any point P(x,y,z) on the plane satisfies:
+		// If normal is (0,1,0) and coordinate is -1, then y = -1
+		// So: dot(P - (normal * coordinate), normal) = 0
+		const planePoint = planeNormal.scale(planeCoordinate);
 		const t = planePoint.subtract(rayOrigin).dot(planeNormal) / denom;
 
 		// Calculate the intersection point
 		return rayOrigin.add(worldRayDir.scale(t));
-	}
+	} 
 }
