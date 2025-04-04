@@ -155,7 +155,7 @@ export class IcoSphere extends BaseMesh {
         };
     }
 
-    public static create(props: IcoSphereProps = {}): SceneObject {
+    public static create(props: Omit<IcoSphereProps, 'colors'> = {}): SceneObject {
         const meshData = this.generateMeshData(
             props.subdivisions ?? 0,
             props.smoothShading ?? true,

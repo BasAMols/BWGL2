@@ -4,6 +4,8 @@ import { SceneObject } from './sceneObject';
 import { Material } from '../material';
 import { vec3 } from 'gl-matrix';
 import { glob } from '../../../game';
+import { Vector2 } from '../../util/math/vector2';
+import { v3 } from '../../util/math/vector3';
 
 export interface PlaneProps extends BaseMeshProps {
     material?: Material;
@@ -58,7 +60,7 @@ export class Plane extends BaseMesh {
         ]);
     }
 
-    private static createMeshData(props: PlaneProps = {}): MeshData {
+    private static createMeshData(props: Omit<PlaneProps, 'scale'> = {}): MeshData {
         return {
             vertices: this.vertices,
             indices: this.generateIndices(props.flipNormal || false),
@@ -68,14 +70,14 @@ export class Plane extends BaseMesh {
         };
     }
 
-    public static create(props: PlaneProps = {}): SceneObject {
+    public static create(props: Omit<PlaneProps, 'scale'> & { scale?: Vector2 } = {}): SceneObject {
         // Create default material if none provided
         if (!props.material && !props.texture) {
             props.material = new Material();
         }
 
         const meshData = this.createMeshData(props);
-        const sceneObject = this.createSceneObject(meshData, props);
+        const sceneObject = this.createSceneObject(meshData, {...props, scale: v3(props.scale?.x ?? 1, 1, props.scale?.y ?? 1)});
 
         // Set material uniforms
         if (props.material) {

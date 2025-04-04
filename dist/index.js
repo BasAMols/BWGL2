@@ -4647,11 +4647,12 @@ var Plane = class extends BaseMesh {
     };
   }
   static create(props = {}) {
+    var _a, _b, _c, _d;
     if (!props.material && !props.texture) {
       props.material = new Material();
     }
     const meshData = this.createMeshData(props);
-    const sceneObject = this.createSceneObject(meshData, props);
+    const sceneObject = this.createSceneObject(meshData, __spreadProps(__spreadValues({}, props), { scale: v3((_b = (_a = props.scale) == null ? void 0 : _a.x) != null ? _b : 1, 1, (_d = (_c = props.scale) == null ? void 0 : _c.y) != null ? _d : 1) }));
     if (props.material) {
       glob.shaderManager.setUniform("u_material.ambient", new Float32Array(props.material.ambient.vec));
       glob.shaderManager.setUniform("u_material.diffuse", new Float32Array(props.material.diffuse.vec));
@@ -4699,10 +4700,534 @@ Plane.texCoords = new Float32Array([
   1
 ]);
 
+// ts/classes/webgl2/meshes/cube.ts
+var Cube = class extends BaseMesh {
+  static generateColors(colors) {
+    const defaultColors = [
+      [0.8, 0.2, 0.2],
+      // Front face (red)
+      [1, 1, 0],
+      // Back face (yellow)
+      [0.2, 0.8, 0.2],
+      // Right face (green)
+      [0.8, 0.2, 0.8],
+      // Left face (purple)
+      [0.2, 0.2, 0.8],
+      // Top face (blue)
+      [1, 0.5, 0]
+      // Bottom face (orange)
+    ];
+    let faceColors;
+    if (!colors) {
+      faceColors = defaultColors;
+    } else if (Array.isArray(colors[0])) {
+      faceColors = colors;
+      if (faceColors.length !== 6) {
+        throw new Error("Must provide exactly 6 colors for faces or a single color");
+      }
+    } else {
+      const singleColor = colors;
+      faceColors = Array(6).fill(singleColor);
+    }
+    const colorArray = [];
+    faceColors.forEach((color) => {
+      for (let i = 0; i < 4; i++) {
+        colorArray.push(...color);
+      }
+    });
+    return new Float32Array(colorArray);
+  }
+  static createMeshData(props = {}) {
+    return {
+      vertices: this.vertices,
+      indices: this.indices,
+      normals: this.normals,
+      texCoords: this.texCoords,
+      colors: this.generateColors(props.colors)
+    };
+  }
+  static create(props = {}) {
+    const meshData = this.createMeshData(props);
+    return this.createSceneObject(meshData, props);
+  }
+};
+Cube.vertices = new Float32Array([
+  // Front face
+  -0.5,
+  -0.5,
+  0.5,
+  // 0
+  0.5,
+  -0.5,
+  0.5,
+  // 1
+  0.5,
+  0.5,
+  0.5,
+  // 2
+  -0.5,
+  0.5,
+  0.5,
+  // 3
+  // Back face
+  -0.5,
+  -0.5,
+  -0.5,
+  // 4
+  0.5,
+  -0.5,
+  -0.5,
+  // 5
+  0.5,
+  0.5,
+  -0.5,
+  // 6
+  -0.5,
+  0.5,
+  -0.5,
+  // 7
+  // Right face
+  0.5,
+  -0.5,
+  0.5,
+  // 8 (1)
+  0.5,
+  -0.5,
+  -0.5,
+  // 9 (5)
+  0.5,
+  0.5,
+  -0.5,
+  // 10 (6)
+  0.5,
+  0.5,
+  0.5,
+  // 11 (2)
+  // Left face
+  -0.5,
+  -0.5,
+  -0.5,
+  // 12 (4)
+  -0.5,
+  -0.5,
+  0.5,
+  // 13 (0)
+  -0.5,
+  0.5,
+  0.5,
+  // 14 (3)
+  -0.5,
+  0.5,
+  -0.5,
+  // 15 (7)
+  // Top face
+  -0.5,
+  0.5,
+  0.5,
+  // 16 (3)
+  0.5,
+  0.5,
+  0.5,
+  // 17 (2)
+  0.5,
+  0.5,
+  -0.5,
+  // 18 (6)
+  -0.5,
+  0.5,
+  -0.5,
+  // 19 (7)
+  // Bottom face
+  -0.5,
+  -0.5,
+  -0.5,
+  // 20 (4)
+  0.5,
+  -0.5,
+  -0.5,
+  // 21 (5)
+  0.5,
+  -0.5,
+  0.5,
+  // 22 (1)
+  -0.5,
+  -0.5,
+  0.5
+  // 23 (0)
+]);
+Cube.indices = new Uint16Array([
+  // Front
+  0,
+  1,
+  2,
+  2,
+  3,
+  0,
+  // Back (reversed order)
+  4,
+  6,
+  5,
+  6,
+  4,
+  7,
+  // Right
+  8,
+  9,
+  10,
+  10,
+  11,
+  8,
+  // Left
+  12,
+  13,
+  14,
+  14,
+  15,
+  12,
+  // Top
+  16,
+  17,
+  18,
+  18,
+  19,
+  16,
+  // Bottom
+  20,
+  21,
+  22,
+  22,
+  23,
+  20
+]);
+Cube.normals = new Float32Array([
+  // Front face
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  // Back face
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  // Right face
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  // Left face
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  // Top face
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  // Bottom face
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0
+]);
+Cube.texCoords = new Float32Array([
+  // Front
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  0,
+  1,
+  // Back
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1
+]);
+
+// ts/classes/webgl2/meshes/wedge.ts
+var Wedge = class extends BaseMesh {
+  static generateMeshData(colors) {
+    const vertices = [];
+    const indices = [];
+    const normals = [];
+    const generatedColors = [];
+    const texCoords = [];
+    const defaultColors = [
+      [1, 0, 0],
+      // Front triangle - Red
+      [0, 1, 0],
+      // Back triangle - Green
+      [0, 0, 1],
+      // Bottom rectangle - Blue
+      [1, 0, 1],
+      // Left rectangle - Magenta
+      [1, 1, 0]
+      // Hypotenuse rectangle - Yellow
+    ];
+    let faceColors = defaultColors;
+    if (colors) {
+      if (Array.isArray(colors[0])) {
+        faceColors = colors;
+        if (faceColors.length !== 5) {
+          throw new Error("Must provide exactly 5 colors for faces or a single color");
+        }
+      } else {
+        const singleColor = colors;
+        faceColors = Array(5).fill(singleColor);
+      }
+    }
+    vertices.push(
+      // Front triangle
+      -0.5,
+      -0.5,
+      0.5,
+      // 0
+      0.5,
+      -0.5,
+      0.5,
+      // 1
+      -0.5,
+      0.5,
+      0.5,
+      // 2
+      // Back triangle
+      -0.5,
+      -0.5,
+      -0.5,
+      // 3
+      0.5,
+      -0.5,
+      -0.5,
+      // 4
+      -0.5,
+      0.5,
+      -0.5,
+      // 5
+      // Bottom rectangle
+      -0.5,
+      -0.5,
+      0.5,
+      // 6
+      0.5,
+      -0.5,
+      0.5,
+      // 7
+      -0.5,
+      -0.5,
+      -0.5,
+      // 8
+      0.5,
+      -0.5,
+      -0.5,
+      // 9
+      // Left rectangle (vertical face)
+      -0.5,
+      -0.5,
+      -0.5,
+      // 10
+      -0.5,
+      0.5,
+      -0.5,
+      // 11
+      -0.5,
+      -0.5,
+      0.5,
+      // 12
+      -0.5,
+      0.5,
+      0.5,
+      // 13
+      // Hypotenuse rectangle (sloped face)
+      0.5,
+      -0.5,
+      -0.5,
+      // 14
+      0.5,
+      -0.5,
+      0.5,
+      // 15
+      -0.5,
+      0.5,
+      -0.5,
+      // 16
+      -0.5,
+      0.5,
+      0.5
+      // 17
+    );
+    const frontNormal = [0, 0, 1];
+    const backNormal = [0, 0, -1];
+    const bottomNormal = [0, -1, 0];
+    const leftNormal = [-1, 0, 0];
+    const hypotenuseNormal = [0.7071, 0.7071, 0];
+    for (let i = 0; i < 3; i++)
+      normals.push(...frontNormal);
+    for (let i = 0; i < 3; i++)
+      normals.push(...backNormal);
+    for (let i = 0; i < 4; i++)
+      normals.push(...bottomNormal);
+    for (let i = 0; i < 4; i++)
+      normals.push(...leftNormal);
+    for (let i = 0; i < 4; i++)
+      normals.push(...hypotenuseNormal);
+    for (let i = 0; i < 3; i++)
+      generatedColors.push(...faceColors[0]);
+    for (let i = 0; i < 3; i++)
+      generatedColors.push(...faceColors[1]);
+    for (let i = 0; i < 4; i++)
+      generatedColors.push(...faceColors[2]);
+    for (let i = 0; i < 4; i++)
+      generatedColors.push(...faceColors[3]);
+    for (let i = 0; i < 4; i++)
+      generatedColors.push(...faceColors[4]);
+    texCoords.push(
+      // Front triangle
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      // Back triangle
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      // Bottom rectangle
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      1,
+      // Left rectangle
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      1,
+      // Hypotenuse rectangle
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      1
+    );
+    indices.push(
+      // Front triangle
+      0,
+      1,
+      2,
+      // Back triangle (reverse winding for back face)
+      3,
+      5,
+      4,
+      // Bottom rectangle
+      6,
+      8,
+      7,
+      7,
+      8,
+      9,
+      // Left rectangle (CCW when looking from left side)
+      10,
+      12,
+      11,
+      12,
+      13,
+      11,
+      // Hypotenuse rectangle
+      14,
+      16,
+      15,
+      15,
+      16,
+      17
+    );
+    return {
+      vertices: new Float32Array(vertices),
+      indices: new Uint16Array(indices),
+      normals: new Float32Array(normals),
+      colors: new Float32Array(generatedColors),
+      texCoords: new Float32Array(texCoords)
+    };
+  }
+  static create(props = {}) {
+    const meshData = this.generateMeshData(props.colors);
+    return this.createSceneObject(meshData, props);
+  }
+};
+
 // ts/classes/testLevel.ts
 var TestLevel = class extends Scene {
   constructor() {
-    super(new Camera({ position: v3(0, 1, 6), target: v3(0, 0, 0), fov: 60 }), {
+    super(new Camera({ position: v3(0, 1, 6), target: v3(0, 0, 0), fov: 40 }), {
       ambientLightColor: v3(1, 1, 1),
       ambientLightIntensity: 0.05
       // reduced from 0 to allow some ambient light
@@ -4712,16 +5237,16 @@ var TestLevel = class extends Scene {
     rotation.setAxisAngle(v3(1, 0, 0), 0);
     this.add(Plane.create({
       position: v3(0, -2, 0),
-      scale: v3(10, 10, 10),
+      scale: v2(10, 10),
       material: new Material({
-        diffuse: v3(1, 1, 1),
+        diffuse: v3(0, 1, 1),
         specular: v3(1, 1, 1),
         shininess: 3
       })
     }));
     this.add(Plane.create({
-      position: v3(0, 0, -4),
-      scale: v3(10, 10, 10),
+      position: v3(0, 0.5, -4),
+      scale: v2(5, 10),
       rotation: Quaternion.fromEuler(-Math.PI / 2, 0, Math.PI / 2),
       material: new Material({
         diffuse: v3(1, 1, 1),
@@ -4732,39 +5257,54 @@ var TestLevel = class extends Scene {
     this.add(this.mesh = IcoSphere.create({
       position: v3(0, 0, 0),
       scale: v3(2.5, 2.5, 2.5),
-      colors: [[1, 1, 1], [1, 1, 1]],
+      color: [1, 1, 1],
       smoothShading: false,
       subdivisions: 0
       // ignoreLighting: true,
     }));
-    this.add(IcoSphere.create({
-      position: v3(-2, -1.25, -2),
-      scale: v3(1.5, 1.5, 1.5),
-      colors: [[1, 1, 1], [1, 1, 1]],
-      smoothShading: true,
-      subdivisions: 4
-    }));
-    this.add(IcoSphere.create({
-      position: v3(-3.5, -1.25, -2),
-      scale: v3(1.5, 1.5, 1.5),
-      colors: [[1, 1, 1], [1, 1, 1]],
-      smoothShading: true,
-      subdivisions: 4
-    }));
-    this.add(IcoSphere.create({
-      position: v3(-2.75, -1.25, -0.75),
-      scale: v3(1.5, 1.5, 1.5),
-      colors: [[1, 1, 1], [1, 1, 1]],
-      smoothShading: true,
-      subdivisions: 4
-    }));
-    this.add(IcoSphere.create({
-      position: v3(-2.75, 0, -1.325),
-      scale: v3(1.5, 1.5, 1.5),
-      colors: [[1, 1, 1], [1, 1, 1]],
-      smoothShading: true,
-      subdivisions: 4
-    }));
+    for (let i = 0; i < 2; i++) {
+      const container = new ContainerObject({
+        position: v3(4.5 * i, 0, -4 * i),
+        rotation: Quaternion.fromEuler(0, Math.PI * i, 0)
+      });
+      const positions = [
+        v3(-2 + 5.5 * i, -1.25, -2 - 1),
+        v3(-3.5 + 5.5 * i, -1.25, -2 - 1),
+        v3(-2.75 + 5.5 * i, -1.25, -1),
+        v3(-2.75 + 5.5 * i, 0.25, -1.64 - 0.6)
+      ].sort(() => Math.random() - 0.5);
+      this.add(IcoSphere.create({
+        position: positions[0],
+        scale: v3(1.5, 1.5, 1.5),
+        color: [Math.random(), Math.random(), Math.random()],
+        smoothShading: false,
+        subdivisions: 4,
+        parent: container
+      }));
+      this.add(Cube.create({
+        position: positions[1],
+        scale: v3(1.5, 1.5, 1.5),
+        colors: [Math.random(), Math.random(), Math.random()],
+        parent: container
+      }));
+      this.add(Wedge.create({
+        rotation: Quaternion.fromEuler(0, Math.PI / 2, 0),
+        position: positions[2],
+        scale: v3(1.5, 1.5, 1.5),
+        colors: [Math.random(), Math.random(), Math.random()],
+        parent: container
+      }));
+      this.add(Cone.create({
+        position: positions[3],
+        scale: v3(2, 1.5, 2),
+        colors: [Math.random(), Math.random(), Math.random()],
+        rotation: Quaternion.fromEuler(0, Math.PI / 2, 0),
+        smoothShading: false,
+        sides: 3,
+        parent: container
+      }));
+      this.add(container);
+    }
     this.addLight(new PointLight({
       position: v3(0, 5, 4),
       // higher position to cast better shadows
@@ -4772,36 +5312,17 @@ var TestLevel = class extends Scene {
       intensity: 0.1,
       meshContainer: this
     }));
-    this.spotLight = new SpotLight({
-      position: v3(0, 0, 0),
-      color: v3(1, 0, 0),
-      intensity: 0.5,
-      cutOff: 0.99,
-      direction: v3(0, 0, -1),
-      outerCutOff: 0.9,
-      meshContainer: this
-    });
-    this.addLight(this.spotLight);
-    this.spotLight2 = new SpotLight({
-      position: v3(0, 0, 0),
-      color: v3(0, 0, 1),
-      intensity: 0.5,
-      cutOff: 0.99,
-      direction: v3(0, 0, -1),
-      outerCutOff: 0.9,
-      meshContainer: this
-    });
-    this.addLight(this.spotLight2);
-    this.spotLight3 = new SpotLight({
-      position: v3(0, 0, 0),
-      color: v3(0, 1, 0),
-      intensity: 0.5,
-      cutOff: 0.99,
-      direction: v3(0, 0, -1),
-      outerCutOff: 0.9,
-      meshContainer: this
-    });
-    this.addLight(this.spotLight3);
+    for (let i = 0; i < 3; i++) {
+      let vari = ["spotLight", "spotLight2", "spotLight3"][i];
+      let color = [v3(1, 0, 0), v3(0, 0, 1), v3(0, 1, 0)][i];
+      this[vari] = new SpotLight({
+        color,
+        intensity: 0.7,
+        cutOff: 0.99,
+        outerCutOff: 0.9
+      });
+      this.addLight(this[vari]);
+    }
   }
   tick(obj) {
     super.tick(obj);
@@ -4812,41 +5333,35 @@ var TestLevel = class extends Scene {
         rotation.multiply(this.mesh.transform.getLocalRotation())
       );
     }
-    if (this.spotLight) {
-      this.spotLight.setPosition(
-        v3(
-          Math.sin((obj.total + 1e3) * 6e-4) % 1 * 4,
-          Math.sin((obj.total + 8e3) * 2e-3) % 1 * 3 + 2,
-          6
-        )
-      );
-      this.spotLight.lookAt(v3(0, 0, 0));
-    }
-    if (this.spotLight2) {
-      this.spotLight2.setPosition(
-        v3(
-          Math.sin((obj.total + 300) * 15e-4 + 0.3) % 1 * 4,
-          (Math.sin((obj.total + 4e3) * 1e-3) % 1 + 0.6) * 3 + 2,
-          6
-        )
-      );
-      this.spotLight2.lookAt(v3(0, 0, 0));
-    }
-    if (this.spotLight3) {
-      this.spotLight3.setPosition(
-        v3(
-          Math.sin((obj.total + 1e3) * 1e-3) % 1 * 4,
-          Math.sin((obj.total + 2e3) * 15e-4) % 1 * 3 + 2,
-          6
-        )
-      );
-      this.spotLight3.lookAt(v3(0, 0, 0));
-    }
+    this.spotLight.setPosition(
+      v3(
+        Math.sin((obj.total + 1e3) * 6e-4) % 1 * 4,
+        Math.sin((obj.total + 8e3) * 2e-3) % 1 * 4 + 3,
+        6
+      )
+    );
+    this.spotLight.lookAt(v3(0, 0, 0));
+    this.spotLight2.setPosition(
+      v3(
+        Math.sin((obj.total + 300) * 15e-4 + 0.3) % 1 * 4,
+        (Math.sin((obj.total + 4e3) * 1e-3) % 1 + 0.6) * 4 + 3,
+        6
+      )
+    );
+    this.spotLight2.lookAt(v3(0, 0, 0));
+    this.spotLight3.setPosition(
+      v3(
+        Math.sin((obj.total + 1e3) * 1e-3) % 1 * 4,
+        Math.sin((obj.total + 2e3) * 15e-4) % 1 * 4 + 3,
+        6
+      )
+    );
+    this.spotLight3.lookAt(v3(0, 0, 0));
     this.camera.setPosition(
       v3(
-        Math.sin(obj.total * 5e-4) % 1 * 2,
-        0,
-        8
+        Math.sin(obj.total * 8e-4) % 1 * 5,
+        Math.sin(obj.total * 12e-4) % 1 * 1,
+        Math.sin(obj.total * 5e-4) % 1 * 2 + 9
       )
     );
   }
