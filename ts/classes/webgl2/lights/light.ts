@@ -39,7 +39,7 @@ export class Light {
     protected intensity: number;
     protected type: LightType;
 
-    constructor(color: Vector3 = v3(1, 1, 1), intensity: number = 1.0) {
+    constructor({ color = v3(1, 1, 1), intensity = 1.0 }: { color?: Vector3; intensity?: number; } = {}) {
         this.color = color;
         this.intensity = intensity;
     }
@@ -61,8 +61,8 @@ export class Light {
 }
 
 export class AmbientLight extends Light {
-    constructor(color: Vector3 = v3(1, 1, 1), intensity: number = 0.1) {
-        super(color, intensity);
+    constructor({ color = v3(1, 1, 1), intensity = 0.1 }: { color?: Vector3, intensity?: number; } = {}) {
+        super({ color, intensity });
         this.type = LightType.AMBIENT;
     }
 }
@@ -70,8 +70,15 @@ export class AmbientLight extends Light {
 export class DirectionalLight extends Light {
     private direction: Vector3;
 
-    constructor(direction: Vector3 = v3(0, -1, 0), color: Vector3 = v3(1, 1, 1), intensity: number = 1.0) {
-        super(color, intensity);
+    constructor({
+        direction = v3(0, -1, 0),
+        color = v3(1, 1, 1),
+        intensity = 1.0 }: {
+            direction?: Vector3;
+            color?: Vector3;
+            intensity?: number;
+        } = {}) {
+        super({ color, intensity });
         this.direction = direction.normalize();
         this.type = LightType.DIRECTIONAL;
     }
@@ -92,23 +99,31 @@ export class PointLight extends Light {
     private shadowMap: ShadowMap;
     private lightProjection: Matrix4;
 
-    constructor(
-        position: Vector3 = v3(0, 0, 0),
-        color: Vector3 = v3(1, 1, 1),
-        intensity: number = 1.0,
-        constant: number = 1.0,
-        linear: number = 0.09,
-        quadratic: number = 0.032,
-        scene: Scene
-    ) {
-        super(color, intensity);
+    constructor({
+        position = v3(0, 0, 0),
+        color = v3(1, 1, 1),
+        intensity = 1.0,
+        attenuation = {constant: 1.0, linear: 0.09, quadratic: 0.032},
+        meshContainer
+    }: {
+        position?: Vector3;
+        color?: Vector3;
+        intensity?: number;
+        attenuation?: {
+            constant: number;
+            linear: number;
+            quadratic: number; 
+        }
+        meshContainer?: Scene;
+    } = {}) {
+        super({ color, intensity });
         this.position = position;
-        this.constant = constant;
-        this.linear = linear;
-        this.quadratic = quadratic;
+        this.constant = attenuation.constant;
+        this.linear = attenuation.linear;
+        this.quadratic = attenuation.quadratic;
         this.type = LightType.POINT;
-        this.shadowMap = new ShadowMap(glob.ctx);
-        
+        this.shadowMap = new ShadowMap(glob.ctx, 4096);
+
         // Create orthographic projection matrix for the light
         this.lightProjection = new Matrix4().ortho(
             -10, 10,  // left, right
@@ -116,11 +131,13 @@ export class PointLight extends Light {
             0.1, 100.0  // near, far
         );
 
-        if (scene) {
-            scene.add(IcoSphere.create({
+        if (meshContainer) {
+            meshContainer.add(IcoSphere.create({
                 position: position,
                 scale: v3(0.1, 0.1, 0.1),
                 color: color.array,
+                subdivisions: 0,
+                smoothShading: true,
             }));
         }
     }
@@ -163,27 +180,28 @@ export class SpotLight extends PointLight {
     private outerCutOff: number;
 
     constructor(
-        position: Vector3 = v3(0, 0, 0),
-        direction: Vector3 = v3(0, -1, 0),
-        color: Vector3 = v3(1, 1, 1),
-        intensity: number = 1.0,
-        cutOff: number = Math.cos(Math.PI / 6), // 30 degrees
-        outerCutOff: number = Math.cos(Math.PI / 4), // 45 degrees
-        meshContainer?: Scene
-    ) {
-        super(position, color, intensity, 1.0, 0.09, 0.032, meshContainer!);
+        { position = v3(0, 0, 0),
+            direction = v3(0, -1, 0),
+            color = v3(1, 1, 1),
+            intensity = 1.0,
+            cutOff = Math.cos(Math.PI / 6),
+            outerCutOff = Math.cos(Math.PI / 4),
+            meshContainer
+        }: {
+            position?: Vector3;
+            direction?: Vector3;
+            color?: Vector3;
+            intensity?: number;
+            cutOff?: number;
+            outerCutOff?: number;
+            meshContainer?: Scene;
+        } = {}) {
+
+        super({ position, color, intensity, meshContainer });
         this.direction = direction.normalize();
         this.cutOff = cutOff;
         this.outerCutOff = outerCutOff;
         this.type = LightType.SPOT;
-
-        if (meshContainer) {
-            meshContainer.add(IcoSphere.create({
-                position: position,
-                scale: v3(0.1, 0.1, 0.1),
-                color: color.array,
-            }));
-        }
     }
 
     getData(): SpotLightData {

@@ -1,24 +1,31 @@
-import { vec3 } from 'gl-matrix';
-import { Material as IMaterial } from './types';
+import { Vector3, v3 } from '../util/math/vector3';
 
-export class Material implements IMaterial {
-    public ambient: vec3;
-    public diffuse: vec3;
-    public specular: vec3;
+export class Material {
+    public ambient: Vector3;
+    public diffuse: Vector3;
+    public specular: Vector3;
     public shininess: number;
     public diffuseMap?: WebGLTexture;
     public normalMap?: WebGLTexture;
     public specularMap?: WebGLTexture;
 
     constructor({
-        ambient = vec3.fromValues(0.2, 0.2, 0.2),
-        diffuse = vec3.fromValues(0.8, 0.8, 0.8),
-        specular = vec3.fromValues(1.0, 1.0, 1.0),
+        ambient = v3(0.2, 0.2, 0.2),
+        diffuse = v3(0.8, 0.8, 0.8),
+        specular = v3(1.0, 1.0, 1.0),
         shininess = 2.0,
         diffuseMap,
         normalMap,
         specularMap
-    }: Partial<IMaterial> = {}) {
+    }: {
+        ambient?: Vector3;
+        diffuse?: Vector3;
+        specular?: Vector3;
+        shininess?: number;
+        diffuseMap?: WebGLTexture;
+        normalMap?: WebGLTexture;
+        specularMap?: WebGLTexture;
+    } = {}) {
         this.ambient = ambient;
         this.diffuse = diffuse;
         this.specular = specular;

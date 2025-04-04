@@ -16,26 +16,27 @@ export class Scene {
     protected camera: Camera;
     protected clearColor: [number, number, number, number] = [0, 0, 0, 1];
     protected lightManager: LightManager;
-    protected ambientLight: AmbientLight;
+    private _ambientLight: AmbientLight;
+    protected get ambientLight(): AmbientLight {
+        return this._ambientLight;
+    }
+    protected set ambientLight(value: AmbientLight) {
+        this._ambientLight = value;
+        this.lightManager.setAmbientLight(this.ambientLight);
+    }
     protected showShadowMap: boolean = false;
     protected frameCount: number = 0;
 
     constructor(camera: Camera, options: SceneOptions = {}) {
         this.camera = camera;
         this.lightManager = new LightManager(glob.shaderManager);
-        
+
         // Set up ambient light with default or provided values
         const ambientColor = options.ambientLightColor || v3(1, 1, 1);
         const ambientIntensity = options.ambientLightIntensity ?? 0.1;
-        this.ambientLight = new AmbientLight(ambientColor, ambientIntensity);
-        this.lightManager.setAmbientLight(this.ambientLight);
+        this.ambientLight = new AmbientLight({ color: ambientColor, intensity: ambientIntensity });
 
         glob.events.resize.subscribe('level', this.resize.bind(this));
-    }
-
-    public setAmbientLight(color: Vector3, intensity: number): void {
-        this.ambientLight = new AmbientLight(color, intensity);
-        this.lightManager.setAmbientLight(this.ambientLight);
     }
 
     public add(object: SceneObject): void {
@@ -67,42 +68,44 @@ export class Scene {
             const lightIndex = i + indexOffset; // Adjust index for ambient light offset
             const shadowMap = light.getShadowMap();
             shadowMap.bind(glob.ctx);
-            
+
             // Use shadow shader program
             glob.shaderManager.useProgram('shadow');
-            
+
             // Set light space matrix uniform for shadow pass
             const lightSpaceMatrix = light.getLightSpaceMatrix();
             glob.shaderManager.setUniform('u_lightSpaceMatrix', lightSpaceMatrix.mat4);
-            
+
             // Set up depth state
             glob.ctx.enable(glob.ctx.DEPTH_TEST);
             glob.ctx.depthFunc(glob.ctx.LESS);
             glob.ctx.clearDepth(1.0);
             glob.ctx.clear(glob.ctx.DEPTH_BUFFER_BIT);
-            
+
             // Store light space matrix for main render pass
             lightSpaceMatrix.mat4.forEach((value, index) => {
                 lightSpaceMatrices[lightIndex * 16 + index] = value;
             });
             castsShadow[lightIndex] = 1;
-            
+
             // Render scene from light's perspective
             for (const object of this.objects) {
-                glob.shaderManager.setUniform('u_modelMatrix', object.transform.getWorldMatrix().mat4);
-                object.vao.bind();
-                if (object.indexBuffer) {
-                    glob.ctx.drawElements(glob.ctx.TRIANGLES, object.indexBuffer.getCount(), glob.ctx.UNSIGNED_SHORT, 0);
-                } else {
-                    glob.ctx.drawArrays(glob.ctx.TRIANGLES, 0, object.drawCount);
+                if (object.vao) {
+                    glob.shaderManager.setUniform('u_modelMatrix', object.transform.getWorldMatrix().mat4);
+                    object.vao.bind();
+                    if (object.indexBuffer) {
+                        glob.ctx.drawElements(glob.ctx.TRIANGLES, object.indexBuffer.getCount(), glob.ctx.UNSIGNED_SHORT, 0);
+                    } else {
+                        glob.ctx.drawArrays(glob.ctx.TRIANGLES, 0, object.drawCount);
+                    }
                 }
             }
         }
-        
+
         // Second render pass: regular scene rendering with shadows
         glob.ctx.bindFramebuffer(glob.ctx.FRAMEBUFFER, null);
         glob.ctx.viewport(0, 0, glob.ctx.canvas.width, glob.ctx.canvas.height);
-        
+
         glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT | glob.ctx.DEPTH_BUFFER_BIT);
         glob.ctx.clearColor(...this.clearColor);
 
@@ -146,6 +149,7 @@ export class Scene {
     }
 
     public tick(obj: TickerReturnData) {
+
     }
     public afterTick(obj: TickerReturnData) {
         this.render();

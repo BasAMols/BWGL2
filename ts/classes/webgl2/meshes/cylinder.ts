@@ -1,15 +1,14 @@
 import { MeshData } from '../types';
-import { VertexArray, VertexBuffer, IndexBuffer } from '../buffer';
-import { SceneObject, SceneObjectProps } from './sceneObject';
-import { glob } from '../../../game';
+import { BaseMesh, BaseMeshProps } from './baseMesh';
+import { SceneObject } from './sceneObject';
 
-export interface CylinderProps extends SceneObjectProps {
+export interface CylinderProps extends BaseMeshProps {
     sides?: number;
     smoothShading?: boolean;
     colors?: [number, number, number] | [[number, number, number], [number, number, number], [number, number, number]];
 }
 
-export class Cylinder {
+export class Cylinder extends BaseMesh {
     private static generateMeshData(sides: number = 32, smoothShading: boolean = true, colors?: [number, number, number] | [[number, number, number], [number, number, number], [number, number, number]]): MeshData {
         // Arrays to store the generated data
         const vertices: number[] = [];
@@ -72,6 +71,75 @@ export class Cylinder {
                 indices.push(topFirst, topSecond, bottomFirst);
                 indices.push(bottomFirst, topSecond, bottomSecond);
             }
+
+            // Generate caps for smooth shading
+            const sideVertexCount = vertices.length / 3;
+            
+            // Add centers for both caps
+            vertices.push(0, 0.5, 0);  // Top center
+            vertices.push(0, -0.5, 0); // Bottom center
+            normals.push(0, 1, 0);     // Top normal
+            normals.push(0, -1, 0);    // Bottom normal
+            generatedColors.push(...topColor, ...bottomColor);
+            texCoords.push(0.5, 0.5, 0.5, 0.5);
+
+            const topCenterIndex = sideVertexCount;
+            const bottomCenterIndex = sideVertexCount + 1;
+
+            // Generate cap vertices
+            for (let i = 0; i < sides; i++) {
+                const angle1 = (i * Math.PI * 2) / sides;
+                const angle2 = ((i + 1) * Math.PI * 2) / sides;
+                
+                const x1 = Math.cos(angle1) * 0.5;
+                const z1 = Math.sin(angle1) * 0.5;
+                const x2 = Math.cos(angle2) * 0.5;
+                const z2 = Math.sin(angle2) * 0.5;
+
+                // Add vertices for caps
+                vertices.push(
+                    x1, 0.5, z1,    // Top cap point 1
+                    x2, 0.5, z2,    // Top cap point 2
+                    x1, -0.5, z1,   // Bottom cap point 1
+                    x2, -0.5, z2    // Bottom cap point 2
+                );
+
+                // Add normals
+                normals.push(
+                    0, 1, 0,    // Top cap normal
+                    0, 1, 0,    // Top cap normal
+                    0, -1, 0,   // Bottom cap normal
+                    0, -1, 0    // Bottom cap normal
+                );
+
+                // Add colors
+                generatedColors.push(
+                    ...topColor, ...topColor,       // Top cap colors
+                    ...bottomColor, ...bottomColor  // Bottom cap colors
+                );
+
+                // Add texture coordinates for both caps
+                texCoords.push(
+                    x1 + 0.5, z1 + 0.5,    // Top cap first point
+                    x2 + 0.5, z2 + 0.5,    // Top cap second point
+                    x1 + 0.5, z1 + 0.5,    // Bottom cap first point
+                    x2 + 0.5, z2 + 0.5     // Bottom cap second point
+                );
+
+                // Calculate vertex indices for this segment
+                const topSegmentStart = sideVertexCount + 2 + (i * 4);
+                const bottomSegmentStart = topSegmentStart + 2;
+
+                // Add indices for caps
+                indices.push(
+                    topCenterIndex,        // Top center
+                    topSegmentStart,       // Top current point
+                    topSegmentStart + 1,   // Top next point
+                    bottomCenterIndex,     // Bottom center
+                    bottomSegmentStart,    // Bottom current point
+                    bottomSegmentStart + 1 // Bottom next point
+                );
+            }
         } else {
             // Flat shading - each face has its own vertices with unique normals
             for (let i = 0; i < sides; i++) {
@@ -127,7 +195,18 @@ export class Cylinder {
             // Generate caps for flat shading
             const sideVertexCount = vertices.length / 3;
 
-            // Generate top cap
+            // Add centers for both caps
+            vertices.push(0, 0.5, 0);  // Top center
+            vertices.push(0, -0.5, 0); // Bottom center
+            normals.push(0, 1, 0);     // Top normal
+            normals.push(0, -1, 0);    // Bottom normal
+            generatedColors.push(...topColor, ...bottomColor);
+            texCoords.push(0.5, 0.5, 0.5, 0.5);
+
+            const topCenterIndex = sideVertexCount;
+            const bottomCenterIndex = sideVertexCount + 1;
+
+            // Generate vertices for both caps
             for (let i = 0; i < sides; i++) {
                 const angle1 = (i * Math.PI * 2) / sides;
                 const angle2 = ((i + 1) * Math.PI * 2) / sides;
@@ -137,72 +216,48 @@ export class Cylinder {
                 const x2 = Math.cos(angle2) * 0.5;
                 const z2 = Math.sin(angle2) * 0.5;
 
-                // Add vertices for one triangle of the top cap
+                // Add vertices for top cap
                 vertices.push(
-                    0, 0.5, 0,      // center
-                    x2, 0.5, z2,    // point2 (reversed order)
-                    x1, 0.5, z1     // point1
+                    x1, 0.5, z1,
+                    x2, 0.5, z2
                 );
 
-                // Add normals (pointing up)
-                for (let j = 0; j < 3; j++) {
-                    normals.push(0, 1, 0);
-                    generatedColors.push(...topColor);
-                }
-
-                // Add texture coordinates
+                // Add normals for top cap
+                normals.push(0, 1, 0, 0, 1, 0);
+                generatedColors.push(...topColor, ...topColor);
                 texCoords.push(
-                    0.5, 0.5,
-                    x2 + 0.5, z2 + 0.5,
-                    x1 + 0.5, z1 + 0.5
-                );
-
-                // Add indices
-                const topOffset = sideVertexCount + i * 3;
-                indices.push(
-                    topOffset,      // center
-                    topOffset + 1,  // point2
-                    topOffset + 2   // point1
-                );
-            }
-
-            // Generate bottom cap
-            const topCapVertexCount = vertices.length / 3;
-            for (let i = 0; i < sides; i++) {
-                const angle1 = (i * Math.PI * 2) / sides;
-                const angle2 = ((i + 1) * Math.PI * 2) / sides;
-                
-                const x1 = Math.cos(angle1) * 0.5;
-                const z1 = Math.sin(angle1) * 0.5;
-                const x2 = Math.cos(angle2) * 0.5;
-                const z2 = Math.sin(angle2) * 0.5;
-
-                // Add vertices for one triangle of the bottom cap
-                vertices.push(
-                    0, -0.5, 0,     // center
-                    x1, -0.5, z1,   // point1
-                    x2, -0.5, z2    // point2
-                );
-
-                // Add normals (pointing down)
-                for (let j = 0; j < 3; j++) {
-                    normals.push(0, -1, 0);
-                    generatedColors.push(...bottomColor);
-                }
-
-                // Add texture coordinates
-                texCoords.push(
-                    0.5, 0.5,
                     x1 + 0.5, z1 + 0.5,
                     x2 + 0.5, z2 + 0.5
                 );
 
-                // Add indices
-                const bottomOffset = topCapVertexCount + i * 3;
+                // Add indices for top cap (reverse order from bottom to flip normal)
+                const topOffset = sideVertexCount + 2 + i * 4;
                 indices.push(
-                    bottomOffset,      // center
-                    bottomOffset + 1,  // point1
-                    bottomOffset + 2   // point2
+                    topCenterIndex,    // center
+                    topOffset + 1,     // next point
+                    topOffset          // current point
+                );
+
+                // Add vertices for bottom cap
+                vertices.push(
+                    x1, -0.5, z1,
+                    x2, -0.5, z2
+                );
+
+                // Add normals for bottom cap
+                normals.push(0, -1, 0, 0, -1, 0);
+                generatedColors.push(...bottomColor, ...bottomColor);
+                texCoords.push(
+                    x1 + 0.5, z1 + 0.5,
+                    x2 + 0.5, z2 + 0.5
+                );
+
+                // Add indices for bottom cap
+                const bottomOffset = topOffset + 2;
+                indices.push(
+                    bottomCenterIndex,    // center
+                    bottomOffset,         // current point
+                    bottomOffset + 1      // next point
                 );
             }
         }
@@ -218,67 +273,6 @@ export class Cylinder {
 
     public static create(props: CylinderProps = {}): SceneObject {
         const meshData = this.generateMeshData(props.sides || 32, props.smoothShading ?? true, props.colors);
-        
-        // Create and setup VAO
-        const vao = new VertexArray(glob.ctx);
-        vao.bind();
-
-        // Create and setup vertex buffer
-        const vertexBuffer = new VertexBuffer(glob.ctx);
-        vertexBuffer.setData(meshData.vertices);
-        vao.setAttributePointer(
-            SceneObject.getAttributeLocation('position'),
-            3,
-            glob.ctx.FLOAT,
-            false,
-            0,
-            0
-        );
-
-        // Create and setup color buffer
-        const colorBuffer = new VertexBuffer(glob.ctx);
-        colorBuffer.setData(meshData.colors!);
-        vao.setAttributePointer(
-            SceneObject.getAttributeLocation('color'),
-            3,
-            glob.ctx.FLOAT,
-            false,
-            0,
-            0
-        );
-
-        // Create and setup normal buffer
-        const normalBuffer = new VertexBuffer(glob.ctx);
-        normalBuffer.setData(meshData.normals!);
-        vao.setAttributePointer(
-            SceneObject.getAttributeLocation('normal'),
-            3,
-            glob.ctx.FLOAT,
-            false,
-            0,
-            0
-        );
-
-        // Create and setup texture coordinate buffer
-        const texCoordBuffer = new VertexBuffer(glob.ctx);
-        texCoordBuffer.setData(meshData.texCoords!);
-        vao.setAttributePointer(
-            SceneObject.getAttributeLocation('texCoord'),
-            2,
-            glob.ctx.FLOAT,
-            false,
-            0,
-            0
-        );
-
-        // Create and setup index buffer
-        const indexBuffer = new IndexBuffer(glob.ctx);
-        indexBuffer.setData(meshData.indices!);
-
-        return new SceneObject({
-            vao,
-            indexBuffer,
-            drawCount: meshData.indices!.length,
-        }, props);
+        return this.createSceneObject(meshData, props);
     }
 }

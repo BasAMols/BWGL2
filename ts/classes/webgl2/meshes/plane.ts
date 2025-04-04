@@ -1,17 +1,17 @@
 import { MeshData } from '../types';
-import { VertexArray, VertexBuffer, IndexBuffer } from '../buffer';
-import { SceneObject, SceneObjectProps } from './sceneObject';
-import { glob } from '../../../game';
+import { BaseMesh, BaseMeshProps } from './baseMesh';
+import { SceneObject } from './sceneObject';
 import { Material } from '../material';
 import { vec3 } from 'gl-matrix';
+import { glob } from '../../../game';
 
-export interface PlaneProps extends SceneObjectProps {
+export interface PlaneProps extends BaseMeshProps {
     material?: Material;
-    texture?: string    ;
+    texture?: string;
     flipNormal?: boolean;
 }
 
-export class Plane {
+export class Plane extends BaseMesh {
     private static vertices: Float32Array = new Float32Array([
         // Single face (square)
         -0.5, 0.0, -0.5,  // bottom-left
@@ -47,7 +47,7 @@ export class Plane {
 
     private static generateColors(material?: Material): Float32Array {
         const defaultColor = vec3.fromValues(0.8, 0.8, 0.8); // Default to light gray
-        const color = material ? material.diffuse : defaultColor;
+        const color = material ? material.diffuse.vec : defaultColor;
 
         // Four vertices need the same color
         return new Float32Array([
@@ -58,7 +58,7 @@ export class Plane {
         ]);
     }
 
-    public static createMeshData(props: PlaneProps = {}): MeshData {
+    private static createMeshData(props: PlaneProps = {}): MeshData {
         return {
             vertices: this.vertices,
             indices: this.generateIndices(props.flipNormal || false),
@@ -75,75 +75,14 @@ export class Plane {
         }
 
         const meshData = this.createMeshData(props);
-
-        // Create and setup VAO
-        const vao = new VertexArray(glob.ctx);
-        vao.bind();
-
-        // Create and setup vertex buffer
-        const vertexBuffer = new VertexBuffer(glob.ctx);
-        vertexBuffer.setData(meshData.vertices);
-        vao.setAttributePointer(
-            SceneObject.getAttributeLocation('position'),
-            3,
-            glob.ctx.FLOAT,
-            false,
-            0,
-            0
-        );
-
-        // Create and setup color buffer
-        const colorBuffer = new VertexBuffer(glob.ctx);
-        colorBuffer.setData(meshData.colors!);
-        vao.setAttributePointer(
-            SceneObject.getAttributeLocation('color'),
-            3,
-            glob.ctx.FLOAT,
-            false,
-            0,
-            0
-        );
-
-        // Create and setup normal buffer
-        const normalBuffer = new VertexBuffer(glob.ctx);
-        normalBuffer.setData(meshData.normals!);
-        vao.setAttributePointer(
-            SceneObject.getAttributeLocation('normal'),
-            3,
-            glob.ctx.FLOAT,
-            false,
-            0,
-            0
-        );
-
-        // Create and setup texture coordinate buffer
-        const texCoordBuffer = new VertexBuffer(glob.ctx);
-        texCoordBuffer.setData(meshData.texCoords!);
-        vao.setAttributePointer(
-            SceneObject.getAttributeLocation('texCoord'),
-            2,
-            glob.ctx.FLOAT,
-            false,
-            0,
-            0
-        );
-
-        // Create and setup index buffer
-        const indexBuffer = new IndexBuffer(glob.ctx);
-        indexBuffer.setData(meshData.indices!);
-
-        const sceneObject = new SceneObject({
-            vao,
-            indexBuffer,
-            drawCount: meshData.indices!.length,
-        }, props);
+        const sceneObject = this.createSceneObject(meshData, props);
 
         // Set material uniforms
         if (props.material) {
             // Set material properties
-            glob.shaderManager.setUniform('u_material.ambient', new Float32Array(props.material.ambient));
-            glob.shaderManager.setUniform('u_material.diffuse', new Float32Array(props.material.diffuse));
-            glob.shaderManager.setUniform('u_material.specular', new Float32Array(props.material.specular));
+            glob.shaderManager.setUniform('u_material.ambient', new Float32Array(props.material.ambient.vec));
+            glob.shaderManager.setUniform('u_material.diffuse', new Float32Array(props.material.diffuse.vec));
+            glob.shaderManager.setUniform('u_material.specular', new Float32Array(props.material.specular.vec));
             glob.shaderManager.setUniform('u_material.shininess', props.material.shininess);
 
             if (props.material.diffuseMap) {

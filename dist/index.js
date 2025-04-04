@@ -644,7 +644,7 @@ var ShaderManager = class {
 };
 
 // ts/classes/webgl2/shaders/fragmentShaderSource.ts
-var fragmentShaderSource = "#version 300 es\nprecision highp float;\n\n// Maximum number of lights\n#define MAX_LIGHTS 10\n\n// Light types\n#define LIGHT_TYPE_INACTIVE -1\n#define LIGHT_TYPE_AMBIENT 0\n#define LIGHT_TYPE_DIRECTIONAL 1\n#define LIGHT_TYPE_POINT 2\n#define LIGHT_TYPE_SPOT 3\n\n// Input from vertex shader\nin vec3 v_normal;\nin vec2 v_texCoord;\nin vec3 v_fragPos;\nin vec3 v_color;\nin vec4 v_fragPosLightSpace;\n\n// Material structure\nstruct Material {\n    vec3 ambient;\n    vec3 diffuse;\n    vec3 specular;\n    float shininess;\n    sampler2D diffuseMap;\n};\n\n// Light uniforms\nuniform int u_lightTypes[MAX_LIGHTS];\nuniform vec3 u_lightPositions[MAX_LIGHTS];\nuniform vec3 u_lightDirections[MAX_LIGHTS];\nuniform vec3 u_lightColors[MAX_LIGHTS];\nuniform float u_lightIntensities[MAX_LIGHTS];\nuniform float u_lightConstants[MAX_LIGHTS];\nuniform float u_lightLinears[MAX_LIGHTS];\nuniform float u_lightQuadratics[MAX_LIGHTS];\nuniform float u_lightCutOffs[MAX_LIGHTS];\nuniform float u_lightOuterCutOffs[MAX_LIGHTS];\nuniform int u_numLights;\n\n// Material uniforms\nuniform Material u_material;\nuniform bool u_useTexture;\n\n// Shadow mapping uniforms\nuniform sampler2D u_shadowMap0;\nuniform sampler2D u_shadowMap1;\nuniform sampler2D u_shadowMap2;\nuniform sampler2D u_shadowMap3;\nuniform sampler2D u_shadowMap4;\nuniform sampler2D u_shadowMap5;\nuniform sampler2D u_shadowMap6;\nuniform sampler2D u_shadowMap7;\nuniform sampler2D u_shadowMap8;\nuniform sampler2D u_shadowMap9;\nuniform mat4 u_lightSpaceMatrices[MAX_LIGHTS];\nuniform bool u_castsShadow[MAX_LIGHTS];\n\n// Other uniforms\nuniform vec3 u_viewPos;\n\n// Output\nout vec4 fragColor;\n\nfloat getShadowMap(int index, vec2 coords) {\n    // We have to use a switch statement because WebGL2 requires constant array indices for samplers\n    switch(index) {\n        case 0: return texture(u_shadowMap0, coords).r;\n        case 1: return texture(u_shadowMap1, coords).r;\n        case 2: return texture(u_shadowMap2, coords).r;\n        case 3: return texture(u_shadowMap3, coords).r;\n        case 4: return texture(u_shadowMap4, coords).r;\n        case 5: return texture(u_shadowMap5, coords).r;\n        case 6: return texture(u_shadowMap6, coords).r;\n        case 7: return texture(u_shadowMap7, coords).r;\n        case 8: return texture(u_shadowMap8, coords).r;\n        case 9: return texture(u_shadowMap9, coords).r;\n        default: return 1.0; // No shadow if invalid index\n    }\n}\n\nfloat ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir, int shadowMapIndex) {\n    // Perform perspective divide\n    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;\n    \n    // Transform to [0,1] range\n    projCoords = projCoords * 0.5 + 0.5;\n    \n    // Get closest depth value from light's perspective using the helper function\n    float closestDepth = getShadowMap(shadowMapIndex, projCoords.xy);\n    \n    // Get current depth\n    float currentDepth = projCoords.z;\n    \n    // Calculate bias based on surface angle\n    float cosTheta = dot(normal, lightDir);\n    float bias = 0.001; // Moderate base bias\n    \n    // Add angle-dependent component\n    bias += 0.02 * (1.0 - max(cosTheta, 0.0));\n    \n    // PCF (Percentage Closer Filtering)\n    float shadow = 0.0;\n    vec2 texelSize = 1.0 / vec2(textureSize(u_shadowMap0, 0)); // All shadow maps are same size\n    for(int x = -1; x <= 1; ++x) {\n        for(int y = -1; y <= 1; ++y) {\n            float pcfDepth = getShadowMap(shadowMapIndex, projCoords.xy + vec2(x, y) * texelSize);\n            shadow += (currentDepth - bias) > pcfDepth ? 1.0 : 0.0;\n        }\n    }\n    shadow /= 9.0;\n    \n    // Keep shadow at 0.0 when outside the far plane region of the light's frustum\n    if(projCoords.z > 1.0)\n        shadow = 0.0;\n        \n    return shadow;\n}\n\n// Function to calculate directional light\nvec3 calcDirectionalLight(int index, vec3 normal, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(-u_lightDirections[index]);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_material.shininess);\n    \n    vec3 ambient = u_lightColors[index] * u_material.ambient;\n    vec3 diffuse = u_lightColors[index] * diff * baseColor;\n    vec3 specular = u_lightColors[index] * spec * u_material.specular;\n    \n    return (ambient + diffuse + specular) * u_lightIntensities[index];\n}\n\n// Function to calculate point light\nvec3 calcPointLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(u_lightPositions[index] - fragPos);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_material.shininess);\n    \n    // Attenuation\n    float distance = length(u_lightPositions[index] - fragPos);\n    float attenuation = 1.0 / (u_lightConstants[index] + u_lightLinears[index] * distance + u_lightQuadratics[index] * distance * distance);\n    \n    vec3 ambient = u_lightColors[index] * u_material.ambient;\n    vec3 diffuse = u_lightColors[index] * diff * baseColor;\n    vec3 specular = u_lightColors[index] * spec * u_material.specular;\n    \n    return (ambient + diffuse + specular) * attenuation * u_lightIntensities[index];\n}\n\n// Function to calculate spot light\nvec3 calcSpotLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(u_lightPositions[index] - fragPos);\n    \n    // Spot light intensity\n    float theta = dot(lightDir, normalize(-u_lightDirections[index]));\n    float epsilon = u_lightCutOffs[index] - u_lightOuterCutOffs[index];\n    float intensity = clamp((theta - u_lightOuterCutOffs[index]) / epsilon, 0.0, 1.0);\n    \n    // Use point light calculation and multiply by spot intensity\n    return calcPointLight(index, normal, fragPos, viewDir, baseColor) * intensity;\n}\n\nvoid main() {\n    vec3 normal = normalize(v_normal);\n    vec3 viewDir = normalize(u_viewPos - v_fragPos);\n    \n    // Get base color from texture or vertex color\n    vec3 baseColor;\n    if (u_useTexture) {\n        baseColor = texture(u_material.diffuseMap, v_texCoord).rgb;\n    } else {\n        baseColor = v_color;\n    }\n    \n    vec3 result = vec3(0.0);\n    \n    // Calculate contribution from each light\n    for(int i = 0; i < u_numLights; i++) {\n        if(i >= MAX_LIGHTS) break;\n        \n        // Skip inactive lights\n        if(u_lightTypes[i] == LIGHT_TYPE_INACTIVE) continue;\n        \n        float shadow = 0.0;\n        if(u_castsShadow[i]) {\n            vec4 fragPosLightSpace = u_lightSpaceMatrices[i] * vec4(v_fragPos, 1.0);\n            shadow = ShadowCalculation(fragPosLightSpace, normal, normalize(u_lightPositions[i] - v_fragPos), i);\n        }\n        \n        if(u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            result += u_lightColors[i] * u_lightIntensities[i] * baseColor;\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            vec3 lighting = calcDirectionalLight(i, normal, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_POINT) {\n            vec3 lighting = calcPointLight(i, normal, v_fragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n            vec3 lighting = calcSpotLight(i, normal, v_fragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n    }\n    \n    fragColor = vec4(result, 1.0);\n}";
+var fragmentShaderSource = "#version 300 es\nprecision highp float;\n\n// Maximum number of lights\n#define MAX_LIGHTS 10\n\n// Light types\n#define LIGHT_TYPE_INACTIVE -1\n#define LIGHT_TYPE_AMBIENT 0\n#define LIGHT_TYPE_DIRECTIONAL 1\n#define LIGHT_TYPE_POINT 2\n#define LIGHT_TYPE_SPOT 3\n\n// Input from vertex shader\nin vec3 v_normal;\nin vec2 v_texCoord;\nin vec3 v_fragPos;\nin vec3 v_color;\nin vec4 v_fragPosLightSpace;\n\n// Material structure\nstruct Material {\n    vec3 ambient;\n    vec3 diffuse;\n    vec3 specular;\n    float shininess;\n    sampler2D diffuseMap;\n};\n\n// Light uniforms\nuniform int u_lightTypes[MAX_LIGHTS];\nuniform vec3 u_lightPositions[MAX_LIGHTS];\nuniform vec3 u_lightDirections[MAX_LIGHTS];\nuniform vec3 u_lightColors[MAX_LIGHTS];\nuniform float u_lightIntensities[MAX_LIGHTS];\nuniform float u_lightConstants[MAX_LIGHTS];\nuniform float u_lightLinears[MAX_LIGHTS];\nuniform float u_lightQuadratics[MAX_LIGHTS];\nuniform float u_lightCutOffs[MAX_LIGHTS];\nuniform float u_lightOuterCutOffs[MAX_LIGHTS];\nuniform int u_numLights;\n\n// Material uniforms\nuniform Material u_material;\nuniform bool u_useTexture;\n\n// Shadow mapping uniforms\nuniform sampler2D u_shadowMap0;\nuniform sampler2D u_shadowMap1;\nuniform sampler2D u_shadowMap2;\nuniform sampler2D u_shadowMap3;\nuniform sampler2D u_shadowMap4;\nuniform sampler2D u_shadowMap5;\nuniform sampler2D u_shadowMap6;\nuniform sampler2D u_shadowMap7;\nuniform sampler2D u_shadowMap8;\nuniform sampler2D u_shadowMap9;\nuniform mat4 u_lightSpaceMatrices[MAX_LIGHTS];\nuniform bool u_castsShadow[MAX_LIGHTS];\n\n// Other uniforms\nuniform vec3 u_viewPos;\n\n// Output\nout vec4 fragColor;\n\nfloat getShadowMap(int index, vec2 coords) {\n    // We have to use a switch statement because WebGL2 requires constant array indices for samplers\n    switch(index) {\n        case 0: return texture(u_shadowMap0, coords).r;\n        case 1: return texture(u_shadowMap1, coords).r;\n        case 2: return texture(u_shadowMap2, coords).r;\n        case 3: return texture(u_shadowMap3, coords).r;\n        case 4: return texture(u_shadowMap4, coords).r;\n        case 5: return texture(u_shadowMap5, coords).r;\n        case 6: return texture(u_shadowMap6, coords).r;\n        case 7: return texture(u_shadowMap7, coords).r;\n        case 8: return texture(u_shadowMap8, coords).r;\n        case 9: return texture(u_shadowMap9, coords).r;\n        default: return 1.0; // No shadow if invalid index\n    }\n}\n\nfloat ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir, int shadowMapIndex) {\n    // Perform perspective divide\n    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;\n    \n    // Transform to [0,1] range\n    projCoords = projCoords * 0.5 + 0.5;\n    \n    // Get closest depth value from light's perspective using the helper function\n    float closestDepth = getShadowMap(shadowMapIndex, projCoords.xy);\n    \n    // Get current depth\n    float currentDepth = projCoords.z;\n    \n    // Calculate bias based on surface angle\n    float cosTheta = dot(normal, lightDir);\n    float bias = 0.01; // Moderate base bias\n    \n    // Add angle-dependent component\n    bias += 0.02 * (1.0 - max(cosTheta, 0.0));\n    \n    // PCF (Percentage Closer Filtering)\n    float shadow = 0.0;\n    vec2 texelSize = 1.0 / vec2(textureSize(u_shadowMap0, 0)); // All shadow maps are same size\n    for(int x = -1; x <= 1; ++x) {\n        for(int y = -1; y <= 1; ++y) {\n            float pcfDepth = getShadowMap(shadowMapIndex, projCoords.xy + vec2(x, y) * texelSize);\n            shadow += (currentDepth - bias) > pcfDepth ? 1.0 : 0.0;\n        }\n    }\n    shadow /= 9.0;\n    \n    // Keep shadow at 0.0 when outside the far plane region of the light's frustum\n    if(projCoords.z > 1.0)\n        shadow = 0.0;\n        \n    return shadow;\n}\n\n// Function to calculate directional light\nvec3 calcDirectionalLight(int index, vec3 normal, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(-u_lightDirections[index]);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_material.shininess);\n    \n    vec3 ambient = u_lightColors[index] * u_material.ambient;\n    vec3 diffuse = u_lightColors[index] * diff * baseColor;\n    vec3 specular = u_lightColors[index] * spec * u_material.specular;\n    \n    return (ambient + diffuse + specular) * u_lightIntensities[index];\n}\n\n// Function to calculate point light\nvec3 calcPointLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(u_lightPositions[index] - fragPos);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_material.shininess);\n    \n    // Attenuation\n    float distance = length(u_lightPositions[index] - fragPos);\n    float attenuation = 1.0 / (u_lightConstants[index] + u_lightLinears[index] * distance + u_lightQuadratics[index] * distance * distance);\n    \n    vec3 ambient = u_lightColors[index] * u_material.ambient;\n    vec3 diffuse = u_lightColors[index] * diff * baseColor;\n    vec3 specular = u_lightColors[index] * spec * u_material.specular;\n    \n    return (ambient + diffuse + specular) * attenuation * u_lightIntensities[index];\n}\n\n// Function to calculate spot light\nvec3 calcSpotLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(u_lightPositions[index] - fragPos);\n    \n    // Spot light intensity\n    float theta = dot(lightDir, normalize(-u_lightDirections[index]));\n    float epsilon = u_lightCutOffs[index] - u_lightOuterCutOffs[index];\n    float intensity = clamp((theta - u_lightOuterCutOffs[index]) / epsilon, 0.0, 1.0);\n    \n    // Use point light calculation and multiply by spot intensity\n    return calcPointLight(index, normal, fragPos, viewDir, baseColor) * intensity;\n}\n\nvoid main() {\n    vec3 normal = normalize(v_normal);\n    vec3 viewDir = normalize(u_viewPos - v_fragPos);\n    \n    // Get base color from texture or vertex color\n    vec3 baseColor;\n    if (u_useTexture) {\n        baseColor = texture(u_material.diffuseMap, v_texCoord).rgb;\n    } else {\n        baseColor = v_color;\n    }\n    \n    vec3 result = vec3(0.0);\n    \n    // Calculate contribution from each light\n    for(int i = 0; i < u_numLights; i++) {\n        if(i >= MAX_LIGHTS) break;\n        \n        // Skip inactive lights\n        if(u_lightTypes[i] == LIGHT_TYPE_INACTIVE) continue;\n        \n        float shadow = 0.0;\n        if(u_castsShadow[i]) {\n            vec4 fragPosLightSpace = u_lightSpaceMatrices[i] * vec4(v_fragPos, 1.0);\n            shadow = ShadowCalculation(fragPosLightSpace, normal, normalize(u_lightPositions[i] - v_fragPos), i);\n        }\n        \n        if(u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            result += u_lightColors[i] * u_lightIntensities[i] * baseColor;\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            vec3 lighting = calcDirectionalLight(i, normal, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_POINT) {\n            vec3 lighting = calcPointLight(i, normal, v_fragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n            vec3 lighting = calcSpotLight(i, normal, v_fragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n    }\n    \n    fragColor = vec4(result, 1.0);\n}";
 
 // ts/classes/webgl2/shaders/vertexShaderSource.ts
 var vertexShaderSource = "#version 300 es\nprecision highp float;\n\n// Attributes\nin vec3 a_position;\nin vec3 a_normal;\nin vec2 a_texCoord;\nin vec3 a_color;\n\n// Uniforms\nuniform mat4 u_modelMatrix;\nuniform mat4 u_viewMatrix;\nuniform mat4 u_projectionMatrix;\nuniform mat3 u_normalMatrix; // Added for correct normal transformation\n\n// Material uniforms\nstruct Material {\n    vec3 ambient;\n    vec3 diffuse;\n    vec3 specular;\n    float shininess;\n    sampler2D diffuseMap;\n};\nuniform Material u_material;\nuniform bool u_useTexture;\n\n// Varyings (output to fragment shader)\nout vec3 v_normal;\nout vec2 v_texCoord;\nout vec3 v_fragPos;\nout vec3 v_color;\n\nvoid main() {\n    v_fragPos = vec3(u_modelMatrix * vec4(a_position, 1.0));\n    v_normal = u_normalMatrix * a_normal;\n    v_texCoord = a_texCoord;\n    v_color = a_color;\n    \n    gl_Position = u_projectionMatrix * u_viewMatrix * vec4(v_fragPos, 1.0);\n}";
@@ -1238,6 +1238,13 @@ var Vector3 = class _Vector3 {
       this.x * len2,
       this.y * len2,
       this.z * len2
+    );
+  }
+  cross(other) {
+    return new _Vector3(
+      this.y * other.z - this.z * other.y,
+      this.z * other.x - this.x * other.z,
+      this.x * other.y - this.y * other.x
     );
   }
 };
@@ -3240,8 +3247,70 @@ var SceneObject = class {
   }
 };
 
+// ts/classes/webgl2/meshes/baseMesh.ts
+var BaseMesh = class _BaseMesh extends SceneObject {
+  static setupBuffers(meshData) {
+    const vao = new VertexArray(glob.ctx);
+    vao.bind();
+    const vertexBuffer = new VertexBuffer(glob.ctx);
+    vertexBuffer.setData(meshData.vertices);
+    vao.setAttributePointer(
+      SceneObject.getAttributeLocation("position"),
+      3,
+      glob.ctx.FLOAT,
+      false,
+      0,
+      0
+    );
+    const colorBuffer = new VertexBuffer(glob.ctx);
+    colorBuffer.setData(meshData.colors);
+    vao.setAttributePointer(
+      SceneObject.getAttributeLocation("color"),
+      3,
+      glob.ctx.FLOAT,
+      false,
+      0,
+      0
+    );
+    const normalBuffer = new VertexBuffer(glob.ctx);
+    normalBuffer.setData(meshData.normals);
+    vao.setAttributePointer(
+      SceneObject.getAttributeLocation("normal"),
+      3,
+      glob.ctx.FLOAT,
+      false,
+      0,
+      0
+    );
+    const texCoordBuffer = new VertexBuffer(glob.ctx);
+    texCoordBuffer.setData(meshData.texCoords);
+    vao.setAttributePointer(
+      SceneObject.getAttributeLocation("texCoord"),
+      2,
+      glob.ctx.FLOAT,
+      false,
+      0,
+      0
+    );
+    const indexBuffer = new IndexBuffer(glob.ctx);
+    indexBuffer.setData(meshData.indices);
+    return {
+      vao,
+      indexBuffer,
+      drawCount: meshData.indices.length
+    };
+  }
+  static createSceneObject(meshData, props) {
+    const bufferData = this.setupBuffers(meshData);
+    return new SceneObject(bufferData, props);
+  }
+  constructor(meshData, props = {}) {
+    super(_BaseMesh.setupBuffers(meshData), props);
+  }
+};
+
 // ts/classes/webgl2/meshes/icoSphere.ts
-var _IcoSphere = class _IcoSphere {
+var _IcoSphere = class _IcoSphere extends BaseMesh {
   static normalize(v) {
     const length2 = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
     return [v[0] / length2, v[1] / length2, v[2] / length2];
@@ -3253,7 +3322,7 @@ var _IcoSphere = class _IcoSphere {
       (v1[2] + v22[2]) / 2
     ]);
   }
-  static generateMeshData(subdivisions = 2, smoothShading = true, color = [0.8, 0.2, 0.2]) {
+  static generateMeshData(subdivisions = 0, smoothShading = true, color = [0.8, 0.2, 0.2]) {
     let vertices = [...this.baseVertices];
     let indices = [...this.baseIndices];
     const vertexMap = /* @__PURE__ */ new Map();
@@ -3347,59 +3416,11 @@ var _IcoSphere = class _IcoSphere {
   static create(props = {}) {
     var _a, _b;
     const meshData = this.generateMeshData(
-      (_a = props.subdivisions) != null ? _a : 2,
+      (_a = props.subdivisions) != null ? _a : 0,
       (_b = props.smoothShading) != null ? _b : true,
       props.color || [0.8, 0.2, 0.2]
     );
-    const vao = new VertexArray(glob.ctx);
-    vao.bind();
-    const vertexBuffer = new VertexBuffer(glob.ctx);
-    vertexBuffer.setData(meshData.vertices);
-    vao.setAttributePointer(
-      SceneObject.getAttributeLocation("position"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const colorBuffer = new VertexBuffer(glob.ctx);
-    colorBuffer.setData(meshData.colors);
-    vao.setAttributePointer(
-      SceneObject.getAttributeLocation("color"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const normalBuffer = new VertexBuffer(glob.ctx);
-    normalBuffer.setData(meshData.normals);
-    vao.setAttributePointer(
-      SceneObject.getAttributeLocation("normal"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const texCoordBuffer = new VertexBuffer(glob.ctx);
-    texCoordBuffer.setData(meshData.texCoords);
-    vao.setAttributePointer(
-      SceneObject.getAttributeLocation("texCoord"),
-      2,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const indexBuffer = new IndexBuffer(glob.ctx);
-    indexBuffer.setData(meshData.indices);
-    return new SceneObject({
-      vao,
-      indexBuffer,
-      drawCount: meshData.indices.length
-    }, props);
+    return this.createSceneObject(meshData, props);
   }
 };
 _IcoSphere.X = 0.5257311121191336;
@@ -3536,7 +3557,7 @@ var ShadowMap = class {
 
 // ts/classes/webgl2/lights/light.ts
 var Light = class {
-  constructor(color = v3(1, 1, 1), intensity = 1) {
+  constructor({ color = v3(1, 1, 1), intensity = 1 } = {}) {
     this.color = color;
     this.intensity = intensity;
   }
@@ -3554,20 +3575,26 @@ var Light = class {
   }
 };
 var AmbientLight = class extends Light {
-  constructor(color = v3(1, 1, 1), intensity = 0.1) {
-    super(color, intensity);
+  constructor({ color = v3(1, 1, 1), intensity = 0.1 } = {}) {
+    super({ color, intensity });
     this.type = 0 /* AMBIENT */;
   }
 };
 var PointLight = class extends Light {
-  constructor(position = v3(0, 0, 0), color = v3(1, 1, 1), intensity = 1, constant = 1, linear = 0.09, quadratic = 0.032, scene) {
-    super(color, intensity);
+  constructor({
+    position = v3(0, 0, 0),
+    color = v3(1, 1, 1),
+    intensity = 1,
+    attenuation = { constant: 1, linear: 0.09, quadratic: 0.032 },
+    meshContainer
+  } = {}) {
+    super({ color, intensity });
     this.position = position;
-    this.constant = constant;
-    this.linear = linear;
-    this.quadratic = quadratic;
+    this.constant = attenuation.constant;
+    this.linear = attenuation.linear;
+    this.quadratic = attenuation.quadratic;
     this.type = 2 /* POINT */;
-    this.shadowMap = new ShadowMap(glob.ctx);
+    this.shadowMap = new ShadowMap(glob.ctx, 4096);
     this.lightProjection = new Matrix4().ortho(
       -10,
       10,
@@ -3579,11 +3606,13 @@ var PointLight = class extends Light {
       100
       // near, far
     );
-    if (scene) {
-      scene.add(IcoSphere.create({
+    if (meshContainer) {
+      meshContainer.add(IcoSphere.create({
         position,
         scale: v3(0.1, 0.1, 0.1),
-        color: color.array
+        color: color.array,
+        subdivisions: 0,
+        smoothShading: true
       }));
     }
   }
@@ -3757,12 +3786,14 @@ var Scene = class {
     this.lightManager = new LightManager(glob.shaderManager);
     const ambientColor = options.ambientLightColor || v3(1, 1, 1);
     const ambientIntensity = (_a = options.ambientLightIntensity) != null ? _a : 0.1;
-    this.ambientLight = new AmbientLight(ambientColor, ambientIntensity);
-    this.lightManager.setAmbientLight(this.ambientLight);
+    this.ambientLight = new AmbientLight({ color: ambientColor, intensity: ambientIntensity });
     glob.events.resize.subscribe("level", this.resize.bind(this));
   }
-  setAmbientLight(color, intensity) {
-    this.ambientLight = new AmbientLight(color, intensity);
+  get ambientLight() {
+    return this._ambientLight;
+  }
+  set ambientLight(value) {
+    this._ambientLight = value;
     this.lightManager.setAmbientLight(this.ambientLight);
   }
   add(object) {
@@ -3800,12 +3831,14 @@ var Scene = class {
       });
       castsShadow[lightIndex] = 1;
       for (const object of this.objects) {
-        glob.shaderManager.setUniform("u_modelMatrix", object.transform.getWorldMatrix().mat4);
-        object.vao.bind();
-        if (object.indexBuffer) {
-          glob.ctx.drawElements(glob.ctx.TRIANGLES, object.indexBuffer.getCount(), glob.ctx.UNSIGNED_SHORT, 0);
-        } else {
-          glob.ctx.drawArrays(glob.ctx.TRIANGLES, 0, object.drawCount);
+        if (object.vao) {
+          glob.shaderManager.setUniform("u_modelMatrix", object.transform.getWorldMatrix().mat4);
+          object.vao.bind();
+          if (object.indexBuffer) {
+            glob.ctx.drawElements(glob.ctx.TRIANGLES, object.indexBuffer.getCount(), glob.ctx.UNSIGNED_SHORT, 0);
+          } else {
+            glob.ctx.drawArrays(glob.ctx.TRIANGLES, 0, object.drawCount);
+          }
         }
       }
     }
@@ -3868,7 +3901,7 @@ var Scene = class {
 
 // ts/classes/webgl2/camera.ts
 var Camera = class {
-  constructor(position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 45, near = 0.1, far = 1e3) {
+  constructor({ position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 45, near = 0.1, far = 1e3 } = {}) {
     this.position = position;
     this.target = target;
     this.fov = fov;
@@ -3916,9 +3949,9 @@ var Camera = class {
 // ts/classes/webgl2/material.ts
 var Material = class {
   constructor({
-    ambient = vec3_exports.fromValues(0.2, 0.2, 0.2),
-    diffuse = vec3_exports.fromValues(0.8, 0.8, 0.8),
-    specular = vec3_exports.fromValues(1, 1, 1),
+    ambient = v3(0.2, 0.2, 0.2),
+    diffuse = v3(0.8, 0.8, 0.8),
+    specular = v3(1, 1, 1),
     shininess = 2,
     diffuseMap,
     normalMap,
@@ -3935,7 +3968,7 @@ var Material = class {
 };
 
 // ts/classes/webgl2/meshes/plane.ts
-var Plane = class {
+var Plane = class extends BaseMesh {
   static generateIndices(flipNormal) {
     return new Uint16Array(
       flipNormal ? [0, 1, 2, 2, 3, 0] : [0, 2, 1, 0, 3, 2]
@@ -3961,7 +3994,7 @@ var Plane = class {
   }
   static generateColors(material) {
     const defaultColor = vec3_exports.fromValues(0.8, 0.8, 0.8);
-    const color = material ? material.diffuse : defaultColor;
+    const color = material ? material.diffuse.vec : defaultColor;
     return new Float32Array([
       color[0],
       color[1],
@@ -3991,59 +4024,11 @@ var Plane = class {
       props.material = new Material();
     }
     const meshData = this.createMeshData(props);
-    const vao = new VertexArray(glob.ctx);
-    vao.bind();
-    const vertexBuffer = new VertexBuffer(glob.ctx);
-    vertexBuffer.setData(meshData.vertices);
-    vao.setAttributePointer(
-      SceneObject.getAttributeLocation("position"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const colorBuffer = new VertexBuffer(glob.ctx);
-    colorBuffer.setData(meshData.colors);
-    vao.setAttributePointer(
-      SceneObject.getAttributeLocation("color"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const normalBuffer = new VertexBuffer(glob.ctx);
-    normalBuffer.setData(meshData.normals);
-    vao.setAttributePointer(
-      SceneObject.getAttributeLocation("normal"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const texCoordBuffer = new VertexBuffer(glob.ctx);
-    texCoordBuffer.setData(meshData.texCoords);
-    vao.setAttributePointer(
-      SceneObject.getAttributeLocation("texCoord"),
-      2,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const indexBuffer = new IndexBuffer(glob.ctx);
-    indexBuffer.setData(meshData.indices);
-    const sceneObject = new SceneObject({
-      vao,
-      indexBuffer,
-      drawCount: meshData.indices.length
-    }, props);
+    const sceneObject = this.createSceneObject(meshData, props);
     if (props.material) {
-      glob.shaderManager.setUniform("u_material.ambient", new Float32Array(props.material.ambient));
-      glob.shaderManager.setUniform("u_material.diffuse", new Float32Array(props.material.diffuse));
-      glob.shaderManager.setUniform("u_material.specular", new Float32Array(props.material.specular));
+      glob.shaderManager.setUniform("u_material.ambient", new Float32Array(props.material.ambient.vec));
+      glob.shaderManager.setUniform("u_material.diffuse", new Float32Array(props.material.diffuse.vec));
+      glob.shaderManager.setUniform("u_material.specular", new Float32Array(props.material.specular.vec));
       glob.shaderManager.setUniform("u_material.shininess", props.material.shininess);
       if (props.material.diffuseMap) {
         glob.shaderManager.setUniform("u_useTexture", 1);
@@ -4087,8 +4072,25 @@ Plane.texCoords = new Float32Array([
   1
 ]);
 
+// ts/classes/webgl2/meshes/containerObject.ts
+var ContainerObject = class extends SceneObject {
+  constructor(props = {}) {
+    const dummyData = {
+      vao: null,
+      indexBuffer: null,
+      drawCount: 0
+    };
+    super(dummyData, props);
+  }
+  /**
+   * Override render to do nothing since this is just a container
+   */
+  render(viewMatrix, projectionMatrix) {
+  }
+};
+
 // ts/classes/webgl2/meshes/cone.ts
-var Cone = class {
+var Cone = class extends BaseMesh {
   static generateMeshData(sides = 32, smoothShading = true, colors) {
     const vertices = [];
     const indices = [];
@@ -4236,118 +4238,428 @@ var Cone = class {
   }
   static create(props = {}) {
     var _a;
+    const meshData = this.generateMeshData(
+      props.sides || 32,
+      (_a = props.smoothShading) != null ? _a : true,
+      props.colors
+    );
+    return this.createSceneObject(meshData, props);
+  }
+};
+
+// ts/classes/webgl2/meshes/cylinder.ts
+var Cylinder = class extends BaseMesh {
+  static generateMeshData(sides = 32, smoothShading = true, colors) {
+    const vertices = [];
+    const indices = [];
+    const normals = [];
+    const generatedColors = [];
+    const texCoords = [];
+    const defaultColors = [
+      [0.8, 0.2, 0.2],
+      // sides
+      [0.2, 0.2, 0.8],
+      // top
+      [0.8, 0.8, 0.2]
+      // bottom
+    ];
+    let [sideColor, topColor, bottomColor] = defaultColors;
+    if (colors) {
+      if (Array.isArray(colors[0])) {
+        [sideColor, topColor, bottomColor] = colors;
+      } else {
+        sideColor = topColor = bottomColor = colors;
+      }
+    }
+    if (smoothShading) {
+      for (let i = 0; i <= sides; i++) {
+        const angle2 = i * Math.PI * 2 / sides;
+        const x = Math.cos(angle2);
+        const z = Math.sin(angle2);
+        vertices.push(x * 0.5, 0.5, z * 0.5);
+        vertices.push(x * 0.5, -0.5, z * 0.5);
+        normals.push(x, 0, z);
+        normals.push(x, 0, z);
+        generatedColors.push(...sideColor);
+        generatedColors.push(...sideColor);
+        texCoords.push(i / sides, 1);
+        texCoords.push(i / sides, 0);
+      }
+      for (let i = 0; i < sides; i++) {
+        const topFirst = i * 2;
+        const bottomFirst = topFirst + 1;
+        const topSecond = (i + 1) * 2;
+        const bottomSecond = topSecond + 1;
+        indices.push(topFirst, topSecond, bottomFirst);
+        indices.push(bottomFirst, topSecond, bottomSecond);
+      }
+      const sideVertexCount = vertices.length / 3;
+      vertices.push(0, 0.5, 0);
+      vertices.push(0, -0.5, 0);
+      normals.push(0, 1, 0);
+      normals.push(0, -1, 0);
+      generatedColors.push(...topColor, ...bottomColor);
+      texCoords.push(0.5, 0.5, 0.5, 0.5);
+      const topCenterIndex = sideVertexCount;
+      const bottomCenterIndex = sideVertexCount + 1;
+      for (let i = 0; i < sides; i++) {
+        const angle1 = i * Math.PI * 2 / sides;
+        const angle2 = (i + 1) * Math.PI * 2 / sides;
+        const x1 = Math.cos(angle1) * 0.5;
+        const z1 = Math.sin(angle1) * 0.5;
+        const x2 = Math.cos(angle2) * 0.5;
+        const z2 = Math.sin(angle2) * 0.5;
+        vertices.push(
+          x1,
+          0.5,
+          z1,
+          // Top cap point 1
+          x2,
+          0.5,
+          z2,
+          // Top cap point 2
+          x1,
+          -0.5,
+          z1,
+          // Bottom cap point 1
+          x2,
+          -0.5,
+          z2
+          // Bottom cap point 2
+        );
+        normals.push(
+          0,
+          1,
+          0,
+          // Top cap normal
+          0,
+          1,
+          0,
+          // Top cap normal
+          0,
+          -1,
+          0,
+          // Bottom cap normal
+          0,
+          -1,
+          0
+          // Bottom cap normal
+        );
+        generatedColors.push(
+          ...topColor,
+          ...topColor,
+          ...bottomColor,
+          ...bottomColor
+          // Bottom cap colors
+        );
+        texCoords.push(
+          x1 + 0.5,
+          z1 + 0.5,
+          // Top cap first point
+          x2 + 0.5,
+          z2 + 0.5,
+          // Top cap second point
+          x1 + 0.5,
+          z1 + 0.5,
+          // Bottom cap first point
+          x2 + 0.5,
+          z2 + 0.5
+          // Bottom cap second point
+        );
+        const topSegmentStart = sideVertexCount + 2 + i * 4;
+        const bottomSegmentStart = topSegmentStart + 2;
+        indices.push(
+          topCenterIndex,
+          // Top center
+          topSegmentStart,
+          // Top current point
+          topSegmentStart + 1,
+          // Top next point
+          bottomCenterIndex,
+          // Bottom center
+          bottomSegmentStart,
+          // Bottom current point
+          bottomSegmentStart + 1
+          // Bottom next point
+        );
+      }
+    } else {
+      for (let i = 0; i < sides; i++) {
+        const angle1 = i * Math.PI * 2 / sides;
+        const angle2 = (i + 1) * Math.PI * 2 / sides;
+        const x1 = Math.cos(angle1);
+        const z1 = Math.sin(angle1);
+        const x2 = Math.cos(angle2);
+        const z2 = Math.sin(angle2);
+        vertices.push(
+          x1 * 0.5,
+          0.5,
+          z1 * 0.5,
+          // top-left
+          x2 * 0.5,
+          0.5,
+          z2 * 0.5,
+          // top-right
+          x1 * 0.5,
+          -0.5,
+          z1 * 0.5,
+          // bottom-left
+          x1 * 0.5,
+          -0.5,
+          z1 * 0.5,
+          // bottom-left
+          x2 * 0.5,
+          0.5,
+          z2 * 0.5,
+          // top-right
+          x2 * 0.5,
+          -0.5,
+          z2 * 0.5
+          // bottom-right
+        );
+        const nx = (x1 + x2) / 2;
+        const nz = (z1 + z2) / 2;
+        const length2 = Math.sqrt(nx * nx + nz * nz);
+        const normalX = nx / length2;
+        const normalZ = nz / length2;
+        for (let j = 0; j < 6; j++) {
+          normals.push(normalX, 0, normalZ);
+          generatedColors.push(...sideColor);
+        }
+        texCoords.push(
+          i / sides,
+          1,
+          (i + 1) / sides,
+          1,
+          i / sides,
+          0,
+          i / sides,
+          0,
+          (i + 1) / sides,
+          1,
+          (i + 1) / sides,
+          0
+        );
+        const baseIndex = i * 6;
+        indices.push(
+          baseIndex,
+          baseIndex + 1,
+          baseIndex + 2,
+          baseIndex + 3,
+          baseIndex + 4,
+          baseIndex + 5
+        );
+      }
+      const sideVertexCount = vertices.length / 3;
+      vertices.push(0, 0.5, 0);
+      vertices.push(0, -0.5, 0);
+      normals.push(0, 1, 0);
+      normals.push(0, -1, 0);
+      generatedColors.push(...topColor, ...bottomColor);
+      texCoords.push(0.5, 0.5, 0.5, 0.5);
+      const topCenterIndex = sideVertexCount;
+      const bottomCenterIndex = sideVertexCount + 1;
+      for (let i = 0; i < sides; i++) {
+        const angle1 = i * Math.PI * 2 / sides;
+        const angle2 = (i + 1) * Math.PI * 2 / sides;
+        const x1 = Math.cos(angle1) * 0.5;
+        const z1 = Math.sin(angle1) * 0.5;
+        const x2 = Math.cos(angle2) * 0.5;
+        const z2 = Math.sin(angle2) * 0.5;
+        vertices.push(
+          x1,
+          0.5,
+          z1,
+          x2,
+          0.5,
+          z2
+        );
+        normals.push(0, 1, 0, 0, 1, 0);
+        generatedColors.push(...topColor, ...topColor);
+        texCoords.push(
+          x1 + 0.5,
+          z1 + 0.5,
+          x2 + 0.5,
+          z2 + 0.5
+        );
+        const topOffset = sideVertexCount + 2 + i * 4;
+        indices.push(
+          topCenterIndex,
+          // center
+          topOffset + 1,
+          // next point
+          topOffset
+          // current point
+        );
+        vertices.push(
+          x1,
+          -0.5,
+          z1,
+          x2,
+          -0.5,
+          z2
+        );
+        normals.push(0, -1, 0, 0, -1, 0);
+        generatedColors.push(...bottomColor, ...bottomColor);
+        texCoords.push(
+          x1 + 0.5,
+          z1 + 0.5,
+          x2 + 0.5,
+          z2 + 0.5
+        );
+        const bottomOffset = topOffset + 2;
+        indices.push(
+          bottomCenterIndex,
+          // center
+          bottomOffset,
+          // current point
+          bottomOffset + 1
+          // next point
+        );
+      }
+    }
+    return {
+      vertices: new Float32Array(vertices),
+      indices: new Uint16Array(indices),
+      normals: new Float32Array(normals),
+      colors: new Float32Array(generatedColors),
+      texCoords: new Float32Array(texCoords)
+    };
+  }
+  static create(props = {}) {
+    var _a;
     const meshData = this.generateMeshData(props.sides || 32, (_a = props.smoothShading) != null ? _a : true, props.colors);
-    const vao = new VertexArray(glob.ctx);
-    vao.bind();
-    const vertexBuffer = new VertexBuffer(glob.ctx);
-    vertexBuffer.setData(meshData.vertices);
-    vao.setAttributePointer(
-      SceneObject.getAttributeLocation("position"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const colorBuffer = new VertexBuffer(glob.ctx);
-    colorBuffer.setData(meshData.colors);
-    vao.setAttributePointer(
-      SceneObject.getAttributeLocation("color"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const normalBuffer = new VertexBuffer(glob.ctx);
-    normalBuffer.setData(meshData.normals);
-    vao.setAttributePointer(
-      SceneObject.getAttributeLocation("normal"),
-      3,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const texCoordBuffer = new VertexBuffer(glob.ctx);
-    texCoordBuffer.setData(meshData.texCoords);
-    vao.setAttributePointer(
-      SceneObject.getAttributeLocation("texCoord"),
-      2,
-      glob.ctx.FLOAT,
-      false,
-      0,
-      0
-    );
-    const indexBuffer = new IndexBuffer(glob.ctx);
-    indexBuffer.setData(meshData.indices);
-    return new SceneObject({
-      vao,
-      indexBuffer,
-      drawCount: meshData.indices.length
+    return this.createSceneObject(meshData, props);
+  }
+};
+
+// ts/classes/webgl2/meshes/arrow.ts
+var Arrow = class extends ContainerObject {
+  constructor(scene, props = {}) {
+    super(props);
+    this.props = __spreadValues({
+      position: v3(0, 0, 0),
+      shaftRadius: 0.5,
+      headLength: 0.5,
+      headRadius: 2,
+      sides: 4,
+      smoothShading: false,
+      shaftColor: [1, 1, 1],
+      headColor: [1, 1, 1]
     }, props);
+    if (props.parent) {
+      this.transform.setParent(props.parent.transform);
+    }
+    const shaftLength = this.props.length - this.props.headLength;
+    scene.add(this.shaft = Cylinder.create({
+      position: v3(0, shaftLength / 2, 0),
+      scale: v3(this.props.shaftRadius, shaftLength, this.props.shaftRadius),
+      colors: this.props.shaftColor,
+      sides: this.props.sides,
+      smoothShading: this.props.smoothShading,
+      parent: this
+    }));
+    scene.add(this.head = Cone.create({
+      position: v3(0, shaftLength + this.props.headLength / 2, 0),
+      scale: v3(this.props.headRadius, this.props.headLength, this.props.headRadius),
+      colors: this.props.headColor,
+      smoothShading: this.props.smoothShading,
+      sides: this.props.sides,
+      parent: this
+    }));
+    this.setLength(this.props.length);
+    if (this.props.lookAt) {
+      this.lookAt(this.props.lookAt);
+    }
+  }
+  setLength(length2) {
+    let shaftLength = length2 - this.props.headLength;
+    let headLength = this.props.headLength;
+    if (shaftLength < 0) {
+      headLength = length2;
+      shaftLength = 0;
+    }
+    this.shaft.transform.setPosition(v3(0, shaftLength / 2, 0));
+    this.shaft.transform.setScale(v3(this.props.shaftRadius, shaftLength, this.props.shaftRadius));
+    this.head.transform.setPosition(v3(0, shaftLength + headLength / 2, 0));
+    this.head.transform.setScale(v3(this.props.headRadius, headLength, this.props.headRadius));
+  }
+  lookAt(target) {
+    const position = this.transform.getWorldPosition();
+    const direction = target.subtract(position).normalize();
+    const defaultDir = v3(0, 1, 0);
+    const rotationAxis = defaultDir.cross(direction).scale(-1).normalize();
+    const angle2 = Math.acos(defaultDir.y * direction.y + defaultDir.x * direction.x + defaultDir.z * direction.z);
+    this.transform.setRotation(new Quaternion().setAxisAngle(rotationAxis, angle2));
   }
 };
 
 // ts/classes/testLevel.ts
 var TestLevel = class extends Scene {
-  // Match demo's black background
   constructor() {
-    super(new Camera(v3(3, 3, 3), v3(0, 0, 0), 45), {
+    super(new Camera({ position: v3(0, 1, 6), target: v3(0, 0, 0), fov: 45 }), {
       ambientLightColor: v3(1, 1, 1),
       ambientLightIntensity: 0.1
       // reduced from 0 to allow some ambient light
     });
     this.clearColor = [0, 0, 0, 1];
-    this.camera.setFov(45);
     const rotation = new Quaternion();
     rotation.setAxisAngle(v3(1, 0, 0), 0);
     this.add(Plane.create({
-      position: v3(0, -0.1, 0),
+      position: v3(0, -1, 0),
       scale: v3(10, 10, 10),
       material: new Material({
-        ambient: v3(1, 0, 0).scale(0.2).vec,
-        diffuse: v3(1, 0, 0).vec,
-        specular: v3(1, 1, 1).vec
+        diffuse: v3(1, 1, 1),
+        specular: v3(1, 1, 1)
       })
     }));
-    this.add(this.cube = Cone.create({
-      sides: 4,
-      smoothShading: false,
-      rotation,
-      position: v3(0, 1, 0),
-      scale: v3(1, 0.8, 1)
+    this.add(Plane.create({
+      position: v3(0, 0, -3),
+      scale: v3(10, 10, 10),
+      rotation: Quaternion.fromEuler(-Math.PI / 2, 0, Math.PI / 2),
+      material: new Material({
+        diffuse: v3(1, 1, 1),
+        specular: v3(1, 1, 1)
+      })
     }));
-    this.addLight(new PointLight(
-      v3(0, 4, 2),
+    this.add(this.cube = IcoSphere.create({
+      position: v3(0, 0, 0),
+      scale: v3(1, 1, 1),
+      colors: [1, 0, 0],
+      smoothShading: false
+    }));
+    this.arrow = new Arrow(this, {
+      shaftColor: [0.5, 0.5, 0.5],
+      headColor: [0.5, 0.5, 0.5],
+      length: 0.4,
+      shaftRadius: 0.1,
+      headLength: 0.15,
+      headRadius: 0.2,
+      position: v3(-1, 1, 2),
+      lookAt: v3(0, 0, 0)
+    });
+    this.add(this.arrow);
+    this.addLight(new PointLight({
+      position: v3(-1, -0.5, 4),
       // higher position to cast better shadows
-      v3(1, 1, 1),
-      // white light
-      1.5,
+      color: v3(0.2, 0.2, 1),
+      intensity: 1
       // increased intensity
-      1,
-      // constant
-      0.09,
-      // linear
-      0.032,
-      // quadratic
-      this
-    ));
-    this.addLight(new PointLight(
-      v3(4, 3, -2),
-      // opposite position
-      v3(0.8, 0.8, 1),
-      // slightly blue tint
-      1,
-      // intensity
-      1,
-      // constant
-      0.09,
-      // linear
-      0.032,
-      // quadratic
-      this
-    ));
+    }));
+    this.addLight(new PointLight({
+      position: v3(1, 0, 3),
+      // higher position to cast better shadows
+      color: v3(1, 0.2, 0.2),
+      intensity: 1
+      // increased intensity
+    }));
+    this.addLight(new PointLight({
+      position: v3(-2, 4, 4),
+      // higher position to cast better shadows
+      color: v3(0.2, 1, 0.2),
+      intensity: 1
+      // increased intensity
+    }));
   }
   tick(obj) {
     super.tick(obj);
@@ -4357,6 +4669,12 @@ var TestLevel = class extends Scene {
       this.cube.transform.setRotation(
         rotation.multiply(this.cube.transform.getLocalRotation())
       );
+    }
+    if (this.arrow) {
+      this.arrow.transform.setPosition(
+        v3(obj.total * 1e-4 % 1 * 8 - 4, 1, 2)
+      );
+      this.arrow.lookAt(v3(0, 0, 0));
     }
   }
 };
@@ -4391,6 +4709,9 @@ var Ticker = class {
   }
   get startTime() {
     return this.sTime;
+  }
+  get eTime() {
+    return performance.now() - this.sTime;
   }
   averagedInterval(count, interval) {
     const average = this.intervalKeeper.slice(0, count).reduce((partialSum, a) => partialSum + a, 0) / count;

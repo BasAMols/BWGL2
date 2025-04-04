@@ -256,4 +256,12 @@ export class Vector3 {
 			this.z * len
 		);
 	}
+
+	cross(other: Vector3): Vector3 {
+		return new Vector3(
+			this.y * other.z - this.z * other.y,
+			this.z * other.x - this.x * other.z,
+			this.x * other.y - this.y * other.x
+		);
+	}
 }

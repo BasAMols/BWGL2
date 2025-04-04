@@ -96,7 +96,7 @@ float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir, int 
     
     // Calculate bias based on surface angle
     float cosTheta = dot(normal, lightDir);
-    float bias = 0.001; // Moderate base bias
+    float bias = 0.01; // Moderate base bias
     
     // Add angle-dependent component
     bias += 0.02 * (1.0 - max(cosTheta, 0.0));

@@ -1,16 +1,15 @@
 import { MeshData } from '../types';
-import { VertexArray, VertexBuffer, IndexBuffer } from '../buffer';
-import { SceneObject, SceneObjectProps } from './sceneObject';
-import { glob } from '../../../game';
+import { BaseMesh, BaseMeshProps } from './baseMesh';
+import { SceneObject } from './sceneObject';
 
-export interface ConeProps extends SceneObjectProps {
+export interface ConeProps extends BaseMeshProps {
     sides?: number;
     smoothShading?: boolean;
     // Colors for [sides, bottom]
     colors?: [number, number, number] | [[number, number, number], [number, number, number]];
 }
 
-export class Cone {
+export class Cone extends BaseMesh {
     private static generateMeshData(sides: number = 32, smoothShading: boolean = true, colors?: [number, number, number] | [[number, number, number], [number, number, number]]): MeshData {
         const vertices: number[] = [];
         const indices: number[] = [];
@@ -179,68 +178,11 @@ export class Cone {
     }
 
     public static create(props: ConeProps = {}): SceneObject {
-        const meshData = this.generateMeshData(props.sides || 32, props.smoothShading ?? true, props.colors);
-        
-        // Create and setup VAO
-        const vao = new VertexArray(glob.ctx);
-        vao.bind();
-
-        // Create and setup vertex buffer
-        const vertexBuffer = new VertexBuffer(glob.ctx);
-        vertexBuffer.setData(meshData.vertices);
-        vao.setAttributePointer(
-            SceneObject.getAttributeLocation('position'),
-            3,
-            glob.ctx.FLOAT,
-            false,
-            0,
-            0
+        const meshData = this.generateMeshData(
+            props.sides || 32,
+            props.smoothShading ?? true,
+            props.colors
         );
-
-        // Create and setup color buffer
-        const colorBuffer = new VertexBuffer(glob.ctx);
-        colorBuffer.setData(meshData.colors!);
-        vao.setAttributePointer(
-            SceneObject.getAttributeLocation('color'),
-            3,
-            glob.ctx.FLOAT,
-            false,
-            0,
-            0
-        );
-
-        // Create and setup normal buffer
-        const normalBuffer = new VertexBuffer(glob.ctx);
-        normalBuffer.setData(meshData.normals!);
-        vao.setAttributePointer(
-            SceneObject.getAttributeLocation('normal'),
-            3,
-            glob.ctx.FLOAT,
-            false,
-            0,
-            0
-        );
-
-        // Create and setup texture coordinate buffer
-        const texCoordBuffer = new VertexBuffer(glob.ctx);
-        texCoordBuffer.setData(meshData.texCoords!);
-        vao.setAttributePointer(
-            SceneObject.getAttributeLocation('texCoord'),
-            2,
-            glob.ctx.FLOAT,
-            false,
-            0,
-            0
-        );
-
-        // Create and setup index buffer
-        const indexBuffer = new IndexBuffer(glob.ctx);
-        indexBuffer.setData(meshData.indices!);
-
-        return new SceneObject({
-            vao,
-            indexBuffer,
-            drawCount: meshData.indices!.length,
-        }, props);
+        return this.createSceneObject(meshData, props);
     }
 } 

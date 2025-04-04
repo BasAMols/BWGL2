@@ -1,15 +1,14 @@
-import { glob } from '../../../game';
-import { VertexArray, VertexBuffer, IndexBuffer } from '../buffer';
 import { MeshData } from '../types';
-import { SceneObjectProps, SceneObject } from './sceneObject';
+import { SceneObject } from './sceneObject';
+import { BaseMesh, BaseMeshProps } from './baseMesh';
 
-export interface IcoSphereProps extends SceneObjectProps {
+export interface IcoSphereProps extends BaseMeshProps {
     subdivisions?: number;  // Number of times to subdivide the icosahedron (0-5 recommended)
     color?: [number, number, number];
     smoothShading?: boolean;
 }
 
-export class IcoSphere {
+export class IcoSphere extends BaseMesh {
     private static readonly X = 0.525731112119133606;
     private static readonly Z = 0.850650808352039932;
 
@@ -28,7 +27,7 @@ export class IcoSphere {
         10,1,6, 11,0,9, 2,11,9, 5,2,9,  11,2,7
     ];
 
-    private static normalize(v: number[]): number[] {
+    protected static normalize(v: number[]): number[] {
         const length = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
         return [v[0] / length, v[1] / length, v[2] / length];
     }
@@ -42,7 +41,7 @@ export class IcoSphere {
     }
 
     private static generateMeshData(
-        subdivisions: number = 2,
+        subdivisions: number = 0,
         smoothShading: boolean = true,
         color: [number, number, number] = [0.8, 0.2, 0.2]
     ): MeshData {
@@ -158,71 +157,10 @@ export class IcoSphere {
 
     public static create(props: IcoSphereProps = {}): SceneObject {
         const meshData = this.generateMeshData(
-            props.subdivisions ?? 2,
+            props.subdivisions ?? 0,
             props.smoothShading ?? true,
             props.color || [0.8, 0.2, 0.2]
         );
-        
-        // Create and setup VAO
-        const vao = new VertexArray(glob.ctx);
-        vao.bind();
-
-        // Create and setup vertex buffer
-        const vertexBuffer = new VertexBuffer(glob.ctx);
-        vertexBuffer.setData(meshData.vertices);
-        vao.setAttributePointer(
-            SceneObject.getAttributeLocation('position'),
-            3,
-            glob.ctx.FLOAT,
-            false,
-            0,
-            0
-        );
-
-        // Create and setup color buffer
-        const colorBuffer = new VertexBuffer(glob.ctx);
-        colorBuffer.setData(meshData.colors!);
-        vao.setAttributePointer(
-            SceneObject.getAttributeLocation('color'),
-            3,
-            glob.ctx.FLOAT,
-            false,
-            0,
-            0
-        );
-
-        // Create and setup normal buffer
-        const normalBuffer = new VertexBuffer(glob.ctx);
-        normalBuffer.setData(meshData.normals!);
-        vao.setAttributePointer(
-            SceneObject.getAttributeLocation('normal'),
-            3,
-            glob.ctx.FLOAT,
-            false,
-            0,
-            0
-        );
-
-        // Create and setup texture coordinate buffer
-        const texCoordBuffer = new VertexBuffer(glob.ctx);
-        texCoordBuffer.setData(meshData.texCoords!);
-        vao.setAttributePointer(
-            SceneObject.getAttributeLocation('texCoord'),
-            2,
-            glob.ctx.FLOAT,
-            false,
-            0,
-            0
-        );
-
-        // Create and setup index buffer
-        const indexBuffer = new IndexBuffer(glob.ctx);
-        indexBuffer.setData(meshData.indices!);
-
-        return new SceneObject({
-            vao,
-            indexBuffer,
-            drawCount: meshData.indices!.length,
-        }, props);
+        return this.createSceneObject(meshData, props);
     }
 } 

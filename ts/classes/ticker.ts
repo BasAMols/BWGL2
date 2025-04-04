@@ -1,6 +1,8 @@
 import { glob } from '../game';
 
-export type TickerReturnData = { interval: number, intervalS3: number, intervalS10: number, intervalS20: number, total: number, frameRate: number, frame: number; };
+export type TickerReturnData = {
+    interval: number, intervalS3: number, intervalS10: number, intervalS20: number, total: number, frameRate: number, frame: number; 
+};
 export type TickerCallback = (obj: TickerReturnData) => void;
 export class Ticker {
     private _running: boolean = false;
@@ -35,7 +37,9 @@ export class Ticker {
     public get startTime() {
         return this.sTime;
     }
-    private eTime: number;
+    private get eTime() {
+        return performance.now() - this.sTime;
+    }
     // public get elapsed() {
     //     return this.eTime;
     // }
@@ -60,7 +64,6 @@ export class Ticker {
             this.pTime = timeStamp;
             this.frameN++;
             glob.frame = this.frameN;
-
             const o = {
                 interval,
                 total: this.eTime,

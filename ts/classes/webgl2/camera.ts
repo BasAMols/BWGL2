@@ -4,24 +4,19 @@ import { m4, Matrix4 } from '../util/math/matrix4';
 export class Camera {
     private position: Vector3;
     private target: Vector3;
-    
+
     private viewMatrix: Matrix4;
     private projectionMatrix: Matrix4;
-    
+
     private fov: number;
     private near: number;
     private far: number;
 
     constructor(
-        position: Vector3 = v3(0, 0, 5),
-        target: Vector3 = v3(0, 0, 0),
-        fov: number = 45,
-        near: number = 0.1,
-        far: number = 1000
-    ) {
+        { position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 45, near = 0.1, far = 1000 }: { position?: Vector3; target?: Vector3; fov?: number; near?: number; far?: number; } = {}) {
         this.position = position;
         this.target = target;
-        
+
         this.fov = fov;
         this.near = near;
         this.far = far;
