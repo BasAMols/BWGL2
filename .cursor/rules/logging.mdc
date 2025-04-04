@@ -1,0 +1,12 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+If necessary for debugging, we can log certain the js console. When logging objects, always JSON strinify before logging. 
+
+Dont log in the tick functions, as those run every frame. This causes pc memory issues. 
+- You can @ files here
+- You can use markdown but dont have to
