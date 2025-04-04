@@ -1,4 +1,4 @@
-import { MeshData } from '../types';
+import { MeshData } from './types';
 import { BaseMesh, BaseMeshProps } from './baseMesh';
 import { SceneObject } from './sceneObject';
 import { Material } from '../material';

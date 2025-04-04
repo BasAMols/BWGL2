@@ -1,4 +1,4 @@
-import { MeshData } from '../types';
+import { MeshData } from './types';
 import { VertexArray, VertexBuffer, IndexBuffer } from '../buffer';
 import { SceneObject, SceneObjectProps } from './sceneObject';
 import { glob } from '../../../game';
