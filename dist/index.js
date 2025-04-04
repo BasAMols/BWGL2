@@ -3557,13 +3557,16 @@ var PointLight = class extends Light {
     this.quadratic = quadratic;
     this.type = 2 /* POINT */;
     this.shadowMap = new ShadowMap(glob.ctx);
-    this.lightProjection = new Matrix4().perspective(
-      Math.PI / 2,
-      // 90 degree FOV
+    this.lightProjection = new Matrix4().ortho(
+      -10,
+      10,
+      // left, right
+      -10,
+      10,
+      // bottom, top
       0.1,
-      // near plane
       100
-      // far plane
+      // near, far
     );
     if (scene) {
       scene.add(IcoSphere.create({
@@ -3584,10 +3587,22 @@ var PointLight = class extends Light {
   getLightSpaceMatrix() {
     const lightView = Matrix4.lookAt(
       this.position,
+      // Light position
       v3(0, 0, 0)
-      // looking at origin
+      // Looking at scene center
     );
-    return lightView.multiply(this.lightProjection);
+    this.lightProjection = new Matrix4().ortho(
+      -10,
+      10,
+      // left, right
+      -10,
+      10,
+      // bottom, top
+      1,
+      20
+      // near, far (adjusted to better match scene depth)
+    );
+    return this.lightProjection.multiply(lightView);
   }
   getShadowMap() {
     return this.shadowMap;
@@ -3853,10 +3868,21 @@ var Scene = class {
       if (light instanceof PointLight) {
         const shadowMap = light.getShadowMap();
         shadowMap.bind(glob.ctx);
-        glob.ctx.clear(glob.ctx.DEPTH_BUFFER_BIT);
         glob.shaderManager.useProgram("shadow");
         const lightSpaceMatrix = light.getLightSpaceMatrix();
         glob.shaderManager.setUniform("u_lightSpaceMatrix", lightSpaceMatrix.mat4);
+        if (this.frameCount % 60 === 0) {
+          console.log("Light space matrix:", JSON.stringify(lightSpaceMatrix.mat4));
+          console.log("Scene objects:");
+          for (const object of this.objects) {
+            const worldPos = object.transform.getWorldMatrix().position;
+            console.log("- Object position:", JSON.stringify(worldPos.array));
+          }
+        }
+        glob.ctx.enable(glob.ctx.DEPTH_TEST);
+        glob.ctx.depthFunc(glob.ctx.LESS);
+        glob.ctx.clearDepth(1);
+        glob.ctx.clear(glob.ctx.DEPTH_BUFFER_BIT);
         for (const object of this.objects) {
           glob.shaderManager.setUniform("u_modelMatrix", object.transform.getWorldMatrix().mat4);
           object.vao.bind();
@@ -3865,51 +3891,6 @@ var Scene = class {
           } else {
             glob.ctx.drawArrays(glob.ctx.TRIANGLES, 0, object.drawCount);
           }
-        }
-        if (this.frameCount % 60 === 0) {
-          const size = shadowMap.getSize();
-          const tempTexture = glob.ctx.createTexture();
-          glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, tempTexture);
-          glob.ctx.texImage2D(
-            glob.ctx.TEXTURE_2D,
-            0,
-            glob.ctx.RGBA8,
-            1,
-            1,
-            // Just need one pixel
-            0,
-            glob.ctx.RGBA,
-            glob.ctx.UNSIGNED_BYTE,
-            null
-          );
-          glob.ctx.texParameteri(glob.ctx.TEXTURE_2D, glob.ctx.TEXTURE_MIN_FILTER, glob.ctx.NEAREST);
-          glob.ctx.texParameteri(glob.ctx.TEXTURE_2D, glob.ctx.TEXTURE_MAG_FILTER, glob.ctx.NEAREST);
-          const tempFb = glob.ctx.createFramebuffer();
-          glob.ctx.bindFramebuffer(glob.ctx.FRAMEBUFFER, tempFb);
-          glob.ctx.framebufferTexture2D(
-            glob.ctx.FRAMEBUFFER,
-            glob.ctx.COLOR_ATTACHMENT0,
-            glob.ctx.TEXTURE_2D,
-            tempTexture,
-            0
-          );
-          const status = glob.ctx.checkFramebufferStatus(glob.ctx.FRAMEBUFFER);
-          if (status !== glob.ctx.FRAMEBUFFER_COMPLETE) {
-            console.error("Framebuffer is incomplete:", status);
-          } else {
-            glob.ctx.clearColor(0, 0, 0, 1);
-            glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT);
-            if (this.debugQuad) {
-              this.debugQuad.render(shadowMap.getDepthTexture(), true);
-            }
-            const pixels = new Uint8Array(4);
-            glob.ctx.readPixels(0, 0, 1, 1, glob.ctx.RGBA, glob.ctx.UNSIGNED_BYTE, pixels);
-            const depth = pixels[0] / 255;
-            console.log("Shadow map center depth:", depth, "Shadow map size:", size);
-          }
-          glob.ctx.deleteFramebuffer(tempFb);
-          glob.ctx.deleteTexture(tempTexture);
-          shadowMap.bind(glob.ctx);
         }
       }
     }
@@ -3935,6 +3916,7 @@ var Scene = class {
       const light = this.getLights()[0];
       if (light instanceof PointLight) {
         const shadowMap = light.getShadowMap();
+        glob.shaderManager.useProgram("debug_quad");
         this.debugQuad.render(shadowMap.getDepthTexture(), true);
       }
     }

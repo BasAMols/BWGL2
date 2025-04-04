@@ -69,15 +69,28 @@ export class Scene {
                 const shadowMap = light.getShadowMap();
                 shadowMap.bind(glob.ctx);
                 
-                // Clear depth buffer
-                glob.ctx.clear(glob.ctx.DEPTH_BUFFER_BIT);
-                
                 // Use shadow shader program
                 glob.shaderManager.useProgram('shadow');
                 
-                // Set light space matrix uniform
+                // Set light space matrix uniform for shadow pass
                 const lightSpaceMatrix = light.getLightSpaceMatrix();
                 glob.shaderManager.setUniform('u_lightSpaceMatrix', lightSpaceMatrix.mat4);
+                
+                // Debug: Log light matrix and object positions every 60 frames
+                if (this.frameCount % 60 === 0) {
+                    console.log('Light space matrix:', JSON.stringify(lightSpaceMatrix.mat4));
+                    console.log('Scene objects:');
+                    for (const object of this.objects) {
+                        const worldPos = object.transform.getWorldMatrix().position;
+                        console.log('- Object position:', JSON.stringify(worldPos.array));
+                    }
+                }
+                
+                // Set up depth state
+                glob.ctx.enable(glob.ctx.DEPTH_TEST);
+                glob.ctx.depthFunc(glob.ctx.LESS);  // Standard depth test
+                glob.ctx.clearDepth(1.0);  // Explicitly set clear depth to 1.0 (furthest)
+                glob.ctx.clear(glob.ctx.DEPTH_BUFFER_BIT);
                 
                 // Render scene from light's perspective
                 for (const object of this.objects) {
@@ -91,68 +104,6 @@ export class Scene {
                     } else {
                         glob.ctx.drawArrays(glob.ctx.TRIANGLES, 0, object.drawCount);
                     }
-                }
-
-                // Debug: Log shadow map values every 60 frames
-                if (this.frameCount % 60 === 0) {
-                    const size = shadowMap.getSize();
-                    
-                    // Create a temporary texture for reading
-                    const tempTexture = glob.ctx.createTexture();
-                    glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, tempTexture);
-                    glob.ctx.texImage2D(
-                        glob.ctx.TEXTURE_2D,
-                        0,
-                        glob.ctx.RGBA8,
-                        1, 1, // Just need one pixel
-                        0,
-                        glob.ctx.RGBA,
-                        glob.ctx.UNSIGNED_BYTE,
-                        null
-                    );
-                    glob.ctx.texParameteri(glob.ctx.TEXTURE_2D, glob.ctx.TEXTURE_MIN_FILTER, glob.ctx.NEAREST);
-                    glob.ctx.texParameteri(glob.ctx.TEXTURE_2D, glob.ctx.TEXTURE_MAG_FILTER, glob.ctx.NEAREST);
-                    
-                    // Create and set up temporary framebuffer
-                    const tempFb = glob.ctx.createFramebuffer();
-                    glob.ctx.bindFramebuffer(glob.ctx.FRAMEBUFFER, tempFb);
-                    glob.ctx.framebufferTexture2D(
-                        glob.ctx.FRAMEBUFFER,
-                        glob.ctx.COLOR_ATTACHMENT0,
-                        glob.ctx.TEXTURE_2D,
-                        tempTexture,
-                        0
-                    );
-
-                    // Check framebuffer status
-                    const status = glob.ctx.checkFramebufferStatus(glob.ctx.FRAMEBUFFER);
-                    if (status !== glob.ctx.FRAMEBUFFER_COMPLETE) {
-                        console.error('Framebuffer is incomplete:', status);
-                    } else {
-                        // Clear the temporary framebuffer
-                        glob.ctx.clearColor(0, 0, 0, 1);
-                        glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT);
-
-                        // Render depth texture to the temporary framebuffer
-                        if (this.debugQuad) {
-                            this.debugQuad.render(shadowMap.getDepthTexture(), true);
-                        }
-
-                        // Read the rendered value
-                        const pixels = new Uint8Array(4);
-                        glob.ctx.readPixels(0, 0, 1, 1, glob.ctx.RGBA, glob.ctx.UNSIGNED_BYTE, pixels);
-                        
-                        // Convert 8-bit value back to float (0-255 -> 0-1)
-                        const depth = pixels[0] / 255;
-                        console.log('Shadow map center depth:', depth, 'Shadow map size:', size);
-                    }
-
-                    // Clean up
-                    glob.ctx.deleteFramebuffer(tempFb);
-                    glob.ctx.deleteTexture(tempTexture);
-                    
-                    // Rebind the shadow map framebuffer
-                    shadowMap.bind(glob.ctx);
                 }
             }
         }
@@ -192,6 +143,8 @@ export class Scene {
             const light = this.getLights()[0];
             if (light instanceof PointLight) {
                 const shadowMap = light.getShadowMap();
+                // Switch to debug quad shader and render the depth texture
+                glob.shaderManager.useProgram('debug_quad');
                 this.debugQuad.render(shadowMap.getDepthTexture(), true);
             }
         }

@@ -109,11 +109,11 @@ export class PointLight extends Light {
         this.type = LightType.POINT;
         this.shadowMap = new ShadowMap(glob.ctx);
         
-        // Create perspective projection matrix for the light
-        this.lightProjection = new Matrix4().perspective(
-            Math.PI / 2, // 90 degree FOV
-            0.1,         // near plane
-            100.0        // far plane
+        // Create orthographic projection matrix for the light
+        this.lightProjection = new Matrix4().ortho(
+            -10, 10,  // left, right
+            -10, 10,  // bottom, top
+            0.1, 100.0  // near, far
         );
 
         if (scene) {
@@ -136,11 +136,20 @@ export class PointLight extends Light {
     }
 
     getLightSpaceMatrix(): Matrix4 {
+        // Calculate view matrix from light position to scene center
         const lightView = Matrix4.lookAt(
-            this.position,
-            v3(0, 0, 0), // looking at origin
+            this.position,      // Light position
+            v3(0, 0, 0)        // Looking at scene center
         );
-        return lightView.multiply(this.lightProjection);
+
+        // Create orthographic projection that encompasses the scene
+        this.lightProjection = new Matrix4().ortho(
+            -10, 10,    // left, right
+            -10, 10,    // bottom, top
+            1, 20       // near, far (adjusted to better match scene depth)
+        );
+
+        return this.lightProjection.multiply(lightView);  // Note: projection * view order
     }
 
     getShadowMap(): ShadowMap {
