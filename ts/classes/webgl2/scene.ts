@@ -190,11 +190,17 @@ export class Scene {
         glob.ctx.bindFramebuffer(glob.ctx.FRAMEBUFFER, null);
         glob.ctx.viewport(0, 0, glob.ctx.canvas.width, glob.ctx.canvas.height);
 
-        glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT | glob.ctx.DEPTH_BUFFER_BIT);
         glob.ctx.clearColor(...this.clearColor);
+        glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT | glob.ctx.DEPTH_BUFFER_BIT);
 
-        // Switch back to the main shader program
-        glob.shaderManager.useProgram('basic');
+        // Reset depth test and blend functions
+        glob.ctx.enable(glob.ctx.DEPTH_TEST);
+        glob.ctx.depthFunc(glob.ctx.LESS);
+        glob.ctx.enable(glob.ctx.BLEND);
+        glob.ctx.blendFunc(glob.ctx.SRC_ALPHA, glob.ctx.ONE_MINUS_SRC_ALPHA);
+
+        // Switch to the PBR shader program instead of the basic one
+        glob.shaderManager.useProgram('pbr');
 
         // Update light uniforms including shadow maps
         this.lightManager.updateShaderUniforms();
@@ -208,8 +214,11 @@ export class Scene {
             if (light instanceof PointLight) {
                 const lightIndex = i + indexOffset;
                 const shadowMap = light.getShadowMap();
-                shadowMap.bindDepthTexture(glob.ctx, lightIndex + 1); // Start from texture unit 1
-                glob.shaderManager.setUniform(`u_shadowMap${lightIndex}`, lightIndex + 1);
+                shadowMap.bindDepthTexture(glob.ctx, lightIndex + 5); // Use higher texture units to avoid conflicts
+                // Only set uniform if it exists in the shader (max 4 shadow maps)
+                if (lightIndex < 4) {
+                    glob.shaderManager.setUniform(`u_shadowMap${lightIndex}`, lightIndex + 5);
+                }
             }
         });
 

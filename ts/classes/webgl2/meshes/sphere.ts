@@ -1,6 +1,8 @@
 import { MeshData } from './types';
 import { BaseMesh, BaseMeshProps } from './baseMesh';
 import { SceneObject } from './sceneObject';
+import { Material } from '../material';
+import { v3 } from '../../util/math/vector3';
 
 export interface SphereProps extends BaseMeshProps {
     segments?: number;    // horizontal segments (like cylinder sides)
@@ -176,11 +178,40 @@ export class Sphere extends BaseMesh {
     }
 
     public static create(props: SphereProps = {}): SceneObject {
+        // Create default material based on color if no material provided
+        if (!props.material && props.color) {
+            const baseColor = v3(props.color[0], props.color[1], props.color[2]);
+            props = {
+                ...props,
+                material: new Material({
+                    baseColor,
+                    roughness: 0.5,
+                    metallic: 0.0,
+                    ambientOcclusion: 1.0,
+                    emissive: v3(0, 0, 0)
+                })
+            };
+        }
+        
+        // Determine which color to use for the mesh generation
+        let meshColor: [number, number, number];
+        if (props.material) {
+            // Use material's baseColor for mesh generation
+            const { baseColor } = props.material;
+            meshColor = [baseColor.x, baseColor.y, baseColor.z];
+        } else if (props.color) {
+            // Use provided color
+            meshColor = props.color;
+        } else {
+            // Default color
+            meshColor = [0.8, 0.2, 0.2];
+        }
+        
         const meshData = this.generateMeshData(
             props.segments || 32,
             props.rings || 16,
             props.smoothShading ?? true,
-            props.color || [0.8, 0.2, 0.2]
+            meshColor
         );
         return this.createSceneObject(meshData, props);
     }

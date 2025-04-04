@@ -662,6 +662,12 @@ var vertexShaderSource = "#version 300 es\nprecision highp float;\n\n// Attribut
 // ts/classes/webgl2/shaders/shadowVertexShader.ts
 var shadowVertexShaderSource = "#version 300 es\nprecision highp float;\n\nin vec3 a_position;\nuniform mat4 u_lightSpaceMatrix;\nuniform mat4 u_modelMatrix;\n\nvoid main() {\n    gl_Position = u_lightSpaceMatrix * u_modelMatrix * vec4(a_position, 1.0);\n}\n";
 
+// ts/classes/webgl2/shaders/pbrVertexShader.ts
+var pbrVertexShader = "#version 300 es\nprecision highp float;\n\n// Attributes\nin vec3 a_position;\nin vec3 a_normal;\nin vec2 a_texCoord;\nin vec3 a_tangent;\nin vec3 a_bitangent;\nin vec3 a_color;\n\n// Uniforms\nuniform mat4 u_modelMatrix;\nuniform mat4 u_viewMatrix;\nuniform mat4 u_projectionMatrix;\nuniform mat3 u_normalMatrix;\n\n// Varyings (output to fragment shader)\nout vec3 v_position;\nout vec3 v_normal;\nout vec2 v_texCoord;\nout vec3 v_worldPos;\nout mat3 v_tbn; // Tangent-Bitangent-Normal matrix for normal mapping\nout vec3 v_color;\n\nvoid main() {\n    // Calculate world position\n    v_worldPos = vec3(u_modelMatrix * vec4(a_position, 1.0));\n    \n    // Transform normals using normal matrix\n    v_normal = normalize(u_normalMatrix * a_normal);\n    \n    // Pass texture coordinates\n    v_texCoord = a_texCoord;\n    \n    // Pass color\n    v_color = a_color;\n    \n    // Calculate TBN matrix for normal mapping when tangents are available\n    if (length(a_tangent) > 0.0) {\n        vec3 T = normalize(u_normalMatrix * a_tangent);\n        vec3 B = normalize(u_normalMatrix * a_bitangent);\n        vec3 N = v_normal;\n        v_tbn = mat3(T, B, N);\n    } else {\n        // Identity TBN when no tangents provided\n        v_tbn = mat3(1.0);\n    }\n    \n    // Calculate clip-space position\n    gl_Position = u_projectionMatrix * u_viewMatrix * vec4(v_worldPos, 1.0);\n}";
+
+// ts/classes/webgl2/shaders/pbrFragmentShader.ts
+var pbrFragmentShader = "#version 300 es\nprecision highp float;\n\n// Constants\n#define PI 3.14159265359\n#define MAX_LIGHTS 10\n\n// Light types\n#define LIGHT_TYPE_INACTIVE -1\n#define LIGHT_TYPE_AMBIENT 0\n#define LIGHT_TYPE_DIRECTIONAL 1\n#define LIGHT_TYPE_POINT 2\n#define LIGHT_TYPE_SPOT 3\n\n// PBR Material uniforms\nstruct PBRMaterial {\n    vec3 baseColor;\n    float roughness;\n    float metallic;\n    float ambientOcclusion;\n    vec3 emissive;\n    \n    sampler2D albedoMap;\n    sampler2D normalMap;\n    sampler2D metallicRoughnessMap;\n    sampler2D aoMap;\n    sampler2D emissiveMap;\n    \n    bool hasAlbedoMap;\n    bool hasNormalMap;\n    bool hasMetallicRoughnessMap;\n    bool hasAoMap;\n    bool hasEmissiveMap;\n};\n\n// Light uniforms\nuniform int u_lightTypes[MAX_LIGHTS];\nuniform vec3 u_lightPositions[MAX_LIGHTS];\nuniform vec3 u_lightDirections[MAX_LIGHTS];\nuniform vec3 u_lightColors[MAX_LIGHTS];\nuniform float u_lightIntensities[MAX_LIGHTS];\nuniform float u_lightConstants[MAX_LIGHTS];\nuniform float u_lightLinears[MAX_LIGHTS];\nuniform float u_lightQuadratics[MAX_LIGHTS];\nuniform float u_lightCutOffs[MAX_LIGHTS];\nuniform float u_lightOuterCutOffs[MAX_LIGHTS];\nuniform int u_numLights;\n\n// Shadow mapping uniforms\nuniform sampler2D u_shadowMap0;\nuniform sampler2D u_shadowMap1;\nuniform sampler2D u_shadowMap2;\nuniform sampler2D u_shadowMap3;\nuniform mat4 u_lightSpaceMatrices[MAX_LIGHTS];\nuniform bool u_castsShadow[MAX_LIGHTS];\n\n// Material uniforms\nuniform PBRMaterial u_material;\nuniform vec3 u_viewPos;\n\n// Varyings from vertex shader\nin vec3 v_normal;\nin vec2 v_texCoord;\nin vec3 v_worldPos;\nin mat3 v_tbn;\nin vec3 v_color;\n\n// Output\nout vec4 fragColor;\n\n// Utility function to get shadowmap value\nfloat getShadowMap(int index, vec2 coords) {\n    // We have to use a switch statement because WebGL2 requires constant array indices for samplers\n    switch(index) {\n        case 0: return texture(u_shadowMap0, coords).r;\n        case 1: return texture(u_shadowMap1, coords).r;\n        case 2: return texture(u_shadowMap2, coords).r;\n        case 3: return texture(u_shadowMap3, coords).r;\n        default: return 1.0; // No shadow if invalid index\n    }\n}\n\n// Shadow calculation function\nfloat ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir, int shadowMapIndex) {\n    // Ensure we only process shadow maps that exist in the shader\n    if (shadowMapIndex > 3) {\n        return 0.0; // Return no shadow if the index is beyond the available shadow maps\n    }\n    \n    // Perform perspective divide\n    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;\n    \n    // Transform to [0,1] range\n    projCoords = projCoords * 0.5 + 0.5;\n    \n    // Check if fragment is in light's view frustum\n    if (projCoords.x < 0.0 || projCoords.x > 1.0 || \n        projCoords.y < 0.0 || projCoords.y > 1.0 || \n        projCoords.z < 0.0 || projCoords.z > 1.0) {\n        return 0.0; // Not in shadow if outside frustum\n    }\n    \n    // Calculate bias based on surface angle to reduce shadow acne\n    float bias = max(0.005 * (1.0 - dot(normal, lightDir)), 0.0005);\n    \n    // Get depth from shadow map\n    float closestDepth = getShadowMap(shadowMapIndex, projCoords.xy);\n    float currentDepth = projCoords.z;\n    \n    // PCF (Percentage Closer Filtering) with larger kernel for softer shadows\n    float shadow = 0.0;\n    vec2 texelSize = 1.0 / vec2(textureSize(u_shadowMap0, 0));\n    for(int x = -2; x <= 2; ++x) {\n        for(int y = -2; y <= 2; ++y) {\n            float pcfDepth = getShadowMap(shadowMapIndex, projCoords.xy + vec2(x, y) * texelSize);\n            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;\n        }\n    }\n    shadow /= 25.0; // 5x5 kernel\n    \n    // Fade out shadows at the edge of the light's frustum for smoother transitions\n    float fadeStart = 0.9;\n    float distanceFromCenter = length(vec2(0.5, 0.5) - projCoords.xy) * 2.0;\n    if (distanceFromCenter > fadeStart) {\n        float fadeRatio = (distanceFromCenter - fadeStart) / (1.0 - fadeStart);\n        shadow = mix(shadow, 0.0, fadeRatio);\n    }\n    \n    return shadow;\n}\n\n// PBR functions\n\n// Normal Distribution Function (GGX/Trowbridge-Reitz)\nfloat DistributionGGX(vec3 N, vec3 H, float roughness) {\n    float a = roughness * roughness;\n    float a2 = a * a;\n    float NdotH = max(dot(N, H), 0.0);\n    float NdotH2 = NdotH * NdotH;\n    \n    float denom = (NdotH2 * (a2 - 1.0) + 1.0);\n    denom = PI * denom * denom;\n    \n    return a2 / max(denom, 0.0000001);\n}\n\n// Geometry function (Smith model)\nfloat GeometrySchlickGGX(float NdotV, float roughness) {\n    float r = (roughness + 1.0);\n    float k = (r * r) / 8.0;\n    \n    float denom = NdotV * (1.0 - k) + k;\n    return NdotV / max(denom, 0.0000001);\n}\n\n// Combined Geometry function\nfloat GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {\n    float NdotV = max(dot(N, V), 0.0);\n    float NdotL = max(dot(N, L), 0.0);\n    float ggx2 = GeometrySchlickGGX(NdotV, roughness);\n    float ggx1 = GeometrySchlickGGX(NdotL, roughness);\n    \n    return ggx1 * ggx2;\n}\n\n// Fresnel function (Schlick's approximation)\nvec3 FresnelSchlick(float cosTheta, vec3 F0) {\n    return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);\n}\n\n// Calculates radiance for a light source\nvec3 calculateRadiance(vec3 N, vec3 V, vec3 L, vec3 H, vec3 F0, \n                       vec3 albedo, float metallic, float roughness,\n                       vec3 lightColor, float lightIntensity,\n                       float attenuation) {\n    // Calculate light attenuation\n    float attenuatedIntensity = lightIntensity * attenuation;\n    \n    // Ensure roughness is never zero (to prevent divide-by-zero in GGX)\n    roughness = max(roughness, 0.01);\n    \n    // Cook-Torrance BRDF calculation\n    float NDF = DistributionGGX(N, H, roughness);\n    float G = GeometrySmith(N, V, L, roughness);\n    vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);\n    \n    // Calculate specular component\n    vec3 numerator = NDF * G * F;\n    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);\n    vec3 specular = numerator / max(denominator, 0.0000001);\n    \n    // Prevent uncontrolled specular highlights by clamping\n    specular = min(specular, vec3(10.0));\n    \n    // For energy conservation\n    vec3 kS = F;\n    vec3 kD = vec3(1.0) - kS;\n    kD *= 1.0 - metallic; // Metallic materials don't have diffuse\n    \n    // Combine diffuse and specular terms\n    float NdotL = max(dot(N, L), 0.0);\n    return (kD * albedo / PI + specular) * lightColor * attenuatedIntensity * NdotL;\n}\n\nvoid main() {\n    // Get material properties, using textures if available\n    \n    // Base color (albedo)\n    vec3 albedo = u_material.baseColor;\n    if (u_material.hasAlbedoMap) {\n        albedo = texture(u_material.albedoMap, v_texCoord).rgb;\n    } else {\n        // Use vertex color if no albedo map is provided\n        albedo = v_color;\n    }\n    \n    // Metallic and roughness\n    float metallic = u_material.metallic;\n    float roughness = u_material.roughness;\n    if (u_material.hasMetallicRoughnessMap) {\n        // Standard PBR convention: G channel = roughness, B channel = metallic\n        vec3 metallicRoughness = texture(u_material.metallicRoughnessMap, v_texCoord).rgb;\n        roughness = metallicRoughness.g;\n        metallic = metallicRoughness.b;\n    }\n    \n    // Ambient occlusion\n    float ao = u_material.ambientOcclusion;\n    if (u_material.hasAoMap) {\n        ao = texture(u_material.aoMap, v_texCoord).r;\n    }\n    \n    // Normals (with normal mapping if available)\n    vec3 N = normalize(v_normal);\n    if (u_material.hasNormalMap) {\n        vec3 normalMapValue = texture(u_material.normalMap, v_texCoord).rgb * 2.0 - 1.0;\n        N = normalize(v_tbn * normalMapValue);\n    }\n    \n    // Emissive\n    vec3 emissive = u_material.emissive;\n    if (u_material.hasEmissiveMap) {\n        emissive = texture(u_material.emissiveMap, v_texCoord).rgb;\n    }\n    \n    // Calculate view direction\n    vec3 V = normalize(u_viewPos - v_worldPos);\n    \n    // Calculate fresnel reflection at normal incidence (F0)\n    // For most materials, F0 is monochromatic (0.04)\n    // For metals, we use the albedo color \n    vec3 F0 = vec3(0.04);\n    F0 = mix(F0, albedo, metallic);\n    \n    // Initialize result\n    vec3 Lo = vec3(0.0);\n    \n    // Calculate lighting contribution from each light\n    for(int i = 0; i < u_numLights; i++) {\n        if(i >= MAX_LIGHTS || u_lightTypes[i] == LIGHT_TYPE_INACTIVE) \n            continue;\n        \n        // Calculate light direction and intensity\n        vec3 L;\n        float attenuation = 1.0;\n        \n        if (u_lightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            // Directional light\n            L = normalize(-u_lightDirections[i]);\n        } \n        else if (u_lightTypes[i] == LIGHT_TYPE_POINT || u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n            // Point or spot light\n            L = normalize(u_lightPositions[i] - v_worldPos);\n            \n            // Calculate attenuation\n            float distance = length(u_lightPositions[i] - v_worldPos);\n            attenuation = 1.0 / (u_lightConstants[i] + \n                                 u_lightLinears[i] * distance + \n                                 u_lightQuadratics[i] * distance * distance);\n            \n            // For spot lights, calculate spotlight intensity\n            if (u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n                float theta = dot(L, normalize(-u_lightDirections[i]));\n                float epsilon = u_lightCutOffs[i] - u_lightOuterCutOffs[i];\n                float intensity = clamp((theta - u_lightOuterCutOffs[i]) / epsilon, 0.0, 1.0);\n                attenuation *= intensity;\n            }\n        }\n        else if (u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            // Ambient light (applied separately)\n            continue;\n        }\n        \n        // Calculate half vector\n        vec3 H = normalize(V + L);\n        \n        // Calculate shadow\n        float shadow = 0.0;\n        if(u_castsShadow[i]) {\n            vec4 fragPosLightSpace = u_lightSpaceMatrices[i] * vec4(v_worldPos, 1.0);\n            shadow = ShadowCalculation(fragPosLightSpace, N, L, i);\n        }\n        \n        // Add light contribution\n        vec3 radiance = calculateRadiance(N, V, L, H, F0, albedo, metallic, roughness,\n                                         u_lightColors[i], u_lightIntensities[i],\n                                         attenuation);\n        \n        Lo += radiance * (1.0 - shadow);\n    }\n    \n    // Add ambient light contribution (factoring in ambient occlusion)\n    vec3 ambient = vec3(0.1) * albedo * ao; // Increased base ambient level\n\n    // Add ambient from any ambient light sources\n    for(int i = 0; i < u_numLights; i++) {\n        if(i < MAX_LIGHTS && u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            ambient += u_lightColors[i] * u_lightIntensities[i] * albedo * ao;\n        }\n    }\n\n    // Add emissive contribution\n    vec3 color = ambient + Lo + emissive;\n\n    // Apply some rim lighting to highlight edges even in shadow\n    float rim = 1.0 - max(dot(N, V), 0.0);\n    rim = pow(rim, 3.0) * 0.2;\n    color += rim * albedo * 0.3;\n\n    // Enhance colored light visibility\n    color = mix(color, color * 1.2, metallic);\n\n    // Prevent oversaturation by clamping extremely bright values\n    float maxLuminance = max(max(color.r, color.g), color.b);\n    if (maxLuminance > 10.0) {\n        color *= 10.0 / maxLuminance;\n    }\n\n    // Apply ACES filmic tone mapping for better dynamic range\n    // Source: https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/\n    vec3 mapped = (color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14);\n    mapped = clamp(mapped, 0.0, 1.0);\n\n    // Gamma correction\n    color = pow(mapped, vec3(1.0/2.2));\n\n    fragColor = vec4(color, 1.0);\n}";
+
 // ts/classes/webgl2/initialise.ts
 var WebGL2Initializer = class {
   constructor(canvas) {
@@ -676,8 +682,9 @@ var WebGL2Initializer = class {
     this.vertexBuffer = new VertexBuffer(this.ctx);
     this.indexBuffer = new IndexBuffer(this.ctx);
     this.shaderManager.loadShaderProgram("basic", vertexShaderSource, fragmentShaderSource);
+    this.shaderManager.loadShaderProgram("pbr", pbrVertexShader, pbrFragmentShader);
     this.shaderManager.loadShaderProgram("shadow", shadowVertexShaderSource, "#version 300 es\n            precision highp float;\n            out vec4 fragColor;\n            void main() {\n                // Only depth values are written\n            }\n        ");
-    this.shaderManager.useProgram("basic");
+    this.shaderManager.useProgram("pbr");
     const numLights = 10;
     const types = new Int32Array(numLights);
     const positions = new Float32Array(numLights * 3);
@@ -707,14 +714,21 @@ var WebGL2Initializer = class {
     castsShadow.fill(0);
     this.shaderManager.setUniform("u_castsShadow", castsShadow);
     this.shaderManager.setUniform("u_lightSpaceMatrices", lightSpaceMatrices);
-    this.shaderManager.setUniform("u_material.ambient", new Float32Array([0.2, 0.2, 0.2]));
-    this.shaderManager.setUniform("u_material.diffuse", new Float32Array([0.8, 0.8, 0.8]));
-    this.shaderManager.setUniform("u_material.specular", new Float32Array([1, 1, 1]));
-    this.shaderManager.setUniform("u_material.shininess", 32);
-    this.shaderManager.setUniform("u_useTexture", 0);
-    this.shaderManager.setUniform("u_viewPos", new Float32Array([3, 2, 3]));
+    this.shaderManager.setUniform("u_material.baseColor", new Float32Array([0.8, 0.8, 0.8]));
+    this.shaderManager.setUniform("u_material.roughness", 0.5);
+    this.shaderManager.setUniform("u_material.metallic", 0);
+    this.shaderManager.setUniform("u_material.ambientOcclusion", 1);
+    this.shaderManager.setUniform("u_material.emissive", new Float32Array([0, 0, 0]));
+    this.shaderManager.setUniform("u_material.hasAlbedoMap", 0);
+    this.shaderManager.setUniform("u_material.hasNormalMap", 0);
+    this.shaderManager.setUniform("u_material.hasMetallicRoughnessMap", 0);
+    this.shaderManager.setUniform("u_material.hasAoMap", 0);
+    this.shaderManager.setUniform("u_material.hasEmissiveMap", 0);
+    this.shaderManager.setUniform("u_viewPos", new Float32Array([0, 1, 6]));
     this.ctx.enable(this.ctx.DEPTH_TEST);
     this.ctx.enable(this.ctx.CULL_FACE);
+    this.ctx.blendFunc(this.ctx.SRC_ALPHA, this.ctx.ONE_MINUS_SRC_ALPHA);
+    this.ctx.enable(this.ctx.BLEND);
   }
   initializeWebGL2() {
     const ctx = this.canvas.getContext("webgl2");
@@ -3313,29 +3327,6 @@ function hslToRgb(h, s, l) {
   }
   return v3(r, g, b);
 }
-function rgbToHue(rgb, range = 1) {
-  const r = rgb.x;
-  const g = rgb.y;
-  const b = rgb.z;
-  const max2 = Math.max(r, g, b);
-  const min2 = Math.min(r, g, b);
-  if (max2 === min2)
-    return 0;
-  const d = max2 - min2;
-  let h = 0;
-  switch (max2) {
-    case r:
-      h = (g - b) / d + (g < b ? 6 : 0);
-      break;
-    case g:
-      h = (b - r) / d + 2;
-      break;
-    case b:
-      h = (r - g) / d + 4;
-      break;
-  }
-  return h / 6 * range;
-}
 
 // ts/classes/webgl2/meshes/sceneObject.ts
 var SceneObject = class {
@@ -3350,6 +3341,7 @@ var SceneObject = class {
     this.drawCount = data.drawCount;
     this.ignoreLighting = (_a = data.ignoreLighting) != null ? _a : false;
     this.pickColor = (_b = props.pickColor) != null ? _b : 0;
+    this.material = props.material;
     this.transform = new Transform();
     if (props.position)
       this.transform.setPosition(props.position);
@@ -3405,6 +3397,43 @@ var SceneObject = class {
         normalMatrix.mat4[10]
       ]);
       this.shaderManager.setUniform("u_normalMatrix", normalMat3);
+    }
+    if (this.material && this.shaderManager.hasUniform("u_material.baseColor")) {
+      this.shaderManager.setUniform("u_material.baseColor", new Float32Array(this.material.baseColor.vec));
+      this.shaderManager.setUniform("u_material.roughness", this.material.roughness);
+      this.shaderManager.setUniform("u_material.metallic", this.material.metallic);
+      this.shaderManager.setUniform("u_material.ambientOcclusion", this.material.ambientOcclusion);
+      this.shaderManager.setUniform("u_material.emissive", new Float32Array(this.material.emissive.vec));
+      this.shaderManager.setUniform("u_material.hasAlbedoMap", this.material.albedoMap ? 1 : 0);
+      this.shaderManager.setUniform("u_material.hasNormalMap", this.material.normalMap ? 1 : 0);
+      this.shaderManager.setUniform("u_material.hasMetallicRoughnessMap", this.material.metallicRoughnessMap ? 1 : 0);
+      this.shaderManager.setUniform("u_material.hasAoMap", this.material.aoMap ? 1 : 0);
+      this.shaderManager.setUniform("u_material.hasEmissiveMap", this.material.emissiveMap ? 1 : 0);
+      if (this.material.albedoMap) {
+        glob.ctx.activeTexture(glob.ctx.TEXTURE0);
+        glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.albedoMap);
+        this.shaderManager.setUniform("u_material.albedoMap", 0);
+      }
+      if (this.material.normalMap) {
+        glob.ctx.activeTexture(glob.ctx.TEXTURE1);
+        glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.normalMap);
+        this.shaderManager.setUniform("u_material.normalMap", 1);
+      }
+      if (this.material.metallicRoughnessMap) {
+        glob.ctx.activeTexture(glob.ctx.TEXTURE2);
+        glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.metallicRoughnessMap);
+        this.shaderManager.setUniform("u_material.metallicRoughnessMap", 2);
+      }
+      if (this.material.aoMap) {
+        glob.ctx.activeTexture(glob.ctx.TEXTURE3);
+        glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.aoMap);
+        this.shaderManager.setUniform("u_material.aoMap", 3);
+      }
+      if (this.material.emissiveMap) {
+        glob.ctx.activeTexture(glob.ctx.TEXTURE4);
+        glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.emissiveMap);
+        this.shaderManager.setUniform("u_material.emissiveMap", 4);
+      }
     }
     this.vao.bind();
     if (this.indexBuffer) {
@@ -3489,6 +3518,30 @@ var BaseMesh = class _BaseMesh extends SceneObject {
       0,
       0
     );
+    if (meshData.tangents) {
+      const tangentBuffer = new VertexBuffer(glob.ctx);
+      tangentBuffer.setData(meshData.tangents);
+      vao.setAttributePointer(
+        SceneObject.getAttributeLocation("tangent"),
+        3,
+        glob.ctx.FLOAT,
+        false,
+        0,
+        0
+      );
+    }
+    if (meshData.bitangents) {
+      const bitangentBuffer = new VertexBuffer(glob.ctx);
+      bitangentBuffer.setData(meshData.bitangents);
+      vao.setAttributePointer(
+        SceneObject.getAttributeLocation("bitangent"),
+        3,
+        glob.ctx.FLOAT,
+        false,
+        0,
+        0
+      );
+    }
     const indexBuffer = new IndexBuffer(glob.ctx);
     indexBuffer.setData(meshData.indices);
     return {
@@ -3504,6 +3557,33 @@ var BaseMesh = class _BaseMesh extends SceneObject {
   }
   constructor(meshData, props = {}) {
     super(_BaseMesh.setupBuffers(meshData, props), props);
+  }
+};
+
+// ts/classes/webgl2/material.ts
+var Material = class {
+  constructor({
+    baseColor = v3(0.8, 0.8, 0.8),
+    roughness = 0.5,
+    metallic = 0,
+    ambientOcclusion = 1,
+    emissive = v3(0, 0, 0),
+    albedoMap,
+    normalMap,
+    metallicRoughnessMap,
+    aoMap,
+    emissiveMap
+  } = {}) {
+    this.baseColor = baseColor;
+    this.roughness = roughness;
+    this.metallic = metallic;
+    this.ambientOcclusion = ambientOcclusion;
+    this.emissive = emissive;
+    this.albedoMap = albedoMap;
+    this.normalMap = normalMap;
+    this.metallicRoughnessMap = metallicRoughnessMap;
+    this.aoMap = aoMap;
+    this.emissiveMap = emissiveMap;
   }
 };
 
@@ -3656,6 +3736,25 @@ var Cone = class extends BaseMesh {
   }
   static create(props = {}) {
     var _a;
+    if (!props.material && props.colors) {
+      let baseColor;
+      if (Array.isArray(props.colors) && Array.isArray(props.colors[0])) {
+        const firstColor = props.colors[0];
+        baseColor = v3(firstColor[0], firstColor[1], firstColor[2]);
+      } else {
+        const singleColor = props.colors;
+        baseColor = v3(singleColor[0], singleColor[1], singleColor[2]);
+      }
+      props = __spreadProps(__spreadValues({}, props), {
+        material: new Material({
+          baseColor,
+          roughness: 0.5,
+          metallic: 0,
+          ambientOcclusion: 1,
+          emissive: v3(0, 0, 0)
+        })
+      });
+    }
     const meshData = this.generateMeshData(
       props.sides || 32,
       (_a = props.smoothShading) != null ? _a : true,
@@ -3946,6 +4045,25 @@ var Cylinder = class extends BaseMesh {
   }
   static create(props = {}) {
     var _a;
+    if (!props.material && props.colors) {
+      let baseColor;
+      if (Array.isArray(props.colors) && Array.isArray(props.colors[0])) {
+        const firstColor = props.colors[0];
+        baseColor = v3(firstColor[0], firstColor[1], firstColor[2]);
+      } else {
+        const singleColor = props.colors;
+        baseColor = v3(singleColor[0], singleColor[1], singleColor[2]);
+      }
+      props = __spreadProps(__spreadValues({}, props), {
+        material: new Material({
+          baseColor,
+          roughness: 0.5,
+          metallic: 0,
+          ambientOcclusion: 1,
+          emissive: v3(0, 0, 0)
+        })
+      });
+    }
     const meshData = this.generateMeshData(props.sides || 32, (_a = props.smoothShading) != null ? _a : true, props.colors);
     return this.createSceneObject(meshData, props);
   }
@@ -4077,14 +4195,34 @@ var _IcoSphere = class _IcoSphere extends BaseMesh {
     const normals = [];
     const generatedColors = [];
     const texCoords = [];
+    const tangents = [];
+    const bitangents = [];
     if (smoothShading) {
       vertices.forEach((v) => {
         flatVertices.push(...v);
-        normals.push(...this.normalize(v));
+        const normal = this.normalize(v);
+        normals.push(...normal);
         generatedColors.push(...color);
         const u = 0.5 + Math.atan2(v[2], v[0]) / (2 * Math.PI);
         const vCoord = 0.5 - Math.asin(v[1]) / Math.PI;
         texCoords.push(u, vCoord);
+        const tangent = [-v[2], 0, v[0]];
+        const tangentLength = Math.sqrt(tangent[0] * tangent[0] + tangent[2] * tangent[2]);
+        if (tangentLength > 0.01) {
+          tangent[0] /= tangentLength;
+          tangent[2] /= tangentLength;
+        } else {
+          tangent[0] = 1;
+          tangent[1] = 0;
+          tangent[2] = 0;
+        }
+        tangents.push(...tangent);
+        const bitangent = [
+          normal[1] * tangent[2] - normal[2] * tangent[1],
+          normal[2] * tangent[0] - normal[0] * tangent[2],
+          normal[0] * tangent[1] - normal[1] * tangent[0]
+        ];
+        bitangents.push(...bitangent);
       });
     } else {
       const newIndices = [];
@@ -4100,6 +4238,8 @@ var _IcoSphere = class _IcoSphere extends BaseMesh {
           dx1 * dy2 - dy1 * dx2
         ]);
         const baseIndex = flatVertices.length / 3;
+        const tangent = [1, 0, 0];
+        const bitangent = [0, 1, 0];
         [v1, v22, v32].forEach((vertex) => {
           flatVertices.push(...vertex);
           normals.push(...normal);
@@ -4107,6 +4247,8 @@ var _IcoSphere = class _IcoSphere extends BaseMesh {
           const u = 0.5 + Math.atan2(vertex[2], vertex[0]) / (2 * Math.PI);
           const vCoord = 0.5 - Math.asin(vertex[1]) / Math.PI;
           texCoords.push(u, vCoord);
+          tangents.push(...tangent);
+          bitangents.push(...bitangent);
         });
         newIndices.push(baseIndex, baseIndex + 1, baseIndex + 2);
       }
@@ -4117,17 +4259,41 @@ var _IcoSphere = class _IcoSphere extends BaseMesh {
       indices: new Uint16Array(indices),
       normals: new Float32Array(normals),
       colors: new Float32Array(generatedColors),
-      texCoords: new Float32Array(texCoords)
+      texCoords: new Float32Array(texCoords),
+      tangents: new Float32Array(tangents),
+      bitangents: new Float32Array(bitangents)
     };
   }
   static create(props = {}) {
     var _a, _b;
+    if (!props.material && props.color) {
+      const baseColor = v3(props.color[0], props.color[1], props.color[2]);
+      props = __spreadProps(__spreadValues({}, props), {
+        material: new Material({
+          baseColor,
+          roughness: 0.5,
+          metallic: 0,
+          ambientOcclusion: 1,
+          emissive: v3(0, 0, 0)
+        })
+      });
+    }
+    let meshColor;
+    if (props.material) {
+      const { baseColor } = props.material;
+      meshColor = [baseColor.x, baseColor.y, baseColor.z];
+    } else if (props.color) {
+      meshColor = props.color;
+    } else {
+      meshColor = [0.8, 0.2, 0.2];
+    }
     const meshData = this.generateMeshData(
       (_a = props.subdivisions) != null ? _a : 0,
       (_b = props.smoothShading) != null ? _b : true,
-      props.color || [0.8, 0.2, 0.2]
+      meshColor
     );
-    return this.createSceneObject(meshData, props);
+    const sceneObject = this.createSceneObject(meshData, props);
+    return sceneObject;
   }
 };
 _IcoSphere.X = 0.5257311121191336;
@@ -4214,7 +4380,7 @@ var IcoSphere = _IcoSphere;
 
 // ts/classes/webgl2/lights/shadowMap.ts
 var ShadowMap = class {
-  constructor(gl, size = 1024) {
+  constructor(gl, size = 2048) {
     this.size = size;
     this.depthTexture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.depthTexture);
@@ -4229,8 +4395,8 @@ var ShadowMap = class {
       gl.FLOAT,
       null
     );
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     this.framebuffer = gl.createFramebuffer();
@@ -4244,11 +4410,20 @@ var ShadowMap = class {
     );
     gl.drawBuffers([gl.NONE]);
     gl.readBuffer(gl.NONE);
+    const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+    if (status !== gl.FRAMEBUFFER_COMPLETE) {
+      console.error("Framebuffer not complete:", status);
+    }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindTexture(gl.TEXTURE_2D, null);
   }
   bind(gl) {
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
     gl.viewport(0, 0, this.size, this.size);
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LESS);
+    gl.depthMask(true);
   }
   bindDepthTexture(gl, textureUnit) {
     gl.activeTexture(gl.TEXTURE0 + textureUnit);
@@ -4287,12 +4462,30 @@ var AmbientLight = class extends Light {
     this.type = 0 /* AMBIENT */;
   }
 };
+var DirectionalLight = class extends Light {
+  constructor({
+    direction = v3(0, -1, 0),
+    color = v3(1, 1, 1),
+    intensity = 1
+  } = {}) {
+    super({ color, intensity });
+    this.direction = direction.normalize();
+    this.type = 1 /* DIRECTIONAL */;
+  }
+  getData() {
+    return __spreadProps(__spreadValues({}, super.getData()), {
+      direction: this.direction
+    });
+  }
+};
 var PointLight = class extends Light {
   constructor({
     position = v3(0, 0, 0),
     color = v3(1, 1, 1),
-    intensity = 1,
-    attenuation = { constant: 1, linear: 0.09, quadratic: 0.032 },
+    intensity = 5,
+    // Increased intensity for PBR
+    attenuation = { constant: 1, linear: 0.22, quadratic: 0.2 },
+    // Better PBR attenuation values
     meshContainer
   } = {}) {
     super({ color, intensity });
@@ -4316,12 +4509,19 @@ var PointLight = class extends Light {
     if (meshContainer) {
       meshContainer.add(this.mesh = IcoSphere.create({
         position,
-        scale: v3(0.1, 0.1, 0.1),
-        color: [0, 0, 0],
-        subdivisions: 0,
+        scale: v3(0.2, 0.2, 0.2),
         smoothShading: true,
+        subdivisions: 2,
         ignoreLighting: true,
-        pickColor: -1
+        pickColor: -1,
+        material: new Material({
+          baseColor: v3(color.x, color.y, color.z),
+          roughness: 0.5,
+          metallic: 0,
+          ambientOcclusion: 1,
+          emissive: v3(color.x, color.y, color.z)
+          // Make the light source self-illuminating
+        })
       }));
     }
   }
@@ -4371,26 +4571,39 @@ var SpotLight = class extends PointLight {
     position = v3(0, 0, 0),
     direction = v3(0, -1, 0),
     color = v3(1, 1, 1),
-    intensity = 1,
+    intensity = 8,
+    // Increased intensity for PBR
     cutOff = Math.cos(Math.PI / 6),
+    // 30 degrees
     outerCutOff = Math.cos(Math.PI / 4),
+    // 45 degrees
     meshContainer
   } = {}) {
-    super({ position, color, intensity, meshContainer });
+    super({
+      position,
+      color,
+      intensity,
+      attenuation: {
+        constant: 1,
+        linear: 0.22,
+        quadratic: 0.2
+      },
+      meshContainer
+    });
     this.rotation = new Quaternion();
     this.cutOff = cutOff;
     this.outerCutOff = outerCutOff;
     this.type = 3 /* SPOT */;
     if (this.mesh) {
       this.arrow = new Arrow(meshContainer, {
-        shaftColor: [0, 0, 0],
-        headColor: [0, 0, 0],
-        length: 0.3,
+        shaftColor: [color.x * 0.8, color.y * 0.8, color.z * 0.8],
+        headColor: [color.x, color.y, color.z],
+        length: 0.5,
         shaftRadius: 0.05,
-        headLength: 0.1,
-        headRadius: 0.1,
-        sides: 4,
-        position: v3(-1, 1, 2),
+        headLength: 0.15,
+        headRadius: 0.12,
+        sides: 8,
+        position: this.position,
         rotation: this.rotation,
         lookAt: v3(0, 0, 0),
         ignoreLighting: true,
@@ -4446,19 +4659,33 @@ var LightManager = class {
   constructor(shaderManager) {
     this.lights = [];
     this.ambientLight = null;
+    this.MAX_LIGHTS = 10;
     this.shaderManager = shaderManager;
+    this.setAmbientLight(new AmbientLight({
+      color: v3(1, 1, 1),
+      intensity: 0.03
+      // Lower default ambient for PBR to emphasize directional lighting
+    }));
   }
+  /**
+   * Sets the ambient light for the scene
+   * For PBR, keep ambient light intensity low (0.01-0.05) to maintain physical accuracy
+   */
   setAmbientLight(light) {
     this.ambientLight = light;
     this.updateShaderUniforms();
   }
+  /**
+   * Adds a light to the scene
+   * Note: For PBR, use higher intensities (5-10) for point and spot lights
+   */
   addLight(light) {
     if (light instanceof AmbientLight) {
       console.warn("Use setAmbientLight() to set the ambient light instead of addLight()");
       return;
     }
-    if (this.lights.length >= 10) {
-      console.warn("Maximum number of lights (10) reached. Light not added.");
+    if (this.lights.length >= this.MAX_LIGHTS) {
+      console.warn("Maximum number of lights (".concat(this.MAX_LIGHTS, ") reached. Light not added."));
       return;
     }
     this.lights.push(light);
@@ -4478,18 +4705,23 @@ var LightManager = class {
   getLights() {
     return this.lights;
   }
+  /**
+   * Updates all light-related shader uniforms
+   * This sets the PBR-optimized values for lights in the shader
+   */
   updateShaderUniforms() {
-    const types = new Int32Array(10);
-    const positions = new Float32Array(30);
-    const directions = new Float32Array(30);
-    const colors = new Float32Array(30);
-    const intensities = new Float32Array(10);
-    const constants = new Float32Array(10);
-    const linears = new Float32Array(10);
-    const quadratics = new Float32Array(10);
-    const cutOffs = new Float32Array(10);
-    const outerCutOffs = new Float32Array(10);
+    const types = new Int32Array(this.MAX_LIGHTS);
+    const positions = new Float32Array(this.MAX_LIGHTS * 3);
+    const directions = new Float32Array(this.MAX_LIGHTS * 3);
+    const colors = new Float32Array(this.MAX_LIGHTS * 3);
+    const intensities = new Float32Array(this.MAX_LIGHTS);
+    const constants = new Float32Array(this.MAX_LIGHTS);
+    const linears = new Float32Array(this.MAX_LIGHTS);
+    const quadratics = new Float32Array(this.MAX_LIGHTS);
+    const cutOffs = new Float32Array(this.MAX_LIGHTS);
+    const outerCutOffs = new Float32Array(this.MAX_LIGHTS);
     types.fill(-1);
+    constants.fill(1);
     if (this.ambientLight) {
       const data = this.ambientLight.getData();
       types[0] = 0 /* AMBIENT */;
@@ -4502,6 +4734,10 @@ var LightManager = class {
     for (let i = 0; i < this.lights.length; i++) {
       const light = this.lights[i];
       const index = i + startIndex;
+      if (index >= this.MAX_LIGHTS) {
+        console.warn("Maximum number of lights (".concat(this.MAX_LIGHTS, ") reached. Some lights will not be rendered."));
+        break;
+      }
       const data = light.getData();
       types[index] = light.getType();
       const colorOffset = index * 3;
@@ -4551,7 +4787,7 @@ var LightManager = class {
         }
       }
     }
-    const numLights = this.lights.length + (this.ambientLight ? 1 : 0);
+    const numLights = Math.min(this.lights.length + (this.ambientLight ? 1 : 0), this.MAX_LIGHTS);
     this.shaderManager.setUniform("u_numLights", numLights);
     this.shaderManager.setUniform("u_lightTypes", types);
     this.shaderManager.setUniform("u_lightPositions", positions);
@@ -4716,9 +4952,13 @@ var Scene = class {
     }
     glob.ctx.bindFramebuffer(glob.ctx.FRAMEBUFFER, null);
     glob.ctx.viewport(0, 0, glob.ctx.canvas.width, glob.ctx.canvas.height);
-    glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT | glob.ctx.DEPTH_BUFFER_BIT);
     glob.ctx.clearColor(...this.clearColor);
-    glob.shaderManager.useProgram("basic");
+    glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT | glob.ctx.DEPTH_BUFFER_BIT);
+    glob.ctx.enable(glob.ctx.DEPTH_TEST);
+    glob.ctx.depthFunc(glob.ctx.LESS);
+    glob.ctx.enable(glob.ctx.BLEND);
+    glob.ctx.blendFunc(glob.ctx.SRC_ALPHA, glob.ctx.ONE_MINUS_SRC_ALPHA);
+    glob.shaderManager.useProgram("pbr");
     this.lightManager.updateShaderUniforms();
     glob.shaderManager.setUniform("u_lightSpaceMatrices", lightSpaceMatrices);
     glob.shaderManager.setUniform("u_castsShadow", castsShadow);
@@ -4726,8 +4966,10 @@ var Scene = class {
       if (light instanceof PointLight) {
         const lightIndex = i + indexOffset;
         const shadowMap = light.getShadowMap();
-        shadowMap.bindDepthTexture(glob.ctx, lightIndex + 1);
-        glob.shaderManager.setUniform("u_shadowMap".concat(lightIndex), lightIndex + 1);
+        shadowMap.bindDepthTexture(glob.ctx, lightIndex + 5);
+        if (lightIndex < 4) {
+          glob.shaderManager.setUniform("u_shadowMap".concat(lightIndex), lightIndex + 5);
+        }
       }
     });
     for (const object of this.objects) {
@@ -4872,27 +5114,6 @@ var Camera = class {
   }
 };
 
-// ts/classes/webgl2/material.ts
-var Material = class {
-  constructor({
-    ambient = v3(0.2, 0.2, 0.2),
-    diffuse = v3(0.8, 0.8, 0.8),
-    specular = v3(1, 1, 1),
-    shininess = 2,
-    diffuseMap,
-    normalMap,
-    specularMap
-  } = {}) {
-    this.ambient = ambient;
-    this.diffuse = diffuse;
-    this.specular = specular;
-    this.shininess = shininess;
-    this.diffuseMap = diffuseMap;
-    this.normalMap = normalMap;
-    this.specularMap = specularMap;
-  }
-};
-
 // ts/classes/webgl2/meshes/plane.ts
 var Plane = class extends BaseMesh {
   static generateIndices(flipNormal) {
@@ -4918,9 +5139,44 @@ var Plane = class extends BaseMesh {
       0
     ]);
   }
+  // Generate tangents for normal mapping
+  static generateTangents() {
+    return new Float32Array([
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0
+    ]);
+  }
+  // Generate bitangents for normal mapping
+  static generateBitangents(flipNormal) {
+    const bitangentZ = flipNormal ? -1 : 1;
+    return new Float32Array([
+      0,
+      0,
+      bitangentZ,
+      0,
+      0,
+      bitangentZ,
+      0,
+      0,
+      bitangentZ,
+      0,
+      0,
+      bitangentZ
+    ]);
+  }
   static generateColors(material) {
     const defaultColor = vec3_exports.fromValues(0.8, 0.8, 0.8);
-    const color = material ? material.diffuse.vec : defaultColor;
+    const color = material ? material.baseColor.vec : defaultColor;
     return new Float32Array([
       color[0],
       color[1],
@@ -4937,12 +5193,15 @@ var Plane = class extends BaseMesh {
     ]);
   }
   static createMeshData(props = {}) {
+    const flipNormal = props.flipNormal || false;
     return {
       vertices: this.vertices,
-      indices: this.generateIndices(props.flipNormal || false),
-      normals: this.generateNormals(props.flipNormal || false),
+      indices: this.generateIndices(flipNormal),
+      normals: this.generateNormals(flipNormal),
       texCoords: this.texCoords,
-      colors: this.generateColors(props.material)
+      colors: this.generateColors(props.material),
+      tangents: this.generateTangents(),
+      bitangents: this.generateBitangents(flipNormal)
     };
   }
   static create(props = {}) {
@@ -4952,20 +5211,6 @@ var Plane = class extends BaseMesh {
     }
     const meshData = this.createMeshData(props);
     const sceneObject = this.createSceneObject(meshData, __spreadProps(__spreadValues({}, props), { scale: v3((_b = (_a = props.scale) == null ? void 0 : _a.x) != null ? _b : 1, 1, (_d = (_c = props.scale) == null ? void 0 : _c.y) != null ? _d : 1) }));
-    if (props.material) {
-      glob.shaderManager.setUniform("u_material.ambient", new Float32Array(props.material.ambient.vec));
-      glob.shaderManager.setUniform("u_material.diffuse", new Float32Array(props.material.diffuse.vec));
-      glob.shaderManager.setUniform("u_material.specular", new Float32Array(props.material.specular.vec));
-      glob.shaderManager.setUniform("u_material.shininess", props.material.shininess);
-      if (props.material.diffuseMap) {
-        glob.shaderManager.setUniform("u_useTexture", 1);
-        glob.ctx.activeTexture(glob.ctx.TEXTURE0);
-        glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, props.material.diffuseMap);
-        glob.shaderManager.setUniform("u_material.diffuseMap", 0);
-      } else {
-        glob.shaderManager.setUniform("u_useTexture", 0);
-      }
-    }
     return sceneObject;
   }
 };
@@ -5036,18 +5281,211 @@ var Cube = class extends BaseMesh {
     });
     return new Float32Array(colorArray);
   }
+  static generateTangents() {
+    const tangents = [
+      // Front face: tangent along x-axis
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      // Back face: tangent along negative x-axis
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      // Right face: tangent along negative z-axis
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      // Left face: tangent along z-axis
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      // Top face: tangent along x-axis
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      // Bottom face: tangent along x-axis
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0
+    ];
+    return new Float32Array(tangents);
+  }
+  static generateBitangents() {
+    const bitangents = [
+      // Front face: bitangent along y-axis
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      // Back face: bitangent along y-axis
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      // Right face: bitangent along y-axis
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      // Left face: bitangent along y-axis
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      // Top face: bitangent along z-axis (negative)
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      // Bottom face: bitangent along z-axis
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1
+    ];
+    return new Float32Array(bitangents);
+  }
   static createMeshData(props = {}) {
+    let meshColors = props.colors;
+    if (props.material && !meshColors) {
+      const { baseColor } = props.material;
+      meshColors = [baseColor.x, baseColor.y, baseColor.z];
+    }
     return {
       vertices: this.vertices,
       indices: this.indices,
       normals: this.normals,
       texCoords: this.texCoords,
-      colors: this.generateColors(props.colors)
+      colors: this.generateColors(meshColors),
+      tangents: this.generateTangents(),
+      bitangents: this.generateBitangents()
     };
   }
   static create(props = {}) {
+    if (!props.material && props.colors) {
+      let baseColor;
+      if (Array.isArray(props.colors[0])) {
+        const firstColor = props.colors[0];
+        baseColor = v3(firstColor[0], firstColor[1], firstColor[2]);
+      } else {
+        const singleColor = props.colors;
+        baseColor = v3(singleColor[0], singleColor[1], singleColor[2]);
+      }
+      props = __spreadProps(__spreadValues({}, props), {
+        material: new Material({
+          baseColor,
+          roughness: 0.5,
+          metallic: 0,
+          ambientOcclusion: 1,
+          emissive: v3(0, 0, 0)
+        })
+      });
+    }
     const meshData = this.createMeshData(props);
-    return this.createSceneObject(meshData, props);
+    const sceneObject = this.createSceneObject(meshData, props);
+    return sceneObject;
   }
 };
 Cube.vertices = new Float32Array([
@@ -5296,6 +5734,42 @@ Cube.texCoords = new Float32Array([
   0,
   1,
   1,
+  1,
+  // Right
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  0,
+  1,
+  // Left
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  // Top
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  0,
+  1,
+  // Bottom
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
   1
 ]);
 
@@ -5307,6 +5781,8 @@ var Wedge = class extends BaseMesh {
     const normals = [];
     const generatedColors = [];
     const texCoords = [];
+    const tangents = [];
+    const bitangents = [];
     const defaultColors = [
       [1, 0, 0],
       // Front triangle - Red
@@ -5415,6 +5891,16 @@ var Wedge = class extends BaseMesh {
     const bottomNormal = [0, -1, 0];
     const leftNormal = [-1, 0, 0];
     const hypotenuseNormal = [0.7071, 0.7071, 0];
+    const frontTangent = [1, 0, 0];
+    const backTangent = [-1, 0, 0];
+    const bottomTangent = [1, 0, 0];
+    const leftTangent = [0, 0, 1];
+    const hypotenuseTangent = [0.7071, -0.7071, 0];
+    const frontBitangent = [0, 1, 0];
+    const backBitangent = [0, 1, 0];
+    const bottomBitangent = [0, 0, -1];
+    const leftBitangent = [0, 1, 0];
+    const hypotenuseBitangent = [0, 0, -1];
     for (let i = 0; i < 3; i++)
       normals.push(...frontNormal);
     for (let i = 0; i < 3; i++)
@@ -5425,6 +5911,26 @@ var Wedge = class extends BaseMesh {
       normals.push(...leftNormal);
     for (let i = 0; i < 4; i++)
       normals.push(...hypotenuseNormal);
+    for (let i = 0; i < 3; i++)
+      tangents.push(...frontTangent);
+    for (let i = 0; i < 3; i++)
+      tangents.push(...backTangent);
+    for (let i = 0; i < 4; i++)
+      tangents.push(...bottomTangent);
+    for (let i = 0; i < 4; i++)
+      tangents.push(...leftTangent);
+    for (let i = 0; i < 4; i++)
+      tangents.push(...hypotenuseTangent);
+    for (let i = 0; i < 3; i++)
+      bitangents.push(...frontBitangent);
+    for (let i = 0; i < 3; i++)
+      bitangents.push(...backBitangent);
+    for (let i = 0; i < 4; i++)
+      bitangents.push(...bottomBitangent);
+    for (let i = 0; i < 4; i++)
+      bitangents.push(...leftBitangent);
+    for (let i = 0; i < 4; i++)
+      bitangents.push(...hypotenuseBitangent);
     for (let i = 0; i < 3; i++)
       generatedColors.push(...faceColors[0]);
     for (let i = 0; i < 3; i++)
@@ -5514,34 +6020,74 @@ var Wedge = class extends BaseMesh {
       indices: new Uint16Array(indices),
       normals: new Float32Array(normals),
       colors: new Float32Array(generatedColors),
-      texCoords: new Float32Array(texCoords)
+      texCoords: new Float32Array(texCoords),
+      tangents: new Float32Array(tangents),
+      bitangents: new Float32Array(bitangents)
     };
   }
   static create(props = {}) {
-    const meshData = this.generateMeshData(props.colors);
-    return this.createSceneObject(meshData, props);
+    if (!props.material && props.colors) {
+      let baseColor;
+      if (Array.isArray(props.colors[0])) {
+        const firstColor = props.colors[0];
+        baseColor = v3(firstColor[0], firstColor[1], firstColor[2]);
+      } else {
+        const singleColor = props.colors;
+        baseColor = v3(singleColor[0], singleColor[1], singleColor[2]);
+      }
+      props = __spreadProps(__spreadValues({}, props), {
+        material: new Material({
+          baseColor,
+          roughness: 0.5,
+          metallic: 0,
+          ambientOcclusion: 1,
+          emissive: v3(0, 0, 0)
+        })
+      });
+    }
+    let meshColors = props.colors;
+    if (props.material && !meshColors) {
+      const { baseColor } = props.material;
+      meshColors = [baseColor.x, baseColor.y, baseColor.z];
+    }
+    const meshData = this.generateMeshData(meshColors);
+    const sceneObject = this.createSceneObject(meshData, props);
+    return sceneObject;
   }
 };
 
 // ts/classes/testLevel.ts
 var TestLevel = class extends Scene {
   constructor() {
-    super(new Camera({ position: v3(0, 1, 6), target: v3(0, 0, 0), fov: 40 }), {
+    super(new Camera({ position: v3(0, 1, 6), target: v3(0, 0, 0), fov: 50 }), {
       ambientLightColor: v3(1, 1, 1),
-      ambientLightIntensity: 0.05
-      // reduced from 0 to allow some ambient light
+      ambientLightIntensity: 1e-3
+      // Increased to illuminate shadowed areas better
     });
-    this.clearColor = [0, 0, 0, 1];
+    this.clearColor = [0.01, 0.01, 0.01, 1];
     const rotation = new Quaternion();
     rotation.setAxisAngle(v3(1, 0, 0), 0);
+    this.keyLight = new DirectionalLight({
+      direction: v3(-0.5, -1, -0.3).normalize(),
+      color: v3(1, 0.98, 0.9),
+      // Slightly warm white
+      intensity: 0.3
+      // Reduced from 1.2
+    });
+    this.addLight(this.keyLight);
     this.add(this.floorPlane = Plane.create({
       position: v3(0, -2, 0),
       scale: v2(10, 10),
       pickColor: 90,
       material: new Material({
-        diffuse: v3(0, 1, 1),
-        specular: v3(1, 1, 1),
-        shininess: 3
+        baseColor: v3(0.7, 0.7, 0.73),
+        // Light gray
+        roughness: 0.3,
+        // Somewhat polished
+        metallic: 0,
+        // Non-metallic
+        ambientOcclusion: 1,
+        emissive: v3(0, 0, 0)
       })
     }));
     this.add(Plane.create({
@@ -5550,30 +6096,38 @@ var TestLevel = class extends Scene {
       rotation: Quaternion.fromEuler(-Math.PI / 2, 0, Math.PI / 2),
       pickColor: 80,
       material: new Material({
-        diffuse: v3(1, 1, 1),
-        specular: v3(1, 1, 1),
-        shininess: 3
+        baseColor: v3(0.95, 0.95, 0.95),
+        // Off-white
+        roughness: 0.85,
+        // Rough plaster
+        metallic: 0,
+        // Non-metallic
+        ambientOcclusion: 1,
+        emissive: v3(0, 0, 0)
       })
     }));
     this.add(this.backPlane = Plane.create({
       position: v3(0, 0.5, 4),
       flipNormal: true,
       scale: v2(5, 10),
-      rotation: Quaternion.fromEuler(-Math.PI / 2, 0, Math.PI / 2),
-      material: new Material({
-        diffuse: v3(1, 1, 1),
-        specular: v3(1, 1, 1),
-        shininess: 3
-      })
+      rotation: Quaternion.fromEuler(-Math.PI / 2, 0, Math.PI / 2)
     }));
     this.add(this.mesh = IcoSphere.create({
-      position: v3(0, 0, 0),
+      position: v3(0, 0, -2.5),
       scale: v3(2.5, 2.5, 2.5),
-      color: [1, 1, 1],
-      smoothShading: false,
-      subdivisions: 0,
-      pickColor: 250
-      // ignoreLighting: true,
+      smoothShading: true,
+      subdivisions: 2,
+      pickColor: 250,
+      material: new Material({
+        baseColor: v3(0.95, 0.95, 0.95),
+        // White to reflect colors better
+        roughness: 0.4,
+        // Very smooth for high reflectivity
+        metallic: 1,
+        // Highly metallic
+        ambientOcclusion: 1,
+        emissive: v3(0, 0, 0)
+      })
     }));
     this.add(this.static = new ContainerObject({
       position: v3(1, 2, -1)
@@ -5592,75 +6146,144 @@ var TestLevel = class extends Scene {
       this.add(IcoSphere.create({
         position: positions[0],
         scale: v3(1.5, 1.5, 1.5),
-        color: [Math.random(), Math.random(), Math.random()],
-        smoothShading: false,
-        subdivisions: 4,
+        smoothShading: true,
+        subdivisions: 2,
         parent: container,
-        pickColor: 10
+        pickColor: 10,
+        material: new Material({
+          baseColor: v3(0.2, 0.7, 0.9),
+          // Light blue
+          roughness: 0.2,
+          // Smooth ceramic
+          metallic: 0,
+          // Non-metallic
+          ambientOcclusion: 1,
+          emissive: v3(0, 0, 0)
+        })
       }));
       this.add(Cube.create({
         position: positions[1],
         scale: v3(1.5, 1.5, 1.5),
-        colors: [Math.random(), Math.random(), Math.random()],
         parent: container,
-        pickColor: 20
+        pickColor: 20,
+        material: new Material({
+          baseColor: v3(0.85, 0.45, 0.35),
+          // Copper color
+          roughness: 0.4,
+          // Slightly rough copper
+          metallic: 0.9,
+          // Highly metallic
+          ambientOcclusion: 1,
+          emissive: v3(0, 0, 0)
+        })
       }));
       this.add(Wedge.create({
         rotation: Quaternion.fromEuler(0, Math.PI / 2, 0),
         position: positions[2],
         scale: v3(1.5, 1.5, 1.5),
-        colors: [Math.random(), Math.random(), Math.random()],
         parent: container,
-        pickColor: 30
+        pickColor: 30,
+        material: new Material({
+          baseColor: v3(0.15, 0.8, 0.15),
+          // Green
+          roughness: 0.9,
+          // Very rough like rubber
+          metallic: 0,
+          // Non-metallic
+          ambientOcclusion: 1,
+          emissive: v3(0, 0, 0)
+        })
       }));
       this.add(Cone.create({
         position: positions[3],
         scale: v3(2, 1.5, 2),
-        colors: [Math.random(), Math.random(), Math.random()],
         rotation: Quaternion.fromEuler(0, Math.PI / 2, 0),
-        smoothShading: false,
-        sides: 3,
+        smoothShading: true,
+        sides: 12,
         parent: container,
-        pickColor: 40
+        pickColor: 40,
+        material: new Material({
+          baseColor: v3(0.8, 0.3, 0.1),
+          // Orange-red
+          roughness: 0.5,
+          // Medium roughness
+          metallic: 0,
+          // Non-metallic
+          ambientOcclusion: 1,
+          emissive: v3(0.7, 0.2, 0)
+          // Strong orange glow
+        })
       }));
       this.add(container);
     }
     this.addLight(new PointLight({
-      position: v3(0, 5, 4),
-      // higher position to cast better shadows
-      color: v3(1, 1, 1),
-      intensity: 0.1,
+      position: v3(2, 5, -2),
+      // Above and behind
+      color: v3(0.9, 0.95, 1),
+      // Slightly cool white
+      intensity: 2.5,
+      // Reduced from 5.0
       meshContainer: this
     }));
     for (let i = 0; i < 3; i++) {
       let vari = ["spotLight", "spotLight2", "spotLight3"][i];
-      let color = [v3(1, 0, 0), v3(0, 0, 1), v3(0, 1, 0)][i];
+      let color = [
+        v3(1, 0, 0),
+        // Pure red
+        v3(0, 0, 1),
+        // Pure blue
+        v3(0, 1, 0)
+        // Pure green
+      ][i];
+      let position = [
+        v3(4, 4, 2),
+        // Red light - right side
+        v3(-4, 3, -2),
+        // Blue light - left back side
+        v3(0, 5, -4)
+        // Green light - back center
+      ][i];
       this[vari] = new SpotLight({
+        position,
         color,
-        intensity: 0.7,
-        cutOff: 0.99,
-        outerCutOff: 0.9
+        intensity: 0,
+        // Much higher intensity
+        cutOff: 0.92,
+        outerCutOff: 0.85,
+        meshContainer: this
       });
+      let target = [
+        v3(-1, 0, 0),
+        // Red light targets left of center
+        v3(1, -1, 0),
+        // Blue light targets right side, lower
+        v3(0, 0, 1)
+        // Green light targets front of scene
+      ][i];
+      this[vari].lookAt(target);
       this.addLight(this[vari]);
     }
     this.spotLight4 = new SpotLight({
+      position: v3(0, 5, 0),
       color: v3(1, 1, 1),
-      intensity: 0.7,
-      cutOff: 0.99,
-      outerCutOff: 0.9
-      // meshContainer: this,
+      // Pure white
+      intensity: 3,
+      // Moderate intensity
+      cutOff: 0.92,
+      outerCutOff: 0.85,
+      meshContainer: this
     });
+    this.spotLight4.lookAt(v3(0, 0, 0));
     this.addLight(this.spotLight4);
+    this.camera.setPosition(this.mesh.transform.getWorldPosition());
+    this.click(v2(0.5, 0.3));
   }
   click(vector2) {
+    super.click(vector2);
     const pos2 = Vector3.screenToWorldPlane(vector2, this.camera, v3(0, 0, 1), 4);
     if (pos2) {
       this.spotLight4.setPosition(pos2);
       this.spotLight4.lookAt(v3(0, 0, 0));
-    }
-    const color = this.getActualColor(vector2.multiply(v2(glob.renderer.width, glob.renderer.height)), 255);
-    if (!color.equals(v3(255, 255, 255))) {
-      console.log(Math.round(rgbToHue(color, 255)));
     }
   }
   tick(obj) {
@@ -5672,24 +6295,40 @@ var TestLevel = class extends Scene {
         rotation.multiply(this.mesh.transform.getLocalRotation())
       );
     }
+    const t = obj.total * 3e-4;
     this.spotLight.setPosition(
-      Math.sin((obj.total + 1e3) * 6e-4) % 1 * 4,
-      Math.sin((obj.total + 8e3) * 2e-3) % 1 * 4 + 3,
-      6
+      4 * Math.sin(t),
+      4 + Math.sin(t * 0.5) * 0.5,
+      // Small vertical movement
+      2 * Math.cos(t * 2)
+      // Figure-8 by using 2x frequency
     );
-    this.spotLight.lookAt(v3(0, 0, 0));
+    this.spotLight.lookAt(v3(-1 + Math.sin(t * 0.2), 0, 0));
     this.spotLight2.setPosition(
-      Math.sin((obj.total + 300) * 15e-4 + 0.3) % 1 * 4,
-      (Math.sin((obj.total + 4e3) * 1e-3) % 1 + 0.6) * 4 + 3,
-      6
+      -4 + Math.cos(t) * 0.7,
+      // Small horizontal movement
+      3 + Math.sin(t * 0.7) * 1.5,
+      // Larger vertical movement
+      -2 + Math.sin(t) * 0.7
+      // Small depth movement
     );
-    this.spotLight2.lookAt(v3(0, 0, 0));
+    this.spotLight2.lookAt(v3(1, -1 + Math.sin(t * 0.3), 0));
     this.spotLight3.setPosition(
-      Math.sin((obj.total + 1e3) * 1e-3) % 1 * 4,
-      (Math.sin((obj.total + 2e3) * 15e-4) % 1 + 0.6) * 4 + 3,
-      6
+      Math.sin(t + Math.PI / 4) * 2,
+      // Horizontal arc
+      5 + Math.cos(t) * 0.5,
+      // Small height change
+      -4 + Math.sin(t * 0.5) * 1.2
+      // Depth movement
     );
-    this.spotLight3.lookAt(v3(0, 0, 0));
+    this.spotLight3.lookAt(v3(0, 0, 1 + Math.sin(t * 0.4)));
+    this.camera.setPosition(
+      v3(
+        Math.sin(obj.total * 8e-4) % 1 * 5,
+        Math.sin(obj.total * 12e-4) % 1 * 1,
+        Math.sin(obj.total * 5e-4) % 1 * 2 + 9
+      )
+    );
   }
 };
 

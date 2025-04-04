@@ -1,6 +1,8 @@
 import { MeshData } from './types';
 import { SceneObject } from './sceneObject';
 import { BaseMesh, BaseMeshProps } from './baseMesh';
+import { v3 } from '../../util/math/vector3';
+import { Material } from '../material';
 
 export interface IcoSphereProps extends BaseMeshProps {
     subdivisions?: number;  // Number of times to subdivide the icosahedron (0-5 recommended)
@@ -98,17 +100,44 @@ export class IcoSphere extends BaseMesh {
         const normals: number[] = [];
         const generatedColors: number[] = [];
         const texCoords: number[] = [];
+        const tangents: number[] = [];
+        const bitangents: number[] = [];
 
         if (smoothShading) {
             // For smooth shading, use vertices directly as normals
             vertices.forEach(v => {
                 flatVertices.push(...v);
-                normals.push(...this.normalize(v));
+                const normal = this.normalize(v);
+                normals.push(...normal);
                 generatedColors.push(...color);
+                
                 // Generate basic texture coordinates based on spherical projection
                 const u = 0.5 + Math.atan2(v[2], v[0]) / (2 * Math.PI);
                 const vCoord = 0.5 - Math.asin(v[1]) / Math.PI;
                 texCoords.push(u, vCoord);
+                
+                // Calculate tangent and bitangent for normal mapping
+                // Tangent is perpendicular to normal and points around the sphere horizontally
+                const tangent = [-v[2], 0, v[0]];
+                const tangentLength = Math.sqrt(tangent[0] * tangent[0] + tangent[2] * tangent[2]);
+                if (tangentLength > 0.01) {
+                    tangent[0] /= tangentLength;
+                    tangent[2] /= tangentLength;
+                } else {
+                    // For poles, use a fixed tangent
+                    tangent[0] = 1;
+                    tangent[1] = 0;
+                    tangent[2] = 0;
+                }
+                tangents.push(...tangent);
+                
+                // Bitangent is cross product of normal and tangent
+                const bitangent = [
+                    normal[1] * tangent[2] - normal[2] * tangent[1],
+                    normal[2] * tangent[0] - normal[0] * tangent[2],
+                    normal[0] * tangent[1] - normal[1] * tangent[0]
+                ];
+                bitangents.push(...bitangent);
             });
         } else {
             // For flat shading, create separate vertices for each face
@@ -130,14 +159,22 @@ export class IcoSphere extends BaseMesh {
                 // Each vertex needs to be duplicated for flat shading
                 const baseIndex = flatVertices.length / 3;
                 
+                // Calculate tangent based on texture coordinates
+                const tangent = [1, 0, 0]; // Default tangent along x-axis for flat shading
+                const bitangent = [0, 1, 0]; // Default bitangent along y-axis
+                
                 // Add vertices in correct winding order
                 [v1, v2, v3].forEach(vertex => {
                     flatVertices.push(...vertex);
                     normals.push(...normal);
                     generatedColors.push(...color);
+                    
                     const u = 0.5 + Math.atan2(vertex[2], vertex[0]) / (2 * Math.PI);
                     const vCoord = 0.5 - Math.asin(vertex[1]) / Math.PI;
                     texCoords.push(u, vCoord);
+                    
+                    tangents.push(...tangent);
+                    bitangents.push(...bitangent);
                 });
 
                 // Add indices for this face
@@ -151,16 +188,53 @@ export class IcoSphere extends BaseMesh {
             indices: new Uint16Array(indices),
             normals: new Float32Array(normals),
             colors: new Float32Array(generatedColors),
-            texCoords: new Float32Array(texCoords)
+            texCoords: new Float32Array(texCoords),
+            tangents: new Float32Array(tangents),
+            bitangents: new Float32Array(bitangents)
         };
     }
 
     public static create(props: Omit<IcoSphereProps, 'colors'> = {}): SceneObject {
+        // Create default material based on color if no material provided
+        if (!props.material && props.color) {
+            const baseColor = v3(props.color[0], props.color[1], props.color[2]);
+            props = {
+                ...props,
+                material: new Material({
+                    baseColor,
+                    roughness: 0.5,
+                    metallic: 0.0,
+                    ambientOcclusion: 1.0,
+                    emissive: v3(0, 0, 0)
+                })
+            };
+        }
+        
+        // Determine which color to use for the mesh generation
+        let meshColor: [number, number, number];
+        if (props.material) {
+            // Use material's baseColor for mesh generation
+            const { baseColor } = props.material;
+            meshColor = [baseColor.x, baseColor.y, baseColor.z];
+        } else if (props.color) {
+            // Use provided color
+            meshColor = props.color;
+        } else {
+            // Default color
+            meshColor = [0.8, 0.2, 0.2];
+        }
+        
         const meshData = this.generateMeshData(
             props.subdivisions ?? 0,
             props.smoothShading ?? true,
-            props.color || [0.8, 0.2, 0.2]
+            meshColor
         );
-        return this.createSceneObject(meshData, props);
+        
+        const sceneObject = this.createSceneObject(meshData, props);
+        
+        // The material is now set in the SceneObject constructor
+        // and applied during each render call
+        
+        return sceneObject;
     }
 } 

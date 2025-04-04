@@ -1,27 +1,42 @@
 import { Light, LightType, DirectionalLight, PointLight, SpotLight, AmbientLight } from './light';
 import { ShaderManager } from '../shaderManager';
+import { v3 } from '../../util/math/vector3';
 
 export class LightManager {
     private lights: Light[] = [];
     private shaderManager: ShaderManager;
     private ambientLight: AmbientLight | null = null;
+    private readonly MAX_LIGHTS = 10;
 
     constructor(shaderManager: ShaderManager) {
         this.shaderManager = shaderManager;
+        // Initialize with a default ambient light
+        this.setAmbientLight(new AmbientLight({
+            color: v3(1, 1, 1),
+            intensity: 0.03 // Lower default ambient for PBR to emphasize directional lighting
+        }));
     }
 
+    /**
+     * Sets the ambient light for the scene
+     * For PBR, keep ambient light intensity low (0.01-0.05) to maintain physical accuracy
+     */
     setAmbientLight(light: AmbientLight) {
         this.ambientLight = light;
         this.updateShaderUniforms();
     }
 
+    /**
+     * Adds a light to the scene
+     * Note: For PBR, use higher intensities (5-10) for point and spot lights
+     */
     addLight(light: Light) {
         if (light instanceof AmbientLight) {
             console.warn('Use setAmbientLight() to set the ambient light instead of addLight()');
             return;
         }
-        if (this.lights.length >= 10) {
-            console.warn('Maximum number of lights (10) reached. Light not added.');
+        if (this.lights.length >= this.MAX_LIGHTS) {
+            console.warn(`Maximum number of lights (${this.MAX_LIGHTS}) reached. Light not added.`);
             return;
         }
         this.lights.push(light);
@@ -44,21 +59,27 @@ export class LightManager {
         return this.lights;
     }
 
+    /**
+     * Updates all light-related shader uniforms
+     * This sets the PBR-optimized values for lights in the shader
+     */
     updateShaderUniforms() {
         // Initialize arrays for each light component
-        const types = new Int32Array(10);
-        const positions = new Float32Array(30); // 10 lights * 3 components
-        const directions = new Float32Array(30);
-        const colors = new Float32Array(30);
-        const intensities = new Float32Array(10);
-        const constants = new Float32Array(10);
-        const linears = new Float32Array(10);
-        const quadratics = new Float32Array(10);
-        const cutOffs = new Float32Array(10);
-        const outerCutOffs = new Float32Array(10);
+        const types = new Int32Array(this.MAX_LIGHTS);
+        const positions = new Float32Array(this.MAX_LIGHTS * 3); // 10 lights * 3 components
+        const directions = new Float32Array(this.MAX_LIGHTS * 3);
+        const colors = new Float32Array(this.MAX_LIGHTS * 3);
+        const intensities = new Float32Array(this.MAX_LIGHTS);
+        const constants = new Float32Array(this.MAX_LIGHTS);
+        const linears = new Float32Array(this.MAX_LIGHTS);
+        const quadratics = new Float32Array(this.MAX_LIGHTS);
+        const cutOffs = new Float32Array(this.MAX_LIGHTS);
+        const outerCutOffs = new Float32Array(this.MAX_LIGHTS);
 
         // Initialize all lights as inactive
         types.fill(-1);
+        // Set default attenuation values
+        constants.fill(1.0);
 
         // Set ambient light first (if exists)
         if (this.ambientLight) {
@@ -79,6 +100,13 @@ export class LightManager {
         for (let i = 0; i < this.lights.length; i++) {
             const light = this.lights[i];
             const index = i + startIndex;
+            
+            // Skip if we've reached the maximum lights
+            if (index >= this.MAX_LIGHTS) {
+                console.warn(`Maximum number of lights (${this.MAX_LIGHTS}) reached. Some lights will not be rendered.`);
+                break;
+            }
+            
             const data = light.getData();
 
             // Set type
@@ -136,7 +164,7 @@ export class LightManager {
         }
 
         // Update shader uniforms
-        const numLights = this.lights.length + (this.ambientLight ? 1 : 0);
+        const numLights = Math.min(this.lights.length + (this.ambientLight ? 1 : 0), this.MAX_LIGHTS);
         this.shaderManager.setUniform('u_numLights', numLights);
         this.shaderManager.setUniform('u_lightTypes', types);
         this.shaderManager.setUniform('u_lightPositions', positions);

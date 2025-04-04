@@ -1,6 +1,8 @@
 import { MeshData } from './types';
 import { BaseMesh, BaseMeshProps } from './baseMesh';
 import { SceneObject } from './sceneObject';
+import { Material } from '../material';
+import { v3 } from '../../util/math/vector3';
 
 export interface CylinderProps extends BaseMeshProps {
     sides?: number;
@@ -272,6 +274,31 @@ export class Cylinder extends BaseMesh {
     }
 
     public static create(props: CylinderProps = {}): SceneObject {
+        // Create default material based on colors if no material provided
+        if (!props.material && props.colors) {
+            let baseColor;
+            if (Array.isArray(props.colors) && Array.isArray(props.colors[0])) {
+                // If array of arrays (multiple colors), use the first one
+                const firstColor = (props.colors as Array<[number, number, number]>)[0];
+                baseColor = v3(firstColor[0], firstColor[1], firstColor[2]);
+            } else {
+                // Single color
+                const singleColor = props.colors as [number, number, number];
+                baseColor = v3(singleColor[0], singleColor[1], singleColor[2]);
+            }
+            
+            props = {
+                ...props,
+                material: new Material({
+                    baseColor,
+                    roughness: 0.5,
+                    metallic: 0.0,
+                    ambientOcclusion: 1.0,
+                    emissive: v3(0, 0, 0)
+                })
+            };
+        }
+        
         const meshData = this.generateMeshData(props.sides || 32, props.smoothShading ?? true, props.colors);
         return this.createSceneObject(meshData, props);
     }

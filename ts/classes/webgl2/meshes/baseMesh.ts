@@ -2,10 +2,12 @@ import { MeshData } from './types';
 import { VertexArray, VertexBuffer, IndexBuffer } from '../buffer';
 import { SceneObject, SceneObjectProps } from './sceneObject';
 import { glob } from '../../../game';
+import { Material } from '../material';
 
 export interface BaseMeshProps extends SceneObjectProps {
     colors?: [number, number, number] | Array<[number, number, number]>;
     ignoreLighting?: boolean;
+    material?: Material;
 }
 
 export abstract class BaseMesh extends SceneObject {
@@ -66,6 +68,34 @@ export abstract class BaseMesh extends SceneObject {
             0,
             0
         );
+
+        // Create and setup tangent buffer if available
+        if (meshData.tangents) {
+            const tangentBuffer = new VertexBuffer(glob.ctx);
+            tangentBuffer.setData(meshData.tangents);
+            vao.setAttributePointer(
+                SceneObject.getAttributeLocation('tangent'),
+                3,
+                glob.ctx.FLOAT,
+                false,
+                0,
+                0
+            );
+        }
+
+        // Create and setup bitangent buffer if available
+        if (meshData.bitangents) {
+            const bitangentBuffer = new VertexBuffer(glob.ctx);
+            bitangentBuffer.setData(meshData.bitangents);
+            vao.setAttributePointer(
+                SceneObject.getAttributeLocation('bitangent'),
+                3,
+                glob.ctx.FLOAT,
+                false,
+                0,
+                0
+            );
+        }
 
         // Create and setup index buffer
         const indexBuffer = new IndexBuffer(glob.ctx);

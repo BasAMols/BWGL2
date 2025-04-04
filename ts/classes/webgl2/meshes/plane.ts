@@ -3,7 +3,6 @@ import { BaseMesh, BaseMeshProps } from './baseMesh';
 import { SceneObject } from './sceneObject';
 import { Material } from '../material';
 import { vec3 } from 'gl-matrix';
-import { glob } from '../../../game';
 import { Vector2 } from '../../util/math/vector2';
 import { v3 } from '../../util/math/vector3';
 
@@ -47,9 +46,32 @@ export class Plane extends BaseMesh {
         0.0, 1.0
     ]);
 
+    // Generate tangents for normal mapping
+    private static generateTangents(): Float32Array {
+        // For a plane, tangents are aligned with x-axis 
+        return new Float32Array([
+            1.0, 0.0, 0.0,
+            1.0, 0.0, 0.0,
+            1.0, 0.0, 0.0,
+            1.0, 0.0, 0.0
+        ]);
+    }
+
+    // Generate bitangents for normal mapping
+    private static generateBitangents(flipNormal: boolean): Float32Array {
+        // For a plane, bitangents should be aligned with z-axis
+        const bitangentZ = flipNormal ? -1.0 : 1.0;
+        return new Float32Array([
+            0.0, 0.0, bitangentZ,
+            0.0, 0.0, bitangentZ,
+            0.0, 0.0, bitangentZ,
+            0.0, 0.0, bitangentZ
+        ]);
+    }
+
     private static generateColors(material?: Material): Float32Array {
         const defaultColor = vec3.fromValues(0.8, 0.8, 0.8); // Default to light gray
-        const color = material ? material.diffuse.vec : defaultColor;
+        const color = material ? material.baseColor.vec : defaultColor;
 
         // Four vertices need the same color
         return new Float32Array([
@@ -61,12 +83,15 @@ export class Plane extends BaseMesh {
     }
 
     private static createMeshData(props: Omit<PlaneProps, 'scale'> = {}): MeshData {
+        const flipNormal = props.flipNormal || false;
         return {
             vertices: this.vertices,
-            indices: this.generateIndices(props.flipNormal || false),
-            normals: this.generateNormals(props.flipNormal || false),
+            indices: this.generateIndices(flipNormal),
+            normals: this.generateNormals(flipNormal),
             texCoords: this.texCoords,
-            colors: this.generateColors(props.material)
+            colors: this.generateColors(props.material),
+            tangents: this.generateTangents(),
+            bitangents: this.generateBitangents(flipNormal)
         };
     }
 
@@ -79,25 +104,9 @@ export class Plane extends BaseMesh {
         const meshData = this.createMeshData(props);
         const sceneObject = this.createSceneObject(meshData, {...props, scale: v3(props.scale?.x ?? 1, 1, props.scale?.y ?? 1)});
 
-        // Set material uniforms
-        if (props.material) {
-            // Set material properties
-            glob.shaderManager.setUniform('u_material.ambient', new Float32Array(props.material.ambient.vec));
-            glob.shaderManager.setUniform('u_material.diffuse', new Float32Array(props.material.diffuse.vec));
-            glob.shaderManager.setUniform('u_material.specular', new Float32Array(props.material.specular.vec));
-            glob.shaderManager.setUniform('u_material.shininess', props.material.shininess);
-
-            if (props.material.diffuseMap) {
-                glob.shaderManager.setUniform('u_useTexture', 1);
-                // Bind texture to texture unit 0
-                glob.ctx.activeTexture(glob.ctx.TEXTURE0);
-                glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, props.material.diffuseMap);
-                glob.shaderManager.setUniform('u_material.diffuseMap', 0); // Use texture unit 0
-            } else {
-                glob.shaderManager.setUniform('u_useTexture', 0);
-            }
-        }
-
+        // The material is now set in the SceneObject constructor
+        // and applied during each render call
+        
         return sceneObject;
     }
 } 

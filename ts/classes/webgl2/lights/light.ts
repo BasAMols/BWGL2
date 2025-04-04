@@ -7,6 +7,7 @@ import { IcoSphere } from '../meshes/icoSphere';
 import { SceneObject } from '../meshes/sceneObject';
 import { Scene } from '../scene';
 import { ShadowMap } from './shadowMap';
+import { Material } from '../material';
 
 export enum LightType {
     AMBIENT = 0,
@@ -106,8 +107,8 @@ export class PointLight extends Light {
     constructor({
         position = v3(0, 0, 0),
         color = v3(1, 1, 1),
-        intensity = 1.0,
-        attenuation = { constant: 1.0, linear: 0.09, quadratic: 0.032 },
+        intensity = 5.0, // Increased intensity for PBR
+        attenuation = { constant: 1.0, linear: 0.22, quadratic: 0.20 }, // Better PBR attenuation values
         meshContainer
     }: {
         position?: Vector3;
@@ -136,14 +137,21 @@ export class PointLight extends Light {
         );
 
         if (meshContainer) {
+            // Create a small emissive sphere to represent the light
             meshContainer.add(this.mesh = IcoSphere.create({
                 position: position,
-                scale: v3(0.1, 0.1, 0.1),
-                color: [0,0,0],
-                subdivisions: 0,
+                scale: v3(0.2, 0.2, 0.2),
                 smoothShading: true,
+                subdivisions: 2,
                 ignoreLighting: true,
                 pickColor: -1,
+                material: new Material({
+                    baseColor: v3(color.x, color.y, color.z),
+                    roughness: 0.5,
+                    metallic: 0.0,
+                    ambientOcclusion: 1.0,
+                    emissive: v3(color.x, color.y, color.z) // Make the light source self-illuminating
+                })
             }));
         }
     }
@@ -201,9 +209,9 @@ export class SpotLight extends PointLight {
         { position = v3(0, 0, 0),
             direction = v3(0, -1, 0),
             color = v3(1, 1, 1),
-            intensity = 1.0,
-            cutOff = Math.cos(Math.PI / 6),
-            outerCutOff = Math.cos(Math.PI / 4),
+            intensity = 8.0, // Increased intensity for PBR
+            cutOff = Math.cos(Math.PI / 6), // 30 degrees
+            outerCutOff = Math.cos(Math.PI / 4), // 45 degrees
             meshContainer
         }: {
             position?: Vector3;
@@ -215,22 +223,35 @@ export class SpotLight extends PointLight {
             meshContainer?: Scene;
         } = {}) {
 
-        super({ position, color, intensity, meshContainer });
+        // Update attenuation for better PBR values
+        super({ 
+            position, 
+            color, 
+            intensity, 
+            attenuation: { 
+                constant: 1.0, 
+                linear: 0.22, 
+                quadratic: 0.20 
+            }, 
+            meshContainer 
+        });
+        
         this.rotation = new Quaternion();
         this.cutOff = cutOff;
         this.outerCutOff = outerCutOff;
         this.type = LightType.SPOT;
 
         if (this.mesh) {
+            // Create a visual indicator for the spotlight direction
             this.arrow = new Arrow(meshContainer, {
-                shaftColor: [0, 0, 0],
-                headColor: [0, 0, 0],
-                length: 0.3,
+                shaftColor: [color.x * 0.8, color.y * 0.8, color.z * 0.8],
+                headColor: [color.x, color.y, color.z],
+                length: 0.5,
                 shaftRadius: 0.05,
-                headLength: 0.1,
-                headRadius: 0.1,
-                sides: 4,
-                position: v3(-1, 1, 2),
+                headLength: 0.15,
+                headRadius: 0.12,
+                sides: 8,
+                position: this.position,
                 rotation: this.rotation,
                 lookAt: v3(0, 0, 0),
                 ignoreLighting: true,

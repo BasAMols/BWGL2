@@ -3,6 +3,8 @@ import { ShaderManager } from './shaderManager';
 import { fragmentShaderSource } from './shaders/fragmentShaderSource';
 import { vertexShaderSource } from './shaders/vertexShaderSource';
 import { shadowVertexShaderSource } from './shaders/shadowVertexShader';
+import { pbrVertexShader } from './shaders/pbrVertexShader';
+import { pbrFragmentShader } from './shaders/pbrFragmentShader';
 
 export class WebGL2Initializer {
     private canvas: HTMLCanvasElement;
@@ -28,6 +30,7 @@ export class WebGL2Initializer {
 
         // Load and use shader programs
         this.shaderManager.loadShaderProgram('basic', vertexShaderSource, fragmentShaderSource);
+        this.shaderManager.loadShaderProgram('pbr', pbrVertexShader, pbrFragmentShader);
         this.shaderManager.loadShaderProgram('shadow', shadowVertexShaderSource, `#version 300 es
             precision highp float;
             out vec4 fragColor;
@@ -35,7 +38,9 @@ export class WebGL2Initializer {
                 // Only depth values are written
             }
         `);
-        this.shaderManager.useProgram('basic');
+        
+        // Use PBR shader as default
+        this.shaderManager.useProgram('pbr');
 
         // Initialize light arrays
         const numLights = 10;
@@ -75,18 +80,28 @@ export class WebGL2Initializer {
         this.shaderManager.setUniform('u_castsShadow', castsShadow);
         this.shaderManager.setUniform('u_lightSpaceMatrices', lightSpaceMatrices);
 
-        // Set default material values
-        this.shaderManager.setUniform('u_material.ambient', new Float32Array([0.2, 0.2, 0.2]));
-        this.shaderManager.setUniform('u_material.diffuse', new Float32Array([0.8, 0.8, 0.8]));
-        this.shaderManager.setUniform('u_material.specular', new Float32Array([1.0, 1.0, 1.0]));
-        this.shaderManager.setUniform('u_material.shininess', 32.0);
-        this.shaderManager.setUniform('u_useTexture', 0);
+        // Enhance ambient lighting and gamma correction
+        this.shaderManager.setUniform('u_material.baseColor', new Float32Array([0.8, 0.8, 0.8]));
+        this.shaderManager.setUniform('u_material.roughness', 0.5);
+        this.shaderManager.setUniform('u_material.metallic', 0.0);
+        this.shaderManager.setUniform('u_material.ambientOcclusion', 1.0);
+        this.shaderManager.setUniform('u_material.emissive', new Float32Array([0.0, 0.0, 0.0]));
+        
+        // Initialize texture flags to false by default
+        this.shaderManager.setUniform('u_material.hasAlbedoMap', 0);
+        this.shaderManager.setUniform('u_material.hasNormalMap', 0);
+        this.shaderManager.setUniform('u_material.hasMetallicRoughnessMap', 0);
+        this.shaderManager.setUniform('u_material.hasAoMap', 0);
+        this.shaderManager.setUniform('u_material.hasEmissiveMap', 0);
 
-        this.shaderManager.setUniform('u_viewPos', new Float32Array([3.0, 2.0, 3.0]));
+        // Set default camera position for better lighting
+        this.shaderManager.setUniform('u_viewPos', new Float32Array([0.0, 1.0, 6.0]));
 
-        // Enable depth testing and backface culling
+        // Enable depth testing, backface culling and proper blending
         this.ctx.enable(this.ctx.DEPTH_TEST);
         this.ctx.enable(this.ctx.CULL_FACE);
+        this.ctx.blendFunc(this.ctx.SRC_ALPHA, this.ctx.ONE_MINUS_SRC_ALPHA);
+        this.ctx.enable(this.ctx.BLEND);
     }
 
     private initializeWebGL2(): WebGL2RenderingContext {
