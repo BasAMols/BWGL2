@@ -303,6 +303,19 @@ export class ShaderManager {
         }
     }
 
+    public hasUniform(name: string): boolean {
+        if (!this.currentProgram) {
+            return false;
+        }
+
+        const uniformMap = this.uniforms.get(this.currentProgram);
+        if (!uniformMap) {
+            return false;
+        }
+
+        return uniformMap.has(name);
+    }
+
     public dispose(): void {
         // Delete all shader programs
         for (const [name, program] of this.shaderPrograms) {

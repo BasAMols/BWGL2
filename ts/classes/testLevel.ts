@@ -14,6 +14,8 @@ import { Cube } from './webgl2/meshes/cube';
 import { Wedge } from './webgl2/meshes/wedge';
 import { Cone } from './webgl2/meshes/cone';
 import { ContainerObject } from './webgl2/meshes/containerObject';
+import { glob } from '../game';
+import { rgbToHue } from './util/math/color';
 
 export class TestLevel extends Scene {
     private mesh: SceneObject;
@@ -41,10 +43,12 @@ export class TestLevel extends Scene {
         this.add(this.floorPlane = Plane.create({
             position: v3(0, -2, 0),
             scale: v2(10, 10),
+            pickColor: 90,
+
             material: new Material({
                 diffuse: v3(0, 1, 1),
                 specular: v3(1, 1, 1),
-                shininess: 3
+                shininess: 3,
             })
         }));
 
@@ -52,10 +56,11 @@ export class TestLevel extends Scene {
             position: v3(0, 0.5, -4),
             scale: v2(5, 10),
             rotation: Quaternion.fromEuler(-Math.PI / 2, 0, Math.PI / 2),
+            pickColor: 80,
             material: new Material({
                 diffuse: v3(1, 1, 1),
                 specular: v3(1, 1, 1),
-                shininess: 3
+                shininess: 3,
             }),
 
         }));
@@ -80,10 +85,9 @@ export class TestLevel extends Scene {
             color: [1, 1, 1],
             smoothShading: false,
             subdivisions: 0,
+            pickColor: 250,
             // ignoreLighting: true,
         }));
-
-
 
         this.add(this.static = new ContainerObject({
             position: v3(1, 2, -1),
@@ -112,12 +116,14 @@ export class TestLevel extends Scene {
                 smoothShading: false,
                 subdivisions: 4,
                 parent: container,
+                pickColor: 10,
             }));
             this.add(Cube.create({
                 position: positions[1],
                 scale: v3(1.5, 1.5, 1.5),
                 colors: [Math.random(), Math.random(), Math.random()],
                 parent: container,
+                pickColor: 20,
             }));
             this.add(Wedge.create({
                 rotation: Quaternion.fromEuler(0, Math.PI / 2, 0),
@@ -125,6 +131,7 @@ export class TestLevel extends Scene {
                 scale: v3(1.5, 1.5, 1.5),
                 colors: [Math.random(), Math.random(), Math.random()],
                 parent: container,
+                pickColor: 30,
             }));
             this.add(Cone.create({
                 position: positions[3],
@@ -134,6 +141,7 @@ export class TestLevel extends Scene {
                 smoothShading: false,
                 sides: 3,
                 parent: container,
+                pickColor: 40,
             }));
             this.add(container);
         }
@@ -179,12 +187,12 @@ export class TestLevel extends Scene {
             intensity: 0.7,
             cutOff: 0.99,
             outerCutOff: 0.9,
-            meshContainer: this,
+            // meshContainer: this,
         });
         this.addLight(this.spotLight4);
     }
 
-            
+
     click(vector2: Vector2) {
         const pos2 = Vector3.screenToWorldPlane(vector2, this.camera, v3(0, 0, 1), 4);
 
@@ -192,6 +200,13 @@ export class TestLevel extends Scene {
             this.spotLight4.setPosition(pos2);
             this.spotLight4.lookAt(v3(0, 0, 0));
         }
+
+        const color = this.getActualColor(vector2.multiply(v2(glob.renderer.width, glob.renderer.height)), 255);
+        if (!color.equals(v3(255, 255, 255))) {
+            console.log(Math.round(rgbToHue(color, 255)));
+
+        }
+
     }
 
 
@@ -207,60 +222,26 @@ export class TestLevel extends Scene {
             );
         }
 
-        // if (this.arrow) {
-        //     this.arrow.transform.setPosition(
-        //         v3(((obj.total *0.0001) % 1) * 8 - 4, 1, 2)
-        //     );
-        //     this.arrow.lookAt(v3(0, 0, 0));
-        // }
         this.spotLight.setPosition(
-            v3(
-                (Math.sin((obj.total + 1000) * 0.0006) % 1) * 4,
-                (Math.sin((obj.total + 8000) * 0.002) % 1) * 4 + 3,
-                6,
-            )
+            (Math.sin((obj.total + 1000) * 0.0006) % 1) * 4,
+            (Math.sin((obj.total + 8000) * 0.002) % 1) * 4 + 3,
+            6
         );
-
         this.spotLight.lookAt(v3(0, 0, 0));
+
         this.spotLight2.setPosition(
-            v3(
-                (Math.sin((obj.total + 300) * 0.0015 + 0.3) % 1) * 4,
-                ((Math.sin((obj.total + 4000) * 0.001) % 1) + 0.6) * 4 + 3,
-                6,
-            )
+            (Math.sin((obj.total + 300) * 0.0015 + 0.3) % 1) * 4,
+            ((Math.sin((obj.total + 4000) * 0.001) % 1) + 0.6) * 4 + 3,
+            6
         );
-
         this.spotLight2.lookAt(v3(0, 0, 0));
+
         this.spotLight3.setPosition(
-            v3(
-                (Math.sin((obj.total + 1000) * 0.001) % 1) * 4,
-                (Math.sin((obj.total + 2000) * 0.0015) % 1) * 4 + 3,
-                6,
-            )
+            (Math.sin((obj.total + 1000) * 0.001) % 1) * 4,
+            ((Math.sin((obj.total + 2000) * 0.0015) % 1) + 0.6) * 4 + 3,
+            6
         );
-
         this.spotLight3.lookAt(v3(0, 0, 0));
-        this.camera.setPosition(
-            v3(
-                (Math.sin(obj.total * 0.0008) % 1) * 5,
-                (Math.sin(obj.total * 0.0012) % 1) * 1,
-                (Math.sin(obj.total * 0.0005) % 1) * 2 + 9,
-            )
-        );
 
-        // const pos = this.static.transform.getScreenPosition(this.camera, false);
-        // glob.game.test2d.style.left = `${Util.clamp(pos.x * glob.renderer.width, 50, glob.renderer.width - 50)}px`;
-        // glob.game.test2d.style.top = `${Util.clamp(pos.y * glob.renderer.height, 50, glob.renderer.height - 50)}px`;
-        // glob.game.test2d.innerText = `${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}`;
-
-        // const pos2 = Vector3.screenToWorldPlane(pos, this.camera, this.backPlane.transform);
-
-        // // console.log(pos2.vec);
-
-        // if (pos2) {
-        //     this.spotLight4.setPosition(pos2);
-        //     this.spotLight4.lookAt(v3(0, 0, 0));
-        //     // this.dynamic.transform.setPosition(pos2);
-        // }
     }
 }

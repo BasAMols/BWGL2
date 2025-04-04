@@ -51,6 +51,7 @@ export class Arrow extends ContainerObject {
             smoothShading: this.props.smoothShading,
             parent: this,
             ignoreLighting: this.props.ignoreLighting,
+            pickColor: this.props.pickColor,
         }));
         scene.add(this.head = Cone.create({
             position: v3(0, shaftLength + this.props.headLength/2, 0),
@@ -60,6 +61,7 @@ export class Arrow extends ContainerObject {
             sides: this.props.sides,
             parent: this,
             ignoreLighting: this.props.ignoreLighting,
+            pickColor: this.props.pickColor,
         }));
         this.setLength(this.props.length);
         if (this.props.lookAt) {

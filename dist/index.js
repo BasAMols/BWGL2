@@ -632,6 +632,16 @@ var ShaderManager = class {
         return 0;
     }
   }
+  hasUniform(name) {
+    if (!this.currentProgram) {
+      return false;
+    }
+    const uniformMap = this.uniforms.get(this.currentProgram);
+    if (!uniformMap) {
+      return false;
+    }
+    return uniformMap.has(name);
+  }
   dispose() {
     for (const [name, program] of this.shaderPrograms) {
       this.gl.deleteProgram(program);
@@ -3276,18 +3286,70 @@ var Transform = class {
   }
 };
 
+// ts/classes/util/math/color.ts
+function hslToRgb(h, s, l) {
+  let r, g, b;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const hue2rgb = (p2, q2, t) => {
+      if (t < 0)
+        t += 1;
+      if (t > 1)
+        t -= 1;
+      if (t < 1 / 6)
+        return p2 + (q2 - p2) * 6 * t;
+      if (t < 1 / 2)
+        return q2;
+      if (t < 2 / 3)
+        return p2 + (q2 - p2) * (2 / 3 - t) * 6;
+      return p2;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1 / 3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1 / 3);
+  }
+  return v3(r, g, b);
+}
+function rgbToHue(rgb, range = 1) {
+  const r = rgb.x;
+  const g = rgb.y;
+  const b = rgb.z;
+  const max2 = Math.max(r, g, b);
+  const min2 = Math.min(r, g, b);
+  if (max2 === min2)
+    return 0;
+  const d = max2 - min2;
+  let h = 0;
+  switch (max2) {
+    case r:
+      h = (g - b) / d + (g < b ? 6 : 0);
+      break;
+    case g:
+      h = (b - r) / d + 2;
+      break;
+    case b:
+      h = (r - g) / d + 4;
+      break;
+  }
+  return h / 6 * range;
+}
+
 // ts/classes/webgl2/meshes/sceneObject.ts
 var SceneObject = class {
   constructor(data, props = {}) {
     this.drawMode = glob.ctx.TRIANGLES;
     this.drawType = glob.ctx.UNSIGNED_SHORT;
     this.ignoreLighting = false;
-    var _a;
+    var _a, _b;
     this.vao = data.vao;
     this.indexBuffer = data.indexBuffer;
     this.shaderManager = glob.shaderManager;
     this.drawCount = data.drawCount;
     this.ignoreLighting = (_a = data.ignoreLighting) != null ? _a : false;
+    this.pickColor = (_b = props.pickColor) != null ? _b : 0;
     this.transform = new Transform();
     if (props.position)
       this.transform.setPosition(props.position);
@@ -3299,29 +3361,51 @@ var SceneObject = class {
       this.transform.setParent(props.parent.transform);
     }
   }
+  set pickColor(value) {
+    if (value === 0) {
+      this.pickColorArray = v3(1, 1, 1);
+    } else if (value === -1) {
+      this.pickColorArray = void 0;
+    } else {
+      this.pickColorArray = hslToRgb(value / 255, 1, 0.5);
+    }
+  }
+  colorMatch(color) {
+    if (!this.pickColorArray)
+      return false;
+    return this.pickColorArray.equals(color);
+  }
   static getAttributeLocation(name) {
     return glob.shaderManager.getAttributeLocation("a_".concat(name));
   }
   render(viewMatrix, projectionMatrix) {
     const modelMatrix = this.transform.getWorldMatrix();
-    this.shaderManager.setUniform("u_modelMatrix", modelMatrix.mat4);
-    this.shaderManager.setUniform("u_viewMatrix", viewMatrix.mat4);
-    this.shaderManager.setUniform("u_projectionMatrix", projectionMatrix.mat4);
-    const normalMatrix = modelMatrix.clone();
-    normalMatrix.invert();
-    normalMatrix.transpose();
-    const normalMat3 = new Float32Array([
-      normalMatrix.mat4[0],
-      normalMatrix.mat4[1],
-      normalMatrix.mat4[2],
-      normalMatrix.mat4[4],
-      normalMatrix.mat4[5],
-      normalMatrix.mat4[6],
-      normalMatrix.mat4[8],
-      normalMatrix.mat4[9],
-      normalMatrix.mat4[10]
-    ]);
-    this.shaderManager.setUniform("u_normalMatrix", normalMat3);
+    if (this.shaderManager.hasUniform("u_modelMatrix")) {
+      this.shaderManager.setUniform("u_modelMatrix", modelMatrix.mat4);
+    }
+    if (this.shaderManager.hasUniform("u_viewMatrix")) {
+      this.shaderManager.setUniform("u_viewMatrix", viewMatrix.mat4);
+    }
+    if (this.shaderManager.hasUniform("u_projectionMatrix")) {
+      this.shaderManager.setUniform("u_projectionMatrix", projectionMatrix.mat4);
+    }
+    if (this.shaderManager.hasUniform("u_normalMatrix")) {
+      const normalMatrix = modelMatrix.clone();
+      normalMatrix.invert();
+      normalMatrix.transpose();
+      const normalMat3 = new Float32Array([
+        normalMatrix.mat4[0],
+        normalMatrix.mat4[1],
+        normalMatrix.mat4[2],
+        normalMatrix.mat4[4],
+        normalMatrix.mat4[5],
+        normalMatrix.mat4[6],
+        normalMatrix.mat4[8],
+        normalMatrix.mat4[9],
+        normalMatrix.mat4[10]
+      ]);
+      this.shaderManager.setUniform("u_normalMatrix", normalMat3);
+    }
     this.vao.bind();
     if (this.indexBuffer) {
       glob.ctx.drawElements(
@@ -3892,7 +3976,8 @@ var Arrow = class extends ContainerObject {
       sides: this.props.sides,
       smoothShading: this.props.smoothShading,
       parent: this,
-      ignoreLighting: this.props.ignoreLighting
+      ignoreLighting: this.props.ignoreLighting,
+      pickColor: this.props.pickColor
     }));
     scene.add(this.head = Cone.create({
       position: v3(0, shaftLength + this.props.headLength / 2, 0),
@@ -3901,7 +3986,8 @@ var Arrow = class extends ContainerObject {
       smoothShading: this.props.smoothShading,
       sides: this.props.sides,
       parent: this,
-      ignoreLighting: this.props.ignoreLighting
+      ignoreLighting: this.props.ignoreLighting,
+      pickColor: this.props.pickColor
     }));
     this.setLength(this.props.length);
     if (this.props.lookAt) {
@@ -4234,7 +4320,8 @@ var PointLight = class extends Light {
         color: [0, 0, 0],
         subdivisions: 0,
         smoothShading: true,
-        ignoreLighting: true
+        ignoreLighting: true,
+        pickColor: -1
       }));
     }
   }
@@ -4306,7 +4393,8 @@ var SpotLight = class extends PointLight {
         position: v3(-1, 1, 2),
         rotation: this.rotation,
         lookAt: v3(0, 0, 0),
-        ignoreLighting: true
+        ignoreLighting: true,
+        pickColor: -1
       });
     }
     if (direction) {
@@ -4332,10 +4420,14 @@ var SpotLight = class extends PointLight {
       this.arrow.lookAt(target);
     }
   }
-  setPosition(position) {
-    super.setPosition(position);
+  setPosition(x, y, z) {
+    if (typeof x === "number") {
+      super.setPosition(v3(x, y, z));
+    } else {
+      super.setPosition(x);
+    }
     if (this.arrow) {
-      this.arrow.transform.setPosition(position);
+      this.arrow.transform.setPosition(super.getPosition());
     }
   }
   getPosition() {
@@ -4474,11 +4566,21 @@ var LightManager = class {
   }
 };
 
+// ts/classes/webgl2/shaders/colorPickingShader.ts
+var colorPickingVertexShader = "#version 300 es\nin vec3 a_position;\n\nuniform mat4 u_modelMatrix;\nuniform mat4 u_viewMatrix;\nuniform mat4 u_projectionMatrix;\n\nvoid main() {\n    gl_Position = u_projectionMatrix * u_viewMatrix * u_modelMatrix * vec4(a_position, 1.0);\n}";
+var colorPickingFragmentShader = "#version 300 es\nprecision highp float;\n\nuniform vec3 u_pickingColor;\nout vec4 fragColor;\n\nvoid main() {\n    fragColor = vec4(u_pickingColor, 1.0);\n}";
+
 // ts/classes/webgl2/scene.ts
 var Scene = class {
   constructor(camera, options = {}) {
     this.objects = [];
     this.clearColor = [0, 0, 0, 1];
+    this.showColorPicking = true;
+    // Debug flag to show color picking
+    // Picking framebuffer setup
+    this.pickingFramebuffer = null;
+    this.pickingTexture = null;
+    this.pickingDepthBuffer = null;
     this.showShadowMap = false;
     this.frameCount = 0;
     var _a;
@@ -4487,6 +4589,8 @@ var Scene = class {
     const ambientColor = options.ambientLightColor || v3(1, 1, 1);
     const ambientIntensity = (_a = options.ambientLightIntensity) != null ? _a : 0.1;
     this.ambientLight = new AmbientLight({ color: ambientColor, intensity: ambientIntensity });
+    glob.shaderManager.loadShaderProgram("picking", colorPickingVertexShader, colorPickingFragmentShader);
+    this.initializePickingBuffers();
     glob.events.resize.subscribe("level", this.resize.bind(this));
   }
   get ambientLight() {
@@ -4498,6 +4602,53 @@ var Scene = class {
   }
   click(vector2) {
     this.lastClick = vector2;
+  }
+  initializePickingBuffers() {
+    const gl = glob.ctx;
+    this.pickingFramebuffer = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.pickingFramebuffer);
+    this.pickingTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.pickingTexture);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      gl.canvas.width,
+      gl.canvas.height,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      null
+    );
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    this.pickingDepthBuffer = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, this.pickingDepthBuffer);
+    gl.renderbufferStorage(
+      gl.RENDERBUFFER,
+      gl.DEPTH_COMPONENT16,
+      gl.canvas.width,
+      gl.canvas.height
+    );
+    gl.framebufferTexture2D(
+      gl.FRAMEBUFFER,
+      gl.COLOR_ATTACHMENT0,
+      gl.TEXTURE_2D,
+      this.pickingTexture,
+      0
+    );
+    gl.framebufferRenderbuffer(
+      gl.FRAMEBUFFER,
+      gl.DEPTH_ATTACHMENT,
+      gl.RENDERBUFFER,
+      this.pickingDepthBuffer
+    );
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+      console.error("Picking framebuffer is not complete");
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, null);
   }
   add(object) {
     this.objects.push(object);
@@ -4512,6 +4663,24 @@ var Scene = class {
     return this.lightManager.getLights();
   }
   render() {
+    const gl = glob.ctx;
+    const viewMatrix = this.camera.getViewMatrix();
+    const projectionMatrix = this.camera.getProjectionMatrix();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.pickingFramebuffer);
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.clearColor(0, 0, 0, 1);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    glob.shaderManager.useProgram("picking");
+    for (const object of this.objects) {
+      if (!object.vao || object.pickColorArray === void 0)
+        continue;
+      glob.shaderManager.setUniform("u_pickingColor", new Float32Array(object.pickColorArray.vec));
+      object.render(viewMatrix, projectionMatrix);
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
     const shadowCastingLights = this.getLights().filter((light) => light instanceof PointLight);
     const castsShadow = new Int32Array(10);
     const lightSpaceMatrices = new Float32Array(10 * 16);
@@ -4550,8 +4719,6 @@ var Scene = class {
     glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT | glob.ctx.DEPTH_BUFFER_BIT);
     glob.ctx.clearColor(...this.clearColor);
     glob.shaderManager.useProgram("basic");
-    const viewMatrix = this.camera.getViewMatrix();
-    const projectionMatrix = this.camera.getProjectionMatrix();
     this.lightManager.updateShaderUniforms();
     glob.shaderManager.setUniform("u_lightSpaceMatrices", lightSpaceMatrices);
     glob.shaderManager.setUniform("u_castsShadow", castsShadow);
@@ -4583,6 +4750,58 @@ var Scene = class {
   }
   resize() {
     this.camera.updateProjectionMatrix();
+    const gl = glob.ctx;
+    gl.bindTexture(gl.TEXTURE_2D, this.pickingTexture);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      gl.canvas.width,
+      gl.canvas.height,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      null
+    );
+    gl.bindRenderbuffer(gl.RENDERBUFFER, this.pickingDepthBuffer);
+    gl.renderbufferStorage(
+      gl.RENDERBUFFER,
+      gl.DEPTH_COMPONENT16,
+      gl.canvas.width,
+      gl.canvas.height
+    );
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+  }
+  getActualColor(vector2, range = 1) {
+    const gl = glob.ctx;
+    const pixelData = new Uint8Array(4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.pickingFramebuffer);
+    const rect = gl.canvas.getBoundingClientRect();
+    const x = Math.round(vector2.x - rect.left);
+    const y = Math.round(gl.canvas.height - (vector2.y - rect.top));
+    gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixelData);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    let color = v3(
+      pixelData[0],
+      pixelData[1],
+      pixelData[2]
+    );
+    if (range === 1) {
+      color = color.scale(1 / 255);
+    }
+    return color;
+  }
+  getColor(vector2) {
+    const color = this.getActualColor(vector2);
+    if (color.equals(v3(0, 0, 0)) || color.equals(v3(1, 1, 1)))
+      return void 0;
+    for (const object of this.objects) {
+      if (object.colorMatch(color)) {
+        return object;
+      }
+    }
+    return void 0;
   }
   addLight(light) {
     if (light instanceof AmbientLight) {
@@ -4599,6 +4818,10 @@ var Scene = class {
     this.lightManager.removeLight(light);
   }
   update(data) {
+  }
+  // Add method to toggle color picking visualization
+  toggleColorPicking() {
+    this.showColorPicking = !this.showColorPicking;
   }
 };
 
@@ -5314,6 +5537,7 @@ var TestLevel = class extends Scene {
     this.add(this.floorPlane = Plane.create({
       position: v3(0, -2, 0),
       scale: v2(10, 10),
+      pickColor: 90,
       material: new Material({
         diffuse: v3(0, 1, 1),
         specular: v3(1, 1, 1),
@@ -5324,6 +5548,7 @@ var TestLevel = class extends Scene {
       position: v3(0, 0.5, -4),
       scale: v2(5, 10),
       rotation: Quaternion.fromEuler(-Math.PI / 2, 0, Math.PI / 2),
+      pickColor: 80,
       material: new Material({
         diffuse: v3(1, 1, 1),
         specular: v3(1, 1, 1),
@@ -5346,7 +5571,8 @@ var TestLevel = class extends Scene {
       scale: v3(2.5, 2.5, 2.5),
       color: [1, 1, 1],
       smoothShading: false,
-      subdivisions: 0
+      subdivisions: 0,
+      pickColor: 250
       // ignoreLighting: true,
     }));
     this.add(this.static = new ContainerObject({
@@ -5369,20 +5595,23 @@ var TestLevel = class extends Scene {
         color: [Math.random(), Math.random(), Math.random()],
         smoothShading: false,
         subdivisions: 4,
-        parent: container
+        parent: container,
+        pickColor: 10
       }));
       this.add(Cube.create({
         position: positions[1],
         scale: v3(1.5, 1.5, 1.5),
         colors: [Math.random(), Math.random(), Math.random()],
-        parent: container
+        parent: container,
+        pickColor: 20
       }));
       this.add(Wedge.create({
         rotation: Quaternion.fromEuler(0, Math.PI / 2, 0),
         position: positions[2],
         scale: v3(1.5, 1.5, 1.5),
         colors: [Math.random(), Math.random(), Math.random()],
-        parent: container
+        parent: container,
+        pickColor: 30
       }));
       this.add(Cone.create({
         position: positions[3],
@@ -5391,7 +5620,8 @@ var TestLevel = class extends Scene {
         rotation: Quaternion.fromEuler(0, Math.PI / 2, 0),
         smoothShading: false,
         sides: 3,
-        parent: container
+        parent: container,
+        pickColor: 40
       }));
       this.add(container);
     }
@@ -5417,8 +5647,8 @@ var TestLevel = class extends Scene {
       color: v3(1, 1, 1),
       intensity: 0.7,
       cutOff: 0.99,
-      outerCutOff: 0.9,
-      meshContainer: this
+      outerCutOff: 0.9
+      // meshContainer: this,
     });
     this.addLight(this.spotLight4);
   }
@@ -5427,6 +5657,10 @@ var TestLevel = class extends Scene {
     if (pos2) {
       this.spotLight4.setPosition(pos2);
       this.spotLight4.lookAt(v3(0, 0, 0));
+    }
+    const color = this.getActualColor(vector2.multiply(v2(glob.renderer.width, glob.renderer.height)), 255);
+    if (!color.equals(v3(255, 255, 255))) {
+      console.log(Math.round(rgbToHue(color, 255)));
     }
   }
   tick(obj) {
@@ -5439,36 +5673,23 @@ var TestLevel = class extends Scene {
       );
     }
     this.spotLight.setPosition(
-      v3(
-        Math.sin((obj.total + 1e3) * 6e-4) % 1 * 4,
-        Math.sin((obj.total + 8e3) * 2e-3) % 1 * 4 + 3,
-        6
-      )
+      Math.sin((obj.total + 1e3) * 6e-4) % 1 * 4,
+      Math.sin((obj.total + 8e3) * 2e-3) % 1 * 4 + 3,
+      6
     );
     this.spotLight.lookAt(v3(0, 0, 0));
     this.spotLight2.setPosition(
-      v3(
-        Math.sin((obj.total + 300) * 15e-4 + 0.3) % 1 * 4,
-        (Math.sin((obj.total + 4e3) * 1e-3) % 1 + 0.6) * 4 + 3,
-        6
-      )
+      Math.sin((obj.total + 300) * 15e-4 + 0.3) % 1 * 4,
+      (Math.sin((obj.total + 4e3) * 1e-3) % 1 + 0.6) * 4 + 3,
+      6
     );
     this.spotLight2.lookAt(v3(0, 0, 0));
     this.spotLight3.setPosition(
-      v3(
-        Math.sin((obj.total + 1e3) * 1e-3) % 1 * 4,
-        Math.sin((obj.total + 2e3) * 15e-4) % 1 * 4 + 3,
-        6
-      )
+      Math.sin((obj.total + 1e3) * 1e-3) % 1 * 4,
+      (Math.sin((obj.total + 2e3) * 15e-4) % 1 + 0.6) * 4 + 3,
+      6
     );
     this.spotLight3.lookAt(v3(0, 0, 0));
-    this.camera.setPosition(
-      v3(
-        Math.sin(obj.total * 8e-4) % 1 * 5,
-        Math.sin(obj.total * 12e-4) % 1 * 1,
-        Math.sin(obj.total * 5e-4) % 1 * 2 + 9
-      )
-    );
   }
 };
 

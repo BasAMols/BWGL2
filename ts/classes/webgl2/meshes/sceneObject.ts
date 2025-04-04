@@ -2,10 +2,10 @@ import { VertexArray, IndexBuffer } from '../buffer';
 import { ShaderManager } from '../shaderManager';
 import { glob } from '../../../game';
 import { Matrix4 } from '../../util/math/matrix4';
-import { Vector3 } from '../../util/math/vector3';
+import { v3, Vector3 } from '../../util/math/vector3';
 import { Transform } from '../../util/math/transform';
 import { Quaternion } from '../../util/math/quaternion';
-
+import { hslToRgb } from '../../util/math/color';
 export interface SceneObjectData {
     vao: VertexArray;
     indexBuffer: IndexBuffer;
@@ -22,6 +22,7 @@ export interface SceneObjectProps {
     rotation?: Quaternion;
     parent?: SceneObject;
     ignoreLighting?: boolean;
+    pickColor?: number;
 }
 
 export class SceneObject implements SceneObjectData {
@@ -33,7 +34,20 @@ export class SceneObject implements SceneObjectData {
     public readonly drawCount: number;
     public readonly drawType: number = glob.ctx.UNSIGNED_SHORT;
     public readonly ignoreLighting: boolean = false;
-
+    private set pickColor(value: number) {
+        if (value === 0) {
+            this.pickColorArray = v3(1, 1, 1);
+        } else if (value === -1) {
+            this.pickColorArray = undefined;
+        } else {
+            this.pickColorArray = hslToRgb(value/255, 1, 0.5);
+        }
+    }
+    public pickColorArray: Vector3 | undefined;
+    public colorMatch(color: Vector3): boolean {
+        if (!this.pickColorArray) return false;
+        return this.pickColorArray.equals(color);
+    }
     public static getAttributeLocation(name: string): number {
         return glob.shaderManager.getAttributeLocation(`a_${name}`);
     }
@@ -44,6 +58,7 @@ export class SceneObject implements SceneObjectData {
         this.shaderManager = glob.shaderManager;
         this.drawCount = data.drawCount;
         this.ignoreLighting = data.ignoreLighting ?? false;
+        this.pickColor = props.pickColor ?? 0;
 
         this.transform = new Transform();
         if (props.position) this.transform.setPosition(props.position);
@@ -57,21 +72,29 @@ export class SceneObject implements SceneObjectData {
     public render(viewMatrix: Matrix4, projectionMatrix: Matrix4) {
         const modelMatrix = this.transform.getWorldMatrix();
 
-        // Set uniforms
-        this.shaderManager.setUniform('u_modelMatrix', modelMatrix.mat4 as Float32Array);
-        this.shaderManager.setUniform('u_viewMatrix', viewMatrix.mat4 as Float32Array);
-        this.shaderManager.setUniform('u_projectionMatrix', projectionMatrix.mat4 as Float32Array);
+        // Set transform uniforms if they exist in the current shader
+        if (this.shaderManager.hasUniform('u_modelMatrix')) {
+            this.shaderManager.setUniform('u_modelMatrix', modelMatrix.mat4 as Float32Array);
+        }
+        if (this.shaderManager.hasUniform('u_viewMatrix')) {
+            this.shaderManager.setUniform('u_viewMatrix', viewMatrix.mat4 as Float32Array);
+        }
+        if (this.shaderManager.hasUniform('u_projectionMatrix')) {
+            this.shaderManager.setUniform('u_projectionMatrix', projectionMatrix.mat4 as Float32Array);
+        }
 
-        // Calculate and set normal matrix (inverse transpose of model matrix)
-        const normalMatrix = modelMatrix.clone();
-        normalMatrix.invert();
-        normalMatrix.transpose();
-        const normalMat3 = new Float32Array([
-            normalMatrix.mat4[0], normalMatrix.mat4[1], normalMatrix.mat4[2],
-            normalMatrix.mat4[4], normalMatrix.mat4[5], normalMatrix.mat4[6],
-            normalMatrix.mat4[8], normalMatrix.mat4[9], normalMatrix.mat4[10]
-        ]);
-        this.shaderManager.setUniform('u_normalMatrix', normalMat3);
+        // Only calculate and set normal matrix if the shader needs it
+        if (this.shaderManager.hasUniform('u_normalMatrix')) {
+            const normalMatrix = modelMatrix.clone();
+            normalMatrix.invert();
+            normalMatrix.transpose();
+            const normalMat3 = new Float32Array([
+                normalMatrix.mat4[0], normalMatrix.mat4[1], normalMatrix.mat4[2],
+                normalMatrix.mat4[4], normalMatrix.mat4[5], normalMatrix.mat4[6],
+                normalMatrix.mat4[8], normalMatrix.mat4[9], normalMatrix.mat4[10]
+            ]);
+            this.shaderManager.setUniform('u_normalMatrix', normalMat3);
+        }
 
         // Bind VAO
         this.vao.bind();

@@ -143,6 +143,7 @@ export class PointLight extends Light {
                 subdivisions: 0,
                 smoothShading: true,
                 ignoreLighting: true,
+                pickColor: -1,
             }));
         }
     }
@@ -233,6 +234,7 @@ export class SpotLight extends PointLight {
                 rotation: this.rotation,
                 lookAt: v3(0, 0, 0),
                 ignoreLighting: true,
+                pickColor: -1,
             });
         }
 
@@ -269,10 +271,16 @@ export class SpotLight extends PointLight {
         }
     }
 
-    public setPosition(position: Vector3) {
-        super.setPosition(position);
+    public setPosition(x: number, y: number, z: number): void;
+    public setPosition(position: Vector3): void;
+    public setPosition(x: number | Vector3, y?: number, z?: number): void {
+        if (typeof x === 'number') {
+            super.setPosition(v3(x, y, z));
+        } else {
+            super.setPosition(x);
+        }
         if (this.arrow) {
-            this.arrow.transform.setPosition(position);
+            this.arrow.transform.setPosition(super.getPosition());
         }
     }
 
