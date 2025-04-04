@@ -90,7 +90,7 @@ export class Scene {
 
             // Render scene from light's perspective
             for (const object of this.objects) {
-                if (object.vao) {
+                if (object.vao && !object.ignoreLighting) {
                     glob.shaderManager.setUniform('u_modelMatrix', object.transform.getWorldMatrix().mat4);
                     object.vao.bind();
                     if (object.indexBuffer) {

@@ -11,7 +11,8 @@ export class ContainerObject extends SceneObject {
         const dummyData = {
             vao: null as any,
             indexBuffer: null as any,
-            drawCount: 0
+            drawCount: 0,
+            ignoreLighting: false
         };
         
         super(dummyData, props);

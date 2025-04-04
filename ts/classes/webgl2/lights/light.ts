@@ -1,7 +1,10 @@
 import { glob } from '../../../game';
 import { Matrix4 } from '../../util/math/matrix4';
+import { Quaternion } from '../../util/math/quaternion';
 import { v3, Vector3 } from '../../util/math/vector3';
+import { Arrow } from '../meshes/arrow';
 import { IcoSphere } from '../meshes/icoSphere';
+import { SceneObject } from '../meshes/sceneObject';
 import { Scene } from '../scene';
 import { ShadowMap } from './shadowMap';
 
@@ -92,18 +95,19 @@ export class DirectionalLight extends Light {
 }
 
 export class PointLight extends Light {
-    private position: Vector3;
-    private constant: number;
-    private linear: number;
-    private quadratic: number;
-    private shadowMap: ShadowMap;
-    private lightProjection: Matrix4;
+    protected position: Vector3;
+    protected constant: number;
+    protected linear: number;
+    protected quadratic: number;
+    protected shadowMap: ShadowMap;
+    protected lightProjection: Matrix4;
+    protected mesh: SceneObject;
 
     constructor({
         position = v3(0, 0, 0),
         color = v3(1, 1, 1),
         intensity = 1.0,
-        attenuation = {constant: 1.0, linear: 0.09, quadratic: 0.032},
+        attenuation = { constant: 1.0, linear: 0.09, quadratic: 0.032 },
         meshContainer
     }: {
         position?: Vector3;
@@ -112,8 +116,8 @@ export class PointLight extends Light {
         attenuation?: {
             constant: number;
             linear: number;
-            quadratic: number; 
-        }
+            quadratic: number;
+        };
         meshContainer?: Scene;
     } = {}) {
         super({ color, intensity });
@@ -132,14 +136,26 @@ export class PointLight extends Light {
         );
 
         if (meshContainer) {
-            meshContainer.add(IcoSphere.create({
+            meshContainer.add(this.mesh = IcoSphere.create({
                 position: position,
                 scale: v3(0.1, 0.1, 0.1),
-                color: color.array,
+                color: [0,0,0],
                 subdivisions: 0,
                 smoothShading: true,
+                ignoreLighting: true,
             }));
         }
+    }
+
+    public setPosition(position: Vector3) {
+        this.position = position;
+        if (this.mesh) {
+            this.mesh.transform.setPosition(position);
+        }
+    }
+
+    public getPosition(): Vector3 {
+        return this.position;
     }
 
     getData(): PointLightData {
@@ -175,9 +191,10 @@ export class PointLight extends Light {
 }
 
 export class SpotLight extends PointLight {
-    private direction: Vector3;
+    private rotation: Quaternion;
     private cutOff: number;
     private outerCutOff: number;
+    arrow: Arrow;
 
     constructor(
         { position = v3(0, 0, 0),
@@ -198,18 +215,76 @@ export class SpotLight extends PointLight {
         } = {}) {
 
         super({ position, color, intensity, meshContainer });
-        this.direction = direction.normalize();
+        this.rotation = new Quaternion();
         this.cutOff = cutOff;
         this.outerCutOff = outerCutOff;
         this.type = LightType.SPOT;
+
+        if (this.mesh) {
+            this.arrow = new Arrow(meshContainer, {
+                shaftColor: [0, 0, 0],
+                headColor: [0, 0, 0],
+                length: 0.3,
+                shaftRadius: 0.05,
+                headLength: 0.1,
+                headRadius: 0.1,
+                sides: 4,
+                position: v3(-1, 1, 2),
+                rotation: this.rotation,
+                lookAt: v3(0, 0, 0),
+                ignoreLighting: true,
+            });
+        }
+
+        if (direction) {
+            this.lookAt(position.add(direction));
+        }
     }
 
     getData(): SpotLightData {
+        // Convert rotation to direction vector
+        const defaultDir = v3(0, -1, 0);
+        const direction = defaultDir.applyQuaternion(this.rotation);
+
         return {
             ...super.getData(),
-            direction: this.direction,
+            direction: direction,
             cutOff: this.cutOff,
             outerCutOff: this.outerCutOff
         };
+    }
+
+    public lookAt(target: Vector3) {
+        const direction = target.subtract(this.position).normalize();
+
+        // Calculate rotation axis and angle
+        const defaultDir = v3(0, -1, 0); // Light points down by default
+        const rotationAxis = defaultDir.cross(direction).normalize();
+        const angle = Math.acos(defaultDir.y * direction.y + defaultDir.x * direction.x + defaultDir.z * direction.z);
+
+        this.rotation = new Quaternion().setAxisAngle(rotationAxis, angle);
+
+        if (this.arrow) {
+            this.arrow.lookAt(target);
+        }
+    }
+
+    public setPosition(position: Vector3) {
+        super.setPosition(position);
+        if (this.arrow) {
+            this.arrow.transform.setPosition(position);
+        }
+    }
+
+    public getPosition(): Vector3 {
+        return this.position;
+    }
+
+    public getRotation(): Quaternion {
+        return this.rotation.clone();
+    }
+
+    public setRotation(rotation: Quaternion) {
+        this.rotation = rotation;
     }
 } 

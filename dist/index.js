@@ -1240,6 +1240,24 @@ var Vector3 = class _Vector3 {
       this.z * len2
     );
   }
+  applyQuaternion(q) {
+    const x = this.x;
+    const y = this.y;
+    const z = this.z;
+    const qx = q.x;
+    const qy = q.y;
+    const qz = q.z;
+    const qw = q.w;
+    const ix = qw * x + qy * z - qz * y;
+    const iy = qw * y + qz * x - qx * z;
+    const iz = qw * z + qx * y - qy * x;
+    const iw = -qx * x - qy * y - qz * z;
+    return new _Vector3(
+      ix * qw + iw * -qx + iy * -qz - iz * -qy,
+      iy * qw + iw * -qy + iz * -qx - ix * -qz,
+      iz * qw + iw * -qz + ix * -qy - iy * -qx
+    );
+  }
   cross(other) {
     return new _Vector3(
       this.y * other.z - this.z * other.y,
@@ -3190,10 +3208,13 @@ var SceneObject = class {
   constructor(data, props = {}) {
     this.drawMode = glob.ctx.TRIANGLES;
     this.drawType = glob.ctx.UNSIGNED_SHORT;
+    this.ignoreLighting = false;
+    var _a;
     this.vao = data.vao;
     this.indexBuffer = data.indexBuffer;
     this.shaderManager = glob.shaderManager;
     this.drawCount = data.drawCount;
+    this.ignoreLighting = (_a = data.ignoreLighting) != null ? _a : false;
     this.transform = new Transform();
     if (props.position)
       this.transform.setPosition(props.position);
@@ -3247,9 +3268,28 @@ var SceneObject = class {
   }
 };
 
+// ts/classes/webgl2/meshes/containerObject.ts
+var ContainerObject = class extends SceneObject {
+  constructor(props = {}) {
+    const dummyData = {
+      vao: null,
+      indexBuffer: null,
+      drawCount: 0,
+      ignoreLighting: false
+    };
+    super(dummyData, props);
+  }
+  /**
+   * Override render to do nothing since this is just a container
+   */
+  render(viewMatrix, projectionMatrix) {
+  }
+};
+
 // ts/classes/webgl2/meshes/baseMesh.ts
 var BaseMesh = class _BaseMesh extends SceneObject {
-  static setupBuffers(meshData) {
+  static setupBuffers(meshData, props) {
+    var _a;
     const vao = new VertexArray(glob.ctx);
     vao.bind();
     const vertexBuffer = new VertexBuffer(glob.ctx);
@@ -3297,795 +3337,16 @@ var BaseMesh = class _BaseMesh extends SceneObject {
     return {
       vao,
       indexBuffer,
-      drawCount: meshData.indices.length
+      drawCount: meshData.indices.length,
+      ignoreLighting: (_a = props.ignoreLighting) != null ? _a : false
     };
   }
   static createSceneObject(meshData, props) {
-    const bufferData = this.setupBuffers(meshData);
+    const bufferData = this.setupBuffers(meshData, props);
     return new SceneObject(bufferData, props);
   }
   constructor(meshData, props = {}) {
-    super(_BaseMesh.setupBuffers(meshData), props);
-  }
-};
-
-// ts/classes/webgl2/meshes/icoSphere.ts
-var _IcoSphere = class _IcoSphere extends BaseMesh {
-  static normalize(v) {
-    const length2 = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-    return [v[0] / length2, v[1] / length2, v[2] / length2];
-  }
-  static midpoint(v1, v22) {
-    return this.normalize([
-      (v1[0] + v22[0]) / 2,
-      (v1[1] + v22[1]) / 2,
-      (v1[2] + v22[2]) / 2
-    ]);
-  }
-  static generateMeshData(subdivisions = 0, smoothShading = true, color = [0.8, 0.2, 0.2]) {
-    let vertices = [...this.baseVertices];
-    let indices = [...this.baseIndices];
-    const vertexMap = /* @__PURE__ */ new Map();
-    const getMiddlePoint = (v1Index, v2Index) => {
-      const key = "".concat(Math.min(v1Index, v2Index), "_").concat(Math.max(v1Index, v2Index));
-      if (vertexMap.has(key)) {
-        return vertexMap.get(key);
-      }
-      const p1 = vertices[v1Index];
-      const p2 = vertices[v2Index];
-      const middle = this.midpoint(p1, p2);
-      const i = vertices.length;
-      vertices.push(middle);
-      vertexMap.set(key, i);
-      return i;
-    };
-    for (let i = 0; i < subdivisions; i++) {
-      const newIndices = [];
-      for (let j = 0; j < indices.length; j += 3) {
-        const a = indices[j];
-        const b = indices[j + 1];
-        const c = indices[j + 2];
-        const ab = getMiddlePoint(a, b);
-        const bc = getMiddlePoint(b, c);
-        const ca = getMiddlePoint(c, a);
-        newIndices.push(
-          a,
-          ab,
-          ca,
-          b,
-          bc,
-          ab,
-          c,
-          ca,
-          bc,
-          ab,
-          bc,
-          ca
-        );
-      }
-      indices = newIndices;
-    }
-    vertices = vertices.map((v) => [v[0] * 0.5, v[1] * 0.5, v[2] * 0.5]);
-    const flatVertices = [];
-    const normals = [];
-    const generatedColors = [];
-    const texCoords = [];
-    if (smoothShading) {
-      vertices.forEach((v) => {
-        flatVertices.push(...v);
-        normals.push(...this.normalize(v));
-        generatedColors.push(...color);
-        const u = 0.5 + Math.atan2(v[2], v[0]) / (2 * Math.PI);
-        const vCoord = 0.5 - Math.asin(v[1]) / Math.PI;
-        texCoords.push(u, vCoord);
-      });
-    } else {
-      const newIndices = [];
-      for (let i = 0; i < indices.length; i += 3) {
-        const v1 = vertices[indices[i]];
-        const v22 = vertices[indices[i + 1]];
-        const v32 = vertices[indices[i + 2]];
-        const dx1 = v22[0] - v1[0], dy1 = v22[1] - v1[1], dz1 = v22[2] - v1[2];
-        const dx2 = v32[0] - v1[0], dy2 = v32[1] - v1[1], dz2 = v32[2] - v1[2];
-        const normal = this.normalize([
-          dy1 * dz2 - dz1 * dy2,
-          dz1 * dx2 - dx1 * dz2,
-          dx1 * dy2 - dy1 * dx2
-        ]);
-        const baseIndex = flatVertices.length / 3;
-        [v1, v22, v32].forEach((vertex) => {
-          flatVertices.push(...vertex);
-          normals.push(...normal);
-          generatedColors.push(...color);
-          const u = 0.5 + Math.atan2(vertex[2], vertex[0]) / (2 * Math.PI);
-          const vCoord = 0.5 - Math.asin(vertex[1]) / Math.PI;
-          texCoords.push(u, vCoord);
-        });
-        newIndices.push(baseIndex, baseIndex + 1, baseIndex + 2);
-      }
-      indices = newIndices;
-    }
-    return {
-      vertices: new Float32Array(flatVertices),
-      indices: new Uint16Array(indices),
-      normals: new Float32Array(normals),
-      colors: new Float32Array(generatedColors),
-      texCoords: new Float32Array(texCoords)
-    };
-  }
-  static create(props = {}) {
-    var _a, _b;
-    const meshData = this.generateMeshData(
-      (_a = props.subdivisions) != null ? _a : 0,
-      (_b = props.smoothShading) != null ? _b : true,
-      props.color || [0.8, 0.2, 0.2]
-    );
-    return this.createSceneObject(meshData, props);
-  }
-};
-_IcoSphere.X = 0.5257311121191336;
-_IcoSphere.Z = 0.8506508083520399;
-// Initial icosahedron vertices
-_IcoSphere.baseVertices = [
-  [-_IcoSphere.X, 0, _IcoSphere.Z],
-  [_IcoSphere.X, 0, _IcoSphere.Z],
-  [-_IcoSphere.X, 0, -_IcoSphere.Z],
-  [_IcoSphere.X, 0, -_IcoSphere.Z],
-  [0, _IcoSphere.Z, _IcoSphere.X],
-  [0, _IcoSphere.Z, -_IcoSphere.X],
-  [0, -_IcoSphere.Z, _IcoSphere.X],
-  [0, -_IcoSphere.Z, -_IcoSphere.X],
-  [_IcoSphere.Z, _IcoSphere.X, 0],
-  [-_IcoSphere.Z, _IcoSphere.X, 0],
-  [_IcoSphere.Z, -_IcoSphere.X, 0],
-  [-_IcoSphere.Z, -_IcoSphere.X, 0]
-];
-// Initial icosahedron indices
-_IcoSphere.baseIndices = [
-  1,
-  4,
-  0,
-  4,
-  9,
-  0,
-  4,
-  5,
-  9,
-  8,
-  5,
-  4,
-  1,
-  8,
-  4,
-  1,
-  10,
-  8,
-  10,
-  3,
-  8,
-  8,
-  3,
-  5,
-  3,
-  2,
-  5,
-  3,
-  7,
-  2,
-  3,
-  10,
-  7,
-  10,
-  6,
-  7,
-  6,
-  11,
-  7,
-  6,
-  0,
-  11,
-  6,
-  1,
-  0,
-  10,
-  1,
-  6,
-  11,
-  0,
-  9,
-  2,
-  11,
-  9,
-  5,
-  2,
-  9,
-  11,
-  2,
-  7
-];
-var IcoSphere = _IcoSphere;
-
-// ts/classes/webgl2/lights/shadowMap.ts
-var ShadowMap = class {
-  constructor(gl, size = 1024) {
-    this.size = size;
-    this.depthTexture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, this.depthTexture);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.DEPTH_COMPONENT32F,
-      size,
-      size,
-      0,
-      gl.DEPTH_COMPONENT,
-      gl.FLOAT,
-      null
-    );
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    this.framebuffer = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
-    gl.framebufferTexture2D(
-      gl.FRAMEBUFFER,
-      gl.DEPTH_ATTACHMENT,
-      gl.TEXTURE_2D,
-      this.depthTexture,
-      0
-    );
-    gl.drawBuffers([gl.NONE]);
-    gl.readBuffer(gl.NONE);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  }
-  bind(gl) {
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
-    gl.viewport(0, 0, this.size, this.size);
-  }
-  bindDepthTexture(gl, textureUnit) {
-    gl.activeTexture(gl.TEXTURE0 + textureUnit);
-    gl.bindTexture(gl.TEXTURE_2D, this.depthTexture);
-  }
-  getDepthTexture() {
-    return this.depthTexture;
-  }
-  getSize() {
-    return this.size;
-  }
-};
-
-// ts/classes/webgl2/lights/light.ts
-var Light = class {
-  constructor({ color = v3(1, 1, 1), intensity = 1 } = {}) {
-    this.color = color;
-    this.intensity = intensity;
-  }
-  getType() {
-    return this.type;
-  }
-  getData() {
-    return {
-      color: this.color,
-      intensity: this.intensity
-    };
-  }
-  getShadowMap() {
-    return null;
-  }
-};
-var AmbientLight = class extends Light {
-  constructor({ color = v3(1, 1, 1), intensity = 0.1 } = {}) {
-    super({ color, intensity });
-    this.type = 0 /* AMBIENT */;
-  }
-};
-var PointLight = class extends Light {
-  constructor({
-    position = v3(0, 0, 0),
-    color = v3(1, 1, 1),
-    intensity = 1,
-    attenuation = { constant: 1, linear: 0.09, quadratic: 0.032 },
-    meshContainer
-  } = {}) {
-    super({ color, intensity });
-    this.position = position;
-    this.constant = attenuation.constant;
-    this.linear = attenuation.linear;
-    this.quadratic = attenuation.quadratic;
-    this.type = 2 /* POINT */;
-    this.shadowMap = new ShadowMap(glob.ctx, 4096);
-    this.lightProjection = new Matrix4().ortho(
-      -10,
-      10,
-      // left, right
-      -10,
-      10,
-      // bottom, top
-      0.1,
-      100
-      // near, far
-    );
-    if (meshContainer) {
-      meshContainer.add(IcoSphere.create({
-        position,
-        scale: v3(0.1, 0.1, 0.1),
-        color: color.array,
-        subdivisions: 0,
-        smoothShading: true
-      }));
-    }
-  }
-  getData() {
-    return __spreadProps(__spreadValues({}, super.getData()), {
-      position: this.position,
-      constant: this.constant,
-      linear: this.linear,
-      quadratic: this.quadratic
-    });
-  }
-  getLightSpaceMatrix() {
-    const lightView = Matrix4.lookAt(
-      this.position,
-      // Light position
-      v3(0, 0, 0)
-      // Looking at scene center
-    );
-    this.lightProjection = new Matrix4().ortho(
-      -10,
-      10,
-      // left, right
-      -10,
-      10,
-      // bottom, top
-      1,
-      20
-      // near, far (adjusted to better match scene depth)
-    );
-    return this.lightProjection.multiply(lightView);
-  }
-  getShadowMap() {
-    return this.shadowMap;
-  }
-};
-
-// ts/classes/webgl2/lights/lightManager.ts
-var LightManager = class {
-  constructor(shaderManager) {
-    this.lights = [];
-    this.ambientLight = null;
-    this.shaderManager = shaderManager;
-  }
-  setAmbientLight(light) {
-    this.ambientLight = light;
-    this.updateShaderUniforms();
-  }
-  addLight(light) {
-    if (light instanceof AmbientLight) {
-      console.warn("Use setAmbientLight() to set the ambient light instead of addLight()");
-      return;
-    }
-    if (this.lights.length >= 10) {
-      console.warn("Maximum number of lights (10) reached. Light not added.");
-      return;
-    }
-    this.lights.push(light);
-    this.updateShaderUniforms();
-  }
-  removeLight(light) {
-    if (light instanceof AmbientLight) {
-      console.warn("Cannot remove ambient light. Use setAmbientLight() to modify it instead");
-      return;
-    }
-    const index = this.lights.indexOf(light);
-    if (index !== -1) {
-      this.lights.splice(index, 1);
-      this.updateShaderUniforms();
-    }
-  }
-  getLights() {
-    return this.lights;
-  }
-  updateShaderUniforms() {
-    const types = new Int32Array(10);
-    const positions = new Float32Array(30);
-    const directions = new Float32Array(30);
-    const colors = new Float32Array(30);
-    const intensities = new Float32Array(10);
-    const constants = new Float32Array(10);
-    const linears = new Float32Array(10);
-    const quadratics = new Float32Array(10);
-    const cutOffs = new Float32Array(10);
-    const outerCutOffs = new Float32Array(10);
-    types.fill(-1);
-    if (this.ambientLight) {
-      const data = this.ambientLight.getData();
-      types[0] = 0 /* AMBIENT */;
-      colors[0] = data.color.x;
-      colors[1] = data.color.y;
-      colors[2] = data.color.z;
-      intensities[0] = data.intensity;
-    }
-    const startIndex = this.ambientLight ? 1 : 0;
-    for (let i = 0; i < this.lights.length; i++) {
-      const light = this.lights[i];
-      const index = i + startIndex;
-      const data = light.getData();
-      types[index] = light.getType();
-      const colorOffset = index * 3;
-      colors[colorOffset] = data.color.x;
-      colors[colorOffset + 1] = data.color.y;
-      colors[colorOffset + 2] = data.color.z;
-      intensities[index] = data.intensity;
-      switch (light.getType()) {
-        case 1 /* DIRECTIONAL */: {
-          const dirLight = light;
-          const dirData = dirLight.getData();
-          const dirOffset = index * 3;
-          directions[dirOffset] = dirData.direction.x;
-          directions[dirOffset + 1] = dirData.direction.y;
-          directions[dirOffset + 2] = dirData.direction.z;
-          break;
-        }
-        case 2 /* POINT */: {
-          const pointLight = light;
-          const pointData = pointLight.getData();
-          const posOffset = index * 3;
-          positions[posOffset] = pointData.position.x;
-          positions[posOffset + 1] = pointData.position.y;
-          positions[posOffset + 2] = pointData.position.z;
-          constants[index] = pointData.constant;
-          linears[index] = pointData.linear;
-          quadratics[index] = pointData.quadratic;
-          break;
-        }
-        case 3 /* SPOT */: {
-          const spotLight = light;
-          const spotData = spotLight.getData();
-          const posOffset = index * 3;
-          const dirOffset = index * 3;
-          positions[posOffset] = spotData.position.x;
-          positions[posOffset + 1] = spotData.position.y;
-          positions[posOffset + 2] = spotData.position.z;
-          directions[dirOffset] = spotData.direction.x;
-          directions[dirOffset + 1] = spotData.direction.y;
-          directions[dirOffset + 2] = spotData.direction.z;
-          constants[index] = spotData.constant;
-          linears[index] = spotData.linear;
-          quadratics[index] = spotData.quadratic;
-          cutOffs[index] = spotData.cutOff;
-          outerCutOffs[index] = spotData.outerCutOff;
-          break;
-        }
-      }
-    }
-    const numLights = this.lights.length + (this.ambientLight ? 1 : 0);
-    this.shaderManager.setUniform("u_numLights", numLights);
-    this.shaderManager.setUniform("u_lightTypes", types);
-    this.shaderManager.setUniform("u_lightPositions", positions);
-    this.shaderManager.setUniform("u_lightDirections", directions);
-    this.shaderManager.setUniform("u_lightColors", colors);
-    this.shaderManager.setUniform("u_lightIntensities", intensities);
-    this.shaderManager.setUniform("u_lightConstants", constants);
-    this.shaderManager.setUniform("u_lightLinears", linears);
-    this.shaderManager.setUniform("u_lightQuadratics", quadratics);
-    this.shaderManager.setUniform("u_lightCutOffs", cutOffs);
-    this.shaderManager.setUniform("u_lightOuterCutOffs", outerCutOffs);
-  }
-};
-
-// ts/classes/webgl2/scene.ts
-var Scene = class {
-  constructor(camera, options = {}) {
-    this.objects = [];
-    this.clearColor = [0, 0, 0, 1];
-    this.showShadowMap = false;
-    this.frameCount = 0;
-    var _a;
-    this.camera = camera;
-    this.lightManager = new LightManager(glob.shaderManager);
-    const ambientColor = options.ambientLightColor || v3(1, 1, 1);
-    const ambientIntensity = (_a = options.ambientLightIntensity) != null ? _a : 0.1;
-    this.ambientLight = new AmbientLight({ color: ambientColor, intensity: ambientIntensity });
-    glob.events.resize.subscribe("level", this.resize.bind(this));
-  }
-  get ambientLight() {
-    return this._ambientLight;
-  }
-  set ambientLight(value) {
-    this._ambientLight = value;
-    this.lightManager.setAmbientLight(this.ambientLight);
-  }
-  add(object) {
-    this.objects.push(object);
-  }
-  remove(object) {
-    const index = this.objects.indexOf(object);
-    if (index !== -1) {
-      this.objects.splice(index, 1);
-    }
-  }
-  getLights() {
-    return this.lightManager.getLights();
-  }
-  render() {
-    const shadowCastingLights = this.getLights().filter((light) => light instanceof PointLight);
-    const castsShadow = new Int32Array(10);
-    const lightSpaceMatrices = new Float32Array(10 * 16);
-    const hasAmbientLight = this.ambientLight !== null;
-    const indexOffset = hasAmbientLight ? 1 : 0;
-    for (let i = 0; i < shadowCastingLights.length; i++) {
-      const light = shadowCastingLights[i];
-      const lightIndex = i + indexOffset;
-      const shadowMap = light.getShadowMap();
-      shadowMap.bind(glob.ctx);
-      glob.shaderManager.useProgram("shadow");
-      const lightSpaceMatrix = light.getLightSpaceMatrix();
-      glob.shaderManager.setUniform("u_lightSpaceMatrix", lightSpaceMatrix.mat4);
-      glob.ctx.enable(glob.ctx.DEPTH_TEST);
-      glob.ctx.depthFunc(glob.ctx.LESS);
-      glob.ctx.clearDepth(1);
-      glob.ctx.clear(glob.ctx.DEPTH_BUFFER_BIT);
-      lightSpaceMatrix.mat4.forEach((value, index) => {
-        lightSpaceMatrices[lightIndex * 16 + index] = value;
-      });
-      castsShadow[lightIndex] = 1;
-      for (const object of this.objects) {
-        if (object.vao) {
-          glob.shaderManager.setUniform("u_modelMatrix", object.transform.getWorldMatrix().mat4);
-          object.vao.bind();
-          if (object.indexBuffer) {
-            glob.ctx.drawElements(glob.ctx.TRIANGLES, object.indexBuffer.getCount(), glob.ctx.UNSIGNED_SHORT, 0);
-          } else {
-            glob.ctx.drawArrays(glob.ctx.TRIANGLES, 0, object.drawCount);
-          }
-        }
-      }
-    }
-    glob.ctx.bindFramebuffer(glob.ctx.FRAMEBUFFER, null);
-    glob.ctx.viewport(0, 0, glob.ctx.canvas.width, glob.ctx.canvas.height);
-    glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT | glob.ctx.DEPTH_BUFFER_BIT);
-    glob.ctx.clearColor(...this.clearColor);
-    glob.shaderManager.useProgram("basic");
-    const viewMatrix = this.camera.getViewMatrix();
-    const projectionMatrix = this.camera.getProjectionMatrix();
-    this.lightManager.updateShaderUniforms();
-    glob.shaderManager.setUniform("u_lightSpaceMatrices", lightSpaceMatrices);
-    glob.shaderManager.setUniform("u_castsShadow", castsShadow);
-    shadowCastingLights.forEach((light, i) => {
-      if (light instanceof PointLight) {
-        const lightIndex = i + indexOffset;
-        const shadowMap = light.getShadowMap();
-        shadowMap.bindDepthTexture(glob.ctx, lightIndex + 1);
-        glob.shaderManager.setUniform("u_shadowMap".concat(lightIndex), lightIndex + 1);
-      }
-    });
-    for (const object of this.objects) {
-      object.render(viewMatrix, projectionMatrix);
-    }
-    this.frameCount++;
-  }
-  dispose() {
-    var _a;
-    for (const object of this.objects) {
-      object.vao.dispose();
-      (_a = object.indexBuffer) == null ? void 0 : _a.dispose();
-    }
-    this.objects = [];
-  }
-  tick(obj) {
-  }
-  afterTick(obj) {
-    this.render();
-  }
-  resize() {
-    this.camera.updateProjectionMatrix();
-  }
-  addLight(light) {
-    if (light instanceof AmbientLight) {
-      console.warn("Use setAmbientLight() to set the ambient light instead of addLight()");
-      return;
-    }
-    this.lightManager.addLight(light);
-  }
-  removeLight(light) {
-    if (light instanceof AmbientLight) {
-      console.warn("Cannot remove ambient light. Use setAmbientLight() to modify it instead");
-      return;
-    }
-    this.lightManager.removeLight(light);
-  }
-  update(data) {
-  }
-};
-
-// ts/classes/webgl2/camera.ts
-var Camera = class {
-  constructor({ position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 45, near = 0.1, far = 1e3 } = {}) {
-    this.position = position;
-    this.target = target;
-    this.fov = fov;
-    this.near = near;
-    this.far = far;
-    this.updateViewMatrix();
-    this.updateProjectionMatrix();
-  }
-  updateViewMatrix() {
-    this.viewMatrix = Matrix4.lookAt(this.position, this.target);
-  }
-  updateProjectionMatrix() {
-    this.projectionMatrix = m4().perspective(
-      this.fov * Math.PI / 180,
-      this.near,
-      this.far
-    );
-  }
-  setPosition(position) {
-    this.position = position;
-    this.updateViewMatrix();
-  }
-  setTarget(target) {
-    this.target = target;
-    this.updateViewMatrix();
-  }
-  setFov(fov) {
-    this.fov = fov;
-    this.updateProjectionMatrix();
-  }
-  getViewMatrix() {
-    return this.viewMatrix;
-  }
-  getProjectionMatrix() {
-    return this.projectionMatrix;
-  }
-  getPosition() {
-    return this.position;
-  }
-  getTarget() {
-    return this.target;
-  }
-};
-
-// ts/classes/webgl2/material.ts
-var Material = class {
-  constructor({
-    ambient = v3(0.2, 0.2, 0.2),
-    diffuse = v3(0.8, 0.8, 0.8),
-    specular = v3(1, 1, 1),
-    shininess = 2,
-    diffuseMap,
-    normalMap,
-    specularMap
-  } = {}) {
-    this.ambient = ambient;
-    this.diffuse = diffuse;
-    this.specular = specular;
-    this.shininess = shininess;
-    this.diffuseMap = diffuseMap;
-    this.normalMap = normalMap;
-    this.specularMap = specularMap;
-  }
-};
-
-// ts/classes/webgl2/meshes/plane.ts
-var Plane = class extends BaseMesh {
-  static generateIndices(flipNormal) {
-    return new Uint16Array(
-      flipNormal ? [0, 1, 2, 2, 3, 0] : [0, 2, 1, 0, 3, 2]
-      // counter-clockwise winding for top visibility
-    );
-  }
-  static generateNormals(flipNormal) {
-    const normalY = flipNormal ? -1 : 1;
-    return new Float32Array([
-      0,
-      normalY,
-      0,
-      0,
-      normalY,
-      0,
-      0,
-      normalY,
-      0,
-      0,
-      normalY,
-      0
-    ]);
-  }
-  static generateColors(material) {
-    const defaultColor = vec3_exports.fromValues(0.8, 0.8, 0.8);
-    const color = material ? material.diffuse.vec : defaultColor;
-    return new Float32Array([
-      color[0],
-      color[1],
-      color[2],
-      color[0],
-      color[1],
-      color[2],
-      color[0],
-      color[1],
-      color[2],
-      color[0],
-      color[1],
-      color[2]
-    ]);
-  }
-  static createMeshData(props = {}) {
-    return {
-      vertices: this.vertices,
-      indices: this.generateIndices(props.flipNormal || false),
-      normals: this.generateNormals(props.flipNormal || false),
-      texCoords: this.texCoords,
-      colors: this.generateColors(props.material)
-    };
-  }
-  static create(props = {}) {
-    if (!props.material && !props.texture) {
-      props.material = new Material();
-    }
-    const meshData = this.createMeshData(props);
-    const sceneObject = this.createSceneObject(meshData, props);
-    if (props.material) {
-      glob.shaderManager.setUniform("u_material.ambient", new Float32Array(props.material.ambient.vec));
-      glob.shaderManager.setUniform("u_material.diffuse", new Float32Array(props.material.diffuse.vec));
-      glob.shaderManager.setUniform("u_material.specular", new Float32Array(props.material.specular.vec));
-      glob.shaderManager.setUniform("u_material.shininess", props.material.shininess);
-      if (props.material.diffuseMap) {
-        glob.shaderManager.setUniform("u_useTexture", 1);
-        glob.ctx.activeTexture(glob.ctx.TEXTURE0);
-        glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, props.material.diffuseMap);
-        glob.shaderManager.setUniform("u_material.diffuseMap", 0);
-      } else {
-        glob.shaderManager.setUniform("u_useTexture", 0);
-      }
-    }
-    return sceneObject;
-  }
-};
-Plane.vertices = new Float32Array([
-  // Single face (square)
-  -0.5,
-  0,
-  -0.5,
-  // bottom-left
-  0.5,
-  0,
-  -0.5,
-  // bottom-right
-  0.5,
-  0,
-  0.5,
-  // top-right
-  -0.5,
-  0,
-  0.5
-  // top-left
-]);
-Plane.texCoords = new Float32Array([
-  0,
-  0,
-  1,
-  0,
-  1,
-  1,
-  0,
-  1
-]);
-
-// ts/classes/webgl2/meshes/containerObject.ts
-var ContainerObject = class extends SceneObject {
-  constructor(props = {}) {
-    const dummyData = {
-      vao: null,
-      indexBuffer: null,
-      drawCount: 0
-    };
-    super(dummyData, props);
-  }
-  /**
-   * Override render to do nothing since this is just a container
-   */
-  render(viewMatrix, projectionMatrix) {
+    super(_BaseMesh.setupBuffers(meshData, props), props);
   }
 };
 
@@ -4557,7 +3818,8 @@ var Arrow = class extends ContainerObject {
       colors: this.props.shaftColor,
       sides: this.props.sides,
       smoothShading: this.props.smoothShading,
-      parent: this
+      parent: this,
+      ignoreLighting: this.props.ignoreLighting
     }));
     scene.add(this.head = Cone.create({
       position: v3(0, shaftLength + this.props.headLength / 2, 0),
@@ -4565,7 +3827,8 @@ var Arrow = class extends ContainerObject {
       colors: this.props.headColor,
       smoothShading: this.props.smoothShading,
       sides: this.props.sides,
-      parent: this
+      parent: this,
+      ignoreLighting: this.props.ignoreLighting
     }));
     this.setLength(this.props.length);
     if (this.props.lookAt) {
@@ -4594,88 +3857,998 @@ var Arrow = class extends ContainerObject {
   }
 };
 
+// ts/classes/webgl2/meshes/icoSphere.ts
+var _IcoSphere = class _IcoSphere extends BaseMesh {
+  static normalize(v) {
+    const length2 = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    return [v[0] / length2, v[1] / length2, v[2] / length2];
+  }
+  static midpoint(v1, v22) {
+    return this.normalize([
+      (v1[0] + v22[0]) / 2,
+      (v1[1] + v22[1]) / 2,
+      (v1[2] + v22[2]) / 2
+    ]);
+  }
+  static generateMeshData(subdivisions = 0, smoothShading = true, color = [0.8, 0.2, 0.2]) {
+    let vertices = [...this.baseVertices];
+    let indices = [...this.baseIndices];
+    const vertexMap = /* @__PURE__ */ new Map();
+    const getMiddlePoint = (v1Index, v2Index) => {
+      const key = "".concat(Math.min(v1Index, v2Index), "_").concat(Math.max(v1Index, v2Index));
+      if (vertexMap.has(key)) {
+        return vertexMap.get(key);
+      }
+      const p1 = vertices[v1Index];
+      const p2 = vertices[v2Index];
+      const middle = this.midpoint(p1, p2);
+      const i = vertices.length;
+      vertices.push(middle);
+      vertexMap.set(key, i);
+      return i;
+    };
+    for (let i = 0; i < subdivisions; i++) {
+      const newIndices = [];
+      for (let j = 0; j < indices.length; j += 3) {
+        const a = indices[j];
+        const b = indices[j + 1];
+        const c = indices[j + 2];
+        const ab = getMiddlePoint(a, b);
+        const bc = getMiddlePoint(b, c);
+        const ca = getMiddlePoint(c, a);
+        newIndices.push(
+          a,
+          ab,
+          ca,
+          b,
+          bc,
+          ab,
+          c,
+          ca,
+          bc,
+          ab,
+          bc,
+          ca
+        );
+      }
+      indices = newIndices;
+    }
+    vertices = vertices.map((v) => [v[0] * 0.5, v[1] * 0.5, v[2] * 0.5]);
+    const flatVertices = [];
+    const normals = [];
+    const generatedColors = [];
+    const texCoords = [];
+    if (smoothShading) {
+      vertices.forEach((v) => {
+        flatVertices.push(...v);
+        normals.push(...this.normalize(v));
+        generatedColors.push(...color);
+        const u = 0.5 + Math.atan2(v[2], v[0]) / (2 * Math.PI);
+        const vCoord = 0.5 - Math.asin(v[1]) / Math.PI;
+        texCoords.push(u, vCoord);
+      });
+    } else {
+      const newIndices = [];
+      for (let i = 0; i < indices.length; i += 3) {
+        const v1 = vertices[indices[i]];
+        const v22 = vertices[indices[i + 1]];
+        const v32 = vertices[indices[i + 2]];
+        const dx1 = v22[0] - v1[0], dy1 = v22[1] - v1[1], dz1 = v22[2] - v1[2];
+        const dx2 = v32[0] - v1[0], dy2 = v32[1] - v1[1], dz2 = v32[2] - v1[2];
+        const normal = this.normalize([
+          dy1 * dz2 - dz1 * dy2,
+          dz1 * dx2 - dx1 * dz2,
+          dx1 * dy2 - dy1 * dx2
+        ]);
+        const baseIndex = flatVertices.length / 3;
+        [v1, v22, v32].forEach((vertex) => {
+          flatVertices.push(...vertex);
+          normals.push(...normal);
+          generatedColors.push(...color);
+          const u = 0.5 + Math.atan2(vertex[2], vertex[0]) / (2 * Math.PI);
+          const vCoord = 0.5 - Math.asin(vertex[1]) / Math.PI;
+          texCoords.push(u, vCoord);
+        });
+        newIndices.push(baseIndex, baseIndex + 1, baseIndex + 2);
+      }
+      indices = newIndices;
+    }
+    return {
+      vertices: new Float32Array(flatVertices),
+      indices: new Uint16Array(indices),
+      normals: new Float32Array(normals),
+      colors: new Float32Array(generatedColors),
+      texCoords: new Float32Array(texCoords)
+    };
+  }
+  static create(props = {}) {
+    var _a, _b;
+    const meshData = this.generateMeshData(
+      (_a = props.subdivisions) != null ? _a : 0,
+      (_b = props.smoothShading) != null ? _b : true,
+      props.color || [0.8, 0.2, 0.2]
+    );
+    return this.createSceneObject(meshData, props);
+  }
+};
+_IcoSphere.X = 0.5257311121191336;
+_IcoSphere.Z = 0.8506508083520399;
+// Initial icosahedron vertices
+_IcoSphere.baseVertices = [
+  [-_IcoSphere.X, 0, _IcoSphere.Z],
+  [_IcoSphere.X, 0, _IcoSphere.Z],
+  [-_IcoSphere.X, 0, -_IcoSphere.Z],
+  [_IcoSphere.X, 0, -_IcoSphere.Z],
+  [0, _IcoSphere.Z, _IcoSphere.X],
+  [0, _IcoSphere.Z, -_IcoSphere.X],
+  [0, -_IcoSphere.Z, _IcoSphere.X],
+  [0, -_IcoSphere.Z, -_IcoSphere.X],
+  [_IcoSphere.Z, _IcoSphere.X, 0],
+  [-_IcoSphere.Z, _IcoSphere.X, 0],
+  [_IcoSphere.Z, -_IcoSphere.X, 0],
+  [-_IcoSphere.Z, -_IcoSphere.X, 0]
+];
+// Initial icosahedron indices
+_IcoSphere.baseIndices = [
+  1,
+  4,
+  0,
+  4,
+  9,
+  0,
+  4,
+  5,
+  9,
+  8,
+  5,
+  4,
+  1,
+  8,
+  4,
+  1,
+  10,
+  8,
+  10,
+  3,
+  8,
+  8,
+  3,
+  5,
+  3,
+  2,
+  5,
+  3,
+  7,
+  2,
+  3,
+  10,
+  7,
+  10,
+  6,
+  7,
+  6,
+  11,
+  7,
+  6,
+  0,
+  11,
+  6,
+  1,
+  0,
+  10,
+  1,
+  6,
+  11,
+  0,
+  9,
+  2,
+  11,
+  9,
+  5,
+  2,
+  9,
+  11,
+  2,
+  7
+];
+var IcoSphere = _IcoSphere;
+
+// ts/classes/webgl2/lights/shadowMap.ts
+var ShadowMap = class {
+  constructor(gl, size = 1024) {
+    this.size = size;
+    this.depthTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.depthTexture);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.DEPTH_COMPONENT32F,
+      size,
+      size,
+      0,
+      gl.DEPTH_COMPONENT,
+      gl.FLOAT,
+      null
+    );
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    this.framebuffer = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
+    gl.framebufferTexture2D(
+      gl.FRAMEBUFFER,
+      gl.DEPTH_ATTACHMENT,
+      gl.TEXTURE_2D,
+      this.depthTexture,
+      0
+    );
+    gl.drawBuffers([gl.NONE]);
+    gl.readBuffer(gl.NONE);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+  bind(gl) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
+    gl.viewport(0, 0, this.size, this.size);
+  }
+  bindDepthTexture(gl, textureUnit) {
+    gl.activeTexture(gl.TEXTURE0 + textureUnit);
+    gl.bindTexture(gl.TEXTURE_2D, this.depthTexture);
+  }
+  getDepthTexture() {
+    return this.depthTexture;
+  }
+  getSize() {
+    return this.size;
+  }
+};
+
+// ts/classes/webgl2/lights/light.ts
+var Light = class {
+  constructor({ color = v3(1, 1, 1), intensity = 1 } = {}) {
+    this.color = color;
+    this.intensity = intensity;
+  }
+  getType() {
+    return this.type;
+  }
+  getData() {
+    return {
+      color: this.color,
+      intensity: this.intensity
+    };
+  }
+  getShadowMap() {
+    return null;
+  }
+};
+var AmbientLight = class extends Light {
+  constructor({ color = v3(1, 1, 1), intensity = 0.1 } = {}) {
+    super({ color, intensity });
+    this.type = 0 /* AMBIENT */;
+  }
+};
+var PointLight = class extends Light {
+  constructor({
+    position = v3(0, 0, 0),
+    color = v3(1, 1, 1),
+    intensity = 1,
+    attenuation = { constant: 1, linear: 0.09, quadratic: 0.032 },
+    meshContainer
+  } = {}) {
+    super({ color, intensity });
+    this.position = position;
+    this.constant = attenuation.constant;
+    this.linear = attenuation.linear;
+    this.quadratic = attenuation.quadratic;
+    this.type = 2 /* POINT */;
+    this.shadowMap = new ShadowMap(glob.ctx, 4096);
+    this.lightProjection = new Matrix4().ortho(
+      -10,
+      10,
+      // left, right
+      -10,
+      10,
+      // bottom, top
+      0.1,
+      100
+      // near, far
+    );
+    if (meshContainer) {
+      meshContainer.add(this.mesh = IcoSphere.create({
+        position,
+        scale: v3(0.1, 0.1, 0.1),
+        color: [0, 0, 0],
+        subdivisions: 0,
+        smoothShading: true,
+        ignoreLighting: true
+      }));
+    }
+  }
+  setPosition(position) {
+    this.position = position;
+    if (this.mesh) {
+      this.mesh.transform.setPosition(position);
+    }
+  }
+  getPosition() {
+    return this.position;
+  }
+  getData() {
+    return __spreadProps(__spreadValues({}, super.getData()), {
+      position: this.position,
+      constant: this.constant,
+      linear: this.linear,
+      quadratic: this.quadratic
+    });
+  }
+  getLightSpaceMatrix() {
+    const lightView = Matrix4.lookAt(
+      this.position,
+      // Light position
+      v3(0, 0, 0)
+      // Looking at scene center
+    );
+    this.lightProjection = new Matrix4().ortho(
+      -10,
+      10,
+      // left, right
+      -10,
+      10,
+      // bottom, top
+      1,
+      20
+      // near, far (adjusted to better match scene depth)
+    );
+    return this.lightProjection.multiply(lightView);
+  }
+  getShadowMap() {
+    return this.shadowMap;
+  }
+};
+var SpotLight = class extends PointLight {
+  constructor({
+    position = v3(0, 0, 0),
+    direction = v3(0, -1, 0),
+    color = v3(1, 1, 1),
+    intensity = 1,
+    cutOff = Math.cos(Math.PI / 6),
+    outerCutOff = Math.cos(Math.PI / 4),
+    meshContainer
+  } = {}) {
+    super({ position, color, intensity, meshContainer });
+    this.rotation = new Quaternion();
+    this.cutOff = cutOff;
+    this.outerCutOff = outerCutOff;
+    this.type = 3 /* SPOT */;
+    if (this.mesh) {
+      this.arrow = new Arrow(meshContainer, {
+        shaftColor: [0, 0, 0],
+        headColor: [0, 0, 0],
+        length: 0.3,
+        shaftRadius: 0.05,
+        headLength: 0.1,
+        headRadius: 0.1,
+        sides: 4,
+        position: v3(-1, 1, 2),
+        rotation: this.rotation,
+        lookAt: v3(0, 0, 0),
+        ignoreLighting: true
+      });
+    }
+    if (direction) {
+      this.lookAt(position.add(direction));
+    }
+  }
+  getData() {
+    const defaultDir = v3(0, -1, 0);
+    const direction = defaultDir.applyQuaternion(this.rotation);
+    return __spreadProps(__spreadValues({}, super.getData()), {
+      direction,
+      cutOff: this.cutOff,
+      outerCutOff: this.outerCutOff
+    });
+  }
+  lookAt(target) {
+    const direction = target.subtract(this.position).normalize();
+    const defaultDir = v3(0, -1, 0);
+    const rotationAxis = defaultDir.cross(direction).normalize();
+    const angle2 = Math.acos(defaultDir.y * direction.y + defaultDir.x * direction.x + defaultDir.z * direction.z);
+    this.rotation = new Quaternion().setAxisAngle(rotationAxis, angle2);
+    if (this.arrow) {
+      this.arrow.lookAt(target);
+    }
+  }
+  setPosition(position) {
+    super.setPosition(position);
+    if (this.arrow) {
+      this.arrow.transform.setPosition(position);
+    }
+  }
+  getPosition() {
+    return this.position;
+  }
+  getRotation() {
+    return this.rotation.clone();
+  }
+  setRotation(rotation) {
+    this.rotation = rotation;
+  }
+};
+
+// ts/classes/webgl2/lights/lightManager.ts
+var LightManager = class {
+  constructor(shaderManager) {
+    this.lights = [];
+    this.ambientLight = null;
+    this.shaderManager = shaderManager;
+  }
+  setAmbientLight(light) {
+    this.ambientLight = light;
+    this.updateShaderUniforms();
+  }
+  addLight(light) {
+    if (light instanceof AmbientLight) {
+      console.warn("Use setAmbientLight() to set the ambient light instead of addLight()");
+      return;
+    }
+    if (this.lights.length >= 10) {
+      console.warn("Maximum number of lights (10) reached. Light not added.");
+      return;
+    }
+    this.lights.push(light);
+    this.updateShaderUniforms();
+  }
+  removeLight(light) {
+    if (light instanceof AmbientLight) {
+      console.warn("Cannot remove ambient light. Use setAmbientLight() to modify it instead");
+      return;
+    }
+    const index = this.lights.indexOf(light);
+    if (index !== -1) {
+      this.lights.splice(index, 1);
+      this.updateShaderUniforms();
+    }
+  }
+  getLights() {
+    return this.lights;
+  }
+  updateShaderUniforms() {
+    const types = new Int32Array(10);
+    const positions = new Float32Array(30);
+    const directions = new Float32Array(30);
+    const colors = new Float32Array(30);
+    const intensities = new Float32Array(10);
+    const constants = new Float32Array(10);
+    const linears = new Float32Array(10);
+    const quadratics = new Float32Array(10);
+    const cutOffs = new Float32Array(10);
+    const outerCutOffs = new Float32Array(10);
+    types.fill(-1);
+    if (this.ambientLight) {
+      const data = this.ambientLight.getData();
+      types[0] = 0 /* AMBIENT */;
+      colors[0] = data.color.x;
+      colors[1] = data.color.y;
+      colors[2] = data.color.z;
+      intensities[0] = data.intensity;
+    }
+    const startIndex = this.ambientLight ? 1 : 0;
+    for (let i = 0; i < this.lights.length; i++) {
+      const light = this.lights[i];
+      const index = i + startIndex;
+      const data = light.getData();
+      types[index] = light.getType();
+      const colorOffset = index * 3;
+      colors[colorOffset] = data.color.x;
+      colors[colorOffset + 1] = data.color.y;
+      colors[colorOffset + 2] = data.color.z;
+      intensities[index] = data.intensity;
+      switch (light.getType()) {
+        case 1 /* DIRECTIONAL */: {
+          const dirLight = light;
+          const dirData = dirLight.getData();
+          const dirOffset = index * 3;
+          directions[dirOffset] = dirData.direction.x;
+          directions[dirOffset + 1] = dirData.direction.y;
+          directions[dirOffset + 2] = dirData.direction.z;
+          break;
+        }
+        case 2 /* POINT */: {
+          const pointLight = light;
+          const pointData = pointLight.getData();
+          const posOffset = index * 3;
+          positions[posOffset] = pointData.position.x;
+          positions[posOffset + 1] = pointData.position.y;
+          positions[posOffset + 2] = pointData.position.z;
+          constants[index] = pointData.constant;
+          linears[index] = pointData.linear;
+          quadratics[index] = pointData.quadratic;
+          break;
+        }
+        case 3 /* SPOT */: {
+          const spotLight = light;
+          const spotData = spotLight.getData();
+          const posOffset = index * 3;
+          const dirOffset = index * 3;
+          positions[posOffset] = spotData.position.x;
+          positions[posOffset + 1] = spotData.position.y;
+          positions[posOffset + 2] = spotData.position.z;
+          directions[dirOffset] = spotData.direction.x;
+          directions[dirOffset + 1] = spotData.direction.y;
+          directions[dirOffset + 2] = spotData.direction.z;
+          constants[index] = spotData.constant;
+          linears[index] = spotData.linear;
+          quadratics[index] = spotData.quadratic;
+          cutOffs[index] = spotData.cutOff;
+          outerCutOffs[index] = spotData.outerCutOff;
+          break;
+        }
+      }
+    }
+    const numLights = this.lights.length + (this.ambientLight ? 1 : 0);
+    this.shaderManager.setUniform("u_numLights", numLights);
+    this.shaderManager.setUniform("u_lightTypes", types);
+    this.shaderManager.setUniform("u_lightPositions", positions);
+    this.shaderManager.setUniform("u_lightDirections", directions);
+    this.shaderManager.setUniform("u_lightColors", colors);
+    this.shaderManager.setUniform("u_lightIntensities", intensities);
+    this.shaderManager.setUniform("u_lightConstants", constants);
+    this.shaderManager.setUniform("u_lightLinears", linears);
+    this.shaderManager.setUniform("u_lightQuadratics", quadratics);
+    this.shaderManager.setUniform("u_lightCutOffs", cutOffs);
+    this.shaderManager.setUniform("u_lightOuterCutOffs", outerCutOffs);
+  }
+};
+
+// ts/classes/webgl2/scene.ts
+var Scene = class {
+  constructor(camera, options = {}) {
+    this.objects = [];
+    this.clearColor = [0, 0, 0, 1];
+    this.showShadowMap = false;
+    this.frameCount = 0;
+    var _a;
+    this.camera = camera;
+    this.lightManager = new LightManager(glob.shaderManager);
+    const ambientColor = options.ambientLightColor || v3(1, 1, 1);
+    const ambientIntensity = (_a = options.ambientLightIntensity) != null ? _a : 0.1;
+    this.ambientLight = new AmbientLight({ color: ambientColor, intensity: ambientIntensity });
+    glob.events.resize.subscribe("level", this.resize.bind(this));
+  }
+  get ambientLight() {
+    return this._ambientLight;
+  }
+  set ambientLight(value) {
+    this._ambientLight = value;
+    this.lightManager.setAmbientLight(this.ambientLight);
+  }
+  add(object) {
+    this.objects.push(object);
+  }
+  remove(object) {
+    const index = this.objects.indexOf(object);
+    if (index !== -1) {
+      this.objects.splice(index, 1);
+    }
+  }
+  getLights() {
+    return this.lightManager.getLights();
+  }
+  render() {
+    const shadowCastingLights = this.getLights().filter((light) => light instanceof PointLight);
+    const castsShadow = new Int32Array(10);
+    const lightSpaceMatrices = new Float32Array(10 * 16);
+    const hasAmbientLight = this.ambientLight !== null;
+    const indexOffset = hasAmbientLight ? 1 : 0;
+    for (let i = 0; i < shadowCastingLights.length; i++) {
+      const light = shadowCastingLights[i];
+      const lightIndex = i + indexOffset;
+      const shadowMap = light.getShadowMap();
+      shadowMap.bind(glob.ctx);
+      glob.shaderManager.useProgram("shadow");
+      const lightSpaceMatrix = light.getLightSpaceMatrix();
+      glob.shaderManager.setUniform("u_lightSpaceMatrix", lightSpaceMatrix.mat4);
+      glob.ctx.enable(glob.ctx.DEPTH_TEST);
+      glob.ctx.depthFunc(glob.ctx.LESS);
+      glob.ctx.clearDepth(1);
+      glob.ctx.clear(glob.ctx.DEPTH_BUFFER_BIT);
+      lightSpaceMatrix.mat4.forEach((value, index) => {
+        lightSpaceMatrices[lightIndex * 16 + index] = value;
+      });
+      castsShadow[lightIndex] = 1;
+      for (const object of this.objects) {
+        if (object.vao && !object.ignoreLighting) {
+          glob.shaderManager.setUniform("u_modelMatrix", object.transform.getWorldMatrix().mat4);
+          object.vao.bind();
+          if (object.indexBuffer) {
+            glob.ctx.drawElements(glob.ctx.TRIANGLES, object.indexBuffer.getCount(), glob.ctx.UNSIGNED_SHORT, 0);
+          } else {
+            glob.ctx.drawArrays(glob.ctx.TRIANGLES, 0, object.drawCount);
+          }
+        }
+      }
+    }
+    glob.ctx.bindFramebuffer(glob.ctx.FRAMEBUFFER, null);
+    glob.ctx.viewport(0, 0, glob.ctx.canvas.width, glob.ctx.canvas.height);
+    glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT | glob.ctx.DEPTH_BUFFER_BIT);
+    glob.ctx.clearColor(...this.clearColor);
+    glob.shaderManager.useProgram("basic");
+    const viewMatrix = this.camera.getViewMatrix();
+    const projectionMatrix = this.camera.getProjectionMatrix();
+    this.lightManager.updateShaderUniforms();
+    glob.shaderManager.setUniform("u_lightSpaceMatrices", lightSpaceMatrices);
+    glob.shaderManager.setUniform("u_castsShadow", castsShadow);
+    shadowCastingLights.forEach((light, i) => {
+      if (light instanceof PointLight) {
+        const lightIndex = i + indexOffset;
+        const shadowMap = light.getShadowMap();
+        shadowMap.bindDepthTexture(glob.ctx, lightIndex + 1);
+        glob.shaderManager.setUniform("u_shadowMap".concat(lightIndex), lightIndex + 1);
+      }
+    });
+    for (const object of this.objects) {
+      object.render(viewMatrix, projectionMatrix);
+    }
+    this.frameCount++;
+  }
+  dispose() {
+    var _a;
+    for (const object of this.objects) {
+      object.vao.dispose();
+      (_a = object.indexBuffer) == null ? void 0 : _a.dispose();
+    }
+    this.objects = [];
+  }
+  tick(obj) {
+  }
+  afterTick(obj) {
+    this.render();
+  }
+  resize() {
+    this.camera.updateProjectionMatrix();
+  }
+  addLight(light) {
+    if (light instanceof AmbientLight) {
+      console.warn("Use setAmbientLight() to set the ambient light instead of addLight()");
+      return;
+    }
+    this.lightManager.addLight(light);
+  }
+  removeLight(light) {
+    if (light instanceof AmbientLight) {
+      console.warn("Cannot remove ambient light. Use setAmbientLight() to modify it instead");
+      return;
+    }
+    this.lightManager.removeLight(light);
+  }
+  update(data) {
+  }
+};
+
+// ts/classes/webgl2/camera.ts
+var Camera = class {
+  constructor({ position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 45, near = 0.1, far = 1e3 } = {}) {
+    this.position = position;
+    this.target = target;
+    this.fov = fov;
+    this.near = near;
+    this.far = far;
+    this.updateViewMatrix();
+    this.updateProjectionMatrix();
+  }
+  updateViewMatrix() {
+    this.viewMatrix = Matrix4.lookAt(this.position, this.target);
+  }
+  updateProjectionMatrix() {
+    this.projectionMatrix = m4().perspective(
+      this.fov * Math.PI / 180,
+      this.near,
+      this.far
+    );
+  }
+  setPosition(position) {
+    this.position = position;
+    this.updateViewMatrix();
+  }
+  setTarget(target) {
+    this.target = target;
+    this.updateViewMatrix();
+  }
+  setFov(fov) {
+    this.fov = fov;
+    this.updateProjectionMatrix();
+  }
+  getViewMatrix() {
+    return this.viewMatrix;
+  }
+  getProjectionMatrix() {
+    return this.projectionMatrix;
+  }
+  getPosition() {
+    return this.position;
+  }
+  getTarget() {
+    return this.target;
+  }
+};
+
+// ts/classes/webgl2/material.ts
+var Material = class {
+  constructor({
+    ambient = v3(0.2, 0.2, 0.2),
+    diffuse = v3(0.8, 0.8, 0.8),
+    specular = v3(1, 1, 1),
+    shininess = 2,
+    diffuseMap,
+    normalMap,
+    specularMap
+  } = {}) {
+    this.ambient = ambient;
+    this.diffuse = diffuse;
+    this.specular = specular;
+    this.shininess = shininess;
+    this.diffuseMap = diffuseMap;
+    this.normalMap = normalMap;
+    this.specularMap = specularMap;
+  }
+};
+
+// ts/classes/webgl2/meshes/plane.ts
+var Plane = class extends BaseMesh {
+  static generateIndices(flipNormal) {
+    return new Uint16Array(
+      flipNormal ? [0, 1, 2, 2, 3, 0] : [0, 2, 1, 0, 3, 2]
+      // counter-clockwise winding for top visibility
+    );
+  }
+  static generateNormals(flipNormal) {
+    const normalY = flipNormal ? -1 : 1;
+    return new Float32Array([
+      0,
+      normalY,
+      0,
+      0,
+      normalY,
+      0,
+      0,
+      normalY,
+      0,
+      0,
+      normalY,
+      0
+    ]);
+  }
+  static generateColors(material) {
+    const defaultColor = vec3_exports.fromValues(0.8, 0.8, 0.8);
+    const color = material ? material.diffuse.vec : defaultColor;
+    return new Float32Array([
+      color[0],
+      color[1],
+      color[2],
+      color[0],
+      color[1],
+      color[2],
+      color[0],
+      color[1],
+      color[2],
+      color[0],
+      color[1],
+      color[2]
+    ]);
+  }
+  static createMeshData(props = {}) {
+    return {
+      vertices: this.vertices,
+      indices: this.generateIndices(props.flipNormal || false),
+      normals: this.generateNormals(props.flipNormal || false),
+      texCoords: this.texCoords,
+      colors: this.generateColors(props.material)
+    };
+  }
+  static create(props = {}) {
+    if (!props.material && !props.texture) {
+      props.material = new Material();
+    }
+    const meshData = this.createMeshData(props);
+    const sceneObject = this.createSceneObject(meshData, props);
+    if (props.material) {
+      glob.shaderManager.setUniform("u_material.ambient", new Float32Array(props.material.ambient.vec));
+      glob.shaderManager.setUniform("u_material.diffuse", new Float32Array(props.material.diffuse.vec));
+      glob.shaderManager.setUniform("u_material.specular", new Float32Array(props.material.specular.vec));
+      glob.shaderManager.setUniform("u_material.shininess", props.material.shininess);
+      if (props.material.diffuseMap) {
+        glob.shaderManager.setUniform("u_useTexture", 1);
+        glob.ctx.activeTexture(glob.ctx.TEXTURE0);
+        glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, props.material.diffuseMap);
+        glob.shaderManager.setUniform("u_material.diffuseMap", 0);
+      } else {
+        glob.shaderManager.setUniform("u_useTexture", 0);
+      }
+    }
+    return sceneObject;
+  }
+};
+Plane.vertices = new Float32Array([
+  // Single face (square)
+  -0.5,
+  0,
+  -0.5,
+  // bottom-left
+  0.5,
+  0,
+  -0.5,
+  // bottom-right
+  0.5,
+  0,
+  0.5,
+  // top-right
+  -0.5,
+  0,
+  0.5
+  // top-left
+]);
+Plane.texCoords = new Float32Array([
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  0,
+  1
+]);
+
 // ts/classes/testLevel.ts
 var TestLevel = class extends Scene {
   constructor() {
-    super(new Camera({ position: v3(0, 1, 6), target: v3(0, 0, 0), fov: 45 }), {
+    super(new Camera({ position: v3(0, 1, 6), target: v3(0, 0, 0), fov: 60 }), {
       ambientLightColor: v3(1, 1, 1),
-      ambientLightIntensity: 0.1
+      ambientLightIntensity: 0.05
       // reduced from 0 to allow some ambient light
     });
     this.clearColor = [0, 0, 0, 1];
     const rotation = new Quaternion();
     rotation.setAxisAngle(v3(1, 0, 0), 0);
     this.add(Plane.create({
-      position: v3(0, -1, 0),
+      position: v3(0, -2, 0),
       scale: v3(10, 10, 10),
       material: new Material({
         diffuse: v3(1, 1, 1),
-        specular: v3(1, 1, 1)
+        specular: v3(1, 1, 1),
+        shininess: 3
       })
     }));
     this.add(Plane.create({
-      position: v3(0, 0, -3),
+      position: v3(0, 0, -4),
       scale: v3(10, 10, 10),
       rotation: Quaternion.fromEuler(-Math.PI / 2, 0, Math.PI / 2),
       material: new Material({
         diffuse: v3(1, 1, 1),
-        specular: v3(1, 1, 1)
+        specular: v3(1, 1, 1),
+        shininess: 3
       })
     }));
-    this.add(this.cube = IcoSphere.create({
+    this.add(this.mesh = IcoSphere.create({
       position: v3(0, 0, 0),
-      scale: v3(1, 1, 1),
-      colors: [1, 0, 0],
-      smoothShading: false
+      scale: v3(2.5, 2.5, 2.5),
+      colors: [[1, 1, 1], [1, 1, 1]],
+      smoothShading: false,
+      subdivisions: 0
+      // ignoreLighting: true,
     }));
-    this.arrow = new Arrow(this, {
-      shaftColor: [0.5, 0.5, 0.5],
-      headColor: [0.5, 0.5, 0.5],
-      length: 0.4,
-      shaftRadius: 0.1,
-      headLength: 0.15,
-      headRadius: 0.2,
-      position: v3(-1, 1, 2),
-      lookAt: v3(0, 0, 0)
+    this.add(IcoSphere.create({
+      position: v3(-2, -1.25, -2),
+      scale: v3(1.5, 1.5, 1.5),
+      colors: [[1, 1, 1], [1, 1, 1]],
+      smoothShading: true,
+      subdivisions: 4
+    }));
+    this.add(IcoSphere.create({
+      position: v3(-3.5, -1.25, -2),
+      scale: v3(1.5, 1.5, 1.5),
+      colors: [[1, 1, 1], [1, 1, 1]],
+      smoothShading: true,
+      subdivisions: 4
+    }));
+    this.add(IcoSphere.create({
+      position: v3(-2.75, -1.25, -0.75),
+      scale: v3(1.5, 1.5, 1.5),
+      colors: [[1, 1, 1], [1, 1, 1]],
+      smoothShading: true,
+      subdivisions: 4
+    }));
+    this.add(IcoSphere.create({
+      position: v3(-2.75, 0, -1.325),
+      scale: v3(1.5, 1.5, 1.5),
+      colors: [[1, 1, 1], [1, 1, 1]],
+      smoothShading: true,
+      subdivisions: 4
+    }));
+    this.addLight(new PointLight({
+      position: v3(0, 5, 4),
+      // higher position to cast better shadows
+      color: v3(1, 1, 1),
+      intensity: 0.1,
+      meshContainer: this
+    }));
+    this.spotLight = new SpotLight({
+      position: v3(0, 0, 0),
+      color: v3(1, 0, 0),
+      intensity: 0.5,
+      cutOff: 0.99,
+      direction: v3(0, 0, -1),
+      outerCutOff: 0.9,
+      meshContainer: this
     });
-    this.add(this.arrow);
-    this.addLight(new PointLight({
-      position: v3(-1, -0.5, 4),
-      // higher position to cast better shadows
-      color: v3(0.2, 0.2, 1),
-      intensity: 1
-      // increased intensity
-    }));
-    this.addLight(new PointLight({
-      position: v3(1, 0, 3),
-      // higher position to cast better shadows
-      color: v3(1, 0.2, 0.2),
-      intensity: 1
-      // increased intensity
-    }));
-    this.addLight(new PointLight({
-      position: v3(-2, 4, 4),
-      // higher position to cast better shadows
-      color: v3(0.2, 1, 0.2),
-      intensity: 1
-      // increased intensity
-    }));
+    this.addLight(this.spotLight);
+    this.spotLight2 = new SpotLight({
+      position: v3(0, 0, 0),
+      color: v3(0, 0, 1),
+      intensity: 0.5,
+      cutOff: 0.99,
+      direction: v3(0, 0, -1),
+      outerCutOff: 0.9,
+      meshContainer: this
+    });
+    this.addLight(this.spotLight2);
+    this.spotLight3 = new SpotLight({
+      position: v3(0, 0, 0),
+      color: v3(0, 1, 0),
+      intensity: 0.5,
+      cutOff: 0.99,
+      direction: v3(0, 0, -1),
+      outerCutOff: 0.9,
+      meshContainer: this
+    });
+    this.addLight(this.spotLight3);
   }
   tick(obj) {
     super.tick(obj);
-    if (this.cube) {
+    if (this.mesh) {
       const rotation = new Quaternion();
       rotation.setAxisAngle(v3(0, 1, 0), 0.01);
-      this.cube.transform.setRotation(
-        rotation.multiply(this.cube.transform.getLocalRotation())
+      this.mesh.transform.setRotation(
+        rotation.multiply(this.mesh.transform.getLocalRotation())
       );
     }
-    if (this.arrow) {
-      this.arrow.transform.setPosition(
-        v3(obj.total * 1e-4 % 1 * 8 - 4, 1, 2)
+    if (this.spotLight) {
+      this.spotLight.setPosition(
+        v3(
+          Math.sin((obj.total + 1e3) * 6e-4) % 1 * 4,
+          Math.sin((obj.total + 8e3) * 2e-3) % 1 * 3 + 2,
+          6
+        )
       );
-      this.arrow.lookAt(v3(0, 0, 0));
+      this.spotLight.lookAt(v3(0, 0, 0));
     }
+    if (this.spotLight2) {
+      this.spotLight2.setPosition(
+        v3(
+          Math.sin((obj.total + 300) * 15e-4 + 0.3) % 1 * 4,
+          (Math.sin((obj.total + 4e3) * 1e-3) % 1 + 0.6) * 3 + 2,
+          6
+        )
+      );
+      this.spotLight2.lookAt(v3(0, 0, 0));
+    }
+    if (this.spotLight3) {
+      this.spotLight3.setPosition(
+        v3(
+          Math.sin((obj.total + 1e3) * 1e-3) % 1 * 4,
+          Math.sin((obj.total + 2e3) * 15e-4) % 1 * 3 + 2,
+          6
+        )
+      );
+      this.spotLight3.lookAt(v3(0, 0, 0));
+    }
+    this.camera.setPosition(
+      v3(
+        Math.sin(obj.total * 5e-4) % 1 * 2,
+        0,
+        8
+      )
+    );
   }
 };
 

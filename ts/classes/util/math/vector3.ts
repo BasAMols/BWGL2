@@ -1,6 +1,7 @@
 import { vec3 } from 'gl-matrix';
 import { Vector2, v2 } from './vector2';
 import { Util } from '../utils';
+import { Quaternion } from './quaternion';
 
 export function v3(): Vector3;
 export function v3(a?: [number?, number?, number?]): Vector3;
@@ -254,6 +255,29 @@ export class Vector3 {
 			this.x * len,
 			this.y * len,
 			this.z * len
+		);
+	}
+
+	applyQuaternion(q: Quaternion): Vector3 {
+		const x = this.x;
+		const y = this.y;
+		const z = this.z;
+		const qx = q.x;
+		const qy = q.y;
+		const qz = q.z;
+		const qw = q.w;
+
+		// Calculate quat * vector
+		const ix = qw * x + qy * z - qz * y;
+		const iy = qw * y + qz * x - qx * z;
+		const iz = qw * z + qx * y - qy * x;
+		const iw = -qx * x - qy * y - qz * z;
+
+		// Calculate result * inverse quat
+		return new Vector3(
+			ix * qw + iw * -qx + iy * -qz - iz * -qy,
+			iy * qw + iw * -qy + iz * -qx - ix * -qz,
+			iz * qw + iw * -qz + ix * -qy - iy * -qx
 		);
 	}
 

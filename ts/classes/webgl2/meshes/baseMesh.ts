@@ -5,13 +5,15 @@ import { glob } from '../../../game';
 
 export interface BaseMeshProps extends SceneObjectProps {
     colors?: [number, number, number] | Array<[number, number, number]>;
+    ignoreLighting?: boolean;
 }
 
 export abstract class BaseMesh extends SceneObject {
-    protected static setupBuffers(meshData: MeshData): {
+    protected static setupBuffers(meshData: MeshData, props: BaseMeshProps): {
         vao: VertexArray;
         indexBuffer: IndexBuffer;
         drawCount: number;
+        ignoreLighting: boolean;
     } {
         // Create and setup VAO
         const vao = new VertexArray(glob.ctx);
@@ -73,15 +75,16 @@ export abstract class BaseMesh extends SceneObject {
             vao,
             indexBuffer,
             drawCount: meshData.indices!.length,
+            ignoreLighting: props.ignoreLighting ?? false
         };
     }
 
     protected static createSceneObject(meshData: MeshData, props: BaseMeshProps): SceneObject {
-        const bufferData = this.setupBuffers(meshData);
+        const bufferData = this.setupBuffers(meshData, props);
         return new SceneObject(bufferData, props);
     }
 
     public constructor(meshData: MeshData, props: BaseMeshProps = {}) {
-        super(BaseMesh.setupBuffers(meshData), props);
+        super(BaseMesh.setupBuffers(meshData, props), props);
     }
 } 

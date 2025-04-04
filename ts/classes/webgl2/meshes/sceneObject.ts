@@ -13,6 +13,7 @@ export interface SceneObjectData {
     drawMode: number;
     drawCount: number;
     drawType: number;
+    ignoreLighting: boolean;
 }
 
 export interface SceneObjectProps {
@@ -20,6 +21,7 @@ export interface SceneObjectProps {
     scale?: Vector3;
     rotation?: Quaternion;
     parent?: SceneObject;
+    ignoreLighting?: boolean;
 }
 
 export class SceneObject implements SceneObjectData {
@@ -30,6 +32,7 @@ export class SceneObject implements SceneObjectData {
     public readonly drawMode: number = glob.ctx.TRIANGLES;
     public readonly drawCount: number;
     public readonly drawType: number = glob.ctx.UNSIGNED_SHORT;
+    public readonly ignoreLighting: boolean = false;
 
     public static getAttributeLocation(name: string): number {
         return glob.shaderManager.getAttributeLocation(`a_${name}`);
@@ -40,6 +43,7 @@ export class SceneObject implements SceneObjectData {
         this.indexBuffer = data.indexBuffer;
         this.shaderManager = glob.shaderManager;
         this.drawCount = data.drawCount;
+        this.ignoreLighting = data.ignoreLighting ?? false;
 
         this.transform = new Transform();
         if (props.position) this.transform.setPosition(props.position);
