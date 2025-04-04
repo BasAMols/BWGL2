@@ -1,9 +1,12 @@
-document.addEventListener("DOMContentLoaded", async () => {
-    // const g = new Game();
-    // document.body.appendChild(g.renderer.dom);
-});
 
 import { vec3, mat4 } from 'gl-matrix';
+import { Game } from './game';
+
+document.addEventListener("DOMContentLoaded", async () => {
+    const g = new Game();
+    document.body.appendChild(g.renderer.dom);
+});
+
 
 // Vertex shader for shadow mapping
 const shadowVsSource = `#version 300 es
@@ -485,6 +488,7 @@ class ShadowDemo {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.clearColor(0, 0, 0, 1);
 
         gl.useProgram(this.mainProgram);
         gl.uniformMatrix4fv(gl.getUniformLocation(this.mainProgram, 'uView'), false, view);
@@ -535,6 +539,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const canvas = document.createElement('canvas');
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    canvas.style.cssText = 'z-index: 2; position: absolute;';
     document.body.appendChild(canvas);
 
     const demo = new ShadowDemo(canvas);
@@ -546,4 +551,12 @@ document.addEventListener("DOMContentLoaded", () => {
         requestAnimationFrame(animate);
     }
     animate();
+    let isVisible = true;
+    document.body.addEventListener('keydown', (e) => {
+        if (e.key === ' ') {
+            isVisible = !isVisible;
+            canvas.style.display = isVisible ? 'block' : 'none';
+        }
+    });
+
 });
