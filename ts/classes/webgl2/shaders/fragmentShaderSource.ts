@@ -153,7 +153,7 @@ vec3 calcPointLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 bas
     float attenuation = 1.0 / (u_lightConstants[index] + u_lightLinears[index] * distance + u_lightQuadratics[index] * distance * distance);
     
     vec3 ambient = u_lightColors[index] * u_material.ambient;
-    vec3 diffuse = u_lightColors[index] * diff * baseColor;
+    vec3 diffuse = u_lightColors[index] * diff * baseColor * u_material.diffuse;
     vec3 specular = u_lightColors[index] * spec * u_material.specular;
     
     return (ambient + diffuse + specular) * attenuation * u_lightIntensities[index];
