@@ -669,7 +669,7 @@ var ShaderManager = class {
 };
 
 // ts/classes/webgl2/shaders/fragmentShaderSource.ts
-var fragmentShaderSource = "#version 300 es\nprecision highp float;\n\n// Maximum number of lights\n#define MAX_LIGHTS 10\n\n// Light types\n#define LIGHT_TYPE_INACTIVE -1\n#define LIGHT_TYPE_AMBIENT 0\n#define LIGHT_TYPE_DIRECTIONAL 1\n#define LIGHT_TYPE_POINT 2\n#define LIGHT_TYPE_SPOT 3\n\n// Input from vertex shader\nin vec3 v_normal;\nin vec2 v_texCoord;\nin vec3 v_fragPos;\nin vec3 v_color;\nin vec4 v_fragPosLightSpace;\n\n// Material structure\nstruct Material {\n    vec3 ambient;\n    vec3 diffuse;\n    vec3 specular;\n    float shininess;\n    sampler2D diffuseMap;\n};\n\n// Light uniforms\nuniform int u_lightTypes[MAX_LIGHTS];\nuniform vec3 u_lightPositions[MAX_LIGHTS];\nuniform vec3 u_lightDirections[MAX_LIGHTS];\nuniform vec3 u_lightColors[MAX_LIGHTS];\nuniform float u_lightIntensities[MAX_LIGHTS];\nuniform float u_lightConstants[MAX_LIGHTS];\nuniform float u_lightLinears[MAX_LIGHTS];\nuniform float u_lightQuadratics[MAX_LIGHTS];\nuniform float u_lightCutOffs[MAX_LIGHTS];\nuniform float u_lightOuterCutOffs[MAX_LIGHTS];\nuniform int u_numLights;\n\n// Material uniforms\nuniform Material u_material;\nuniform bool u_useTexture;\n\n// Shadow mapping uniforms\nuniform sampler2D u_shadowMap0;\nuniform sampler2D u_shadowMap1;\nuniform sampler2D u_shadowMap2;\nuniform sampler2D u_shadowMap3;\nuniform sampler2D u_shadowMap4;\nuniform sampler2D u_shadowMap5;\nuniform sampler2D u_shadowMap6;\nuniform sampler2D u_shadowMap7;\nuniform sampler2D u_shadowMap8;\nuniform sampler2D u_shadowMap9;\nuniform mat4 u_lightSpaceMatrices[MAX_LIGHTS];\nuniform bool u_castsShadow[MAX_LIGHTS];\n\n// Other uniforms\nuniform vec3 u_viewPos;\n\n// Output\nout vec4 fragColor;\n\nfloat getShadowMap(int index, vec2 coords) {\n    // We have to use a switch statement because WebGL2 requires constant array indices for samplers\n    switch(index) {\n        case 0: return texture(u_shadowMap0, coords).r;\n        case 1: return texture(u_shadowMap1, coords).r;\n        case 2: return texture(u_shadowMap2, coords).r;\n        case 3: return texture(u_shadowMap3, coords).r;\n        case 4: return texture(u_shadowMap4, coords).r;\n        case 5: return texture(u_shadowMap5, coords).r;\n        case 6: return texture(u_shadowMap6, coords).r;\n        case 7: return texture(u_shadowMap7, coords).r;\n        case 8: return texture(u_shadowMap8, coords).r;\n        case 9: return texture(u_shadowMap9, coords).r;\n        default: return 1.0; // No shadow if invalid index\n    }\n}\n\nfloat ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir, int shadowMapIndex) {\n    // Perform perspective divide\n    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;\n    \n    // Transform to [0,1] range\n    projCoords = projCoords * 0.5 + 0.5;\n    \n    // Get closest depth value from light's perspective using the helper function\n    float closestDepth = getShadowMap(shadowMapIndex, projCoords.xy);\n    \n    // Get current depth\n    float currentDepth = projCoords.z;\n    \n    // Calculate bias based on surface angle\n    float cosTheta = dot(normal, lightDir);\n    float bias = 0.01; // Moderate base bias\n    \n    // Add angle-dependent component\n    bias += 0.02 * (1.0 - max(cosTheta, 0.0));\n    \n    // PCF (Percentage Closer Filtering)\n    float shadow = 0.0;\n    vec2 texelSize = 1.0 / vec2(textureSize(u_shadowMap0, 0)); // All shadow maps are same size\n    for(int x = -1; x <= 1; ++x) {\n        for(int y = -1; y <= 1; ++y) {\n            float pcfDepth = getShadowMap(shadowMapIndex, projCoords.xy + vec2(x, y) * texelSize);\n            shadow += (currentDepth - bias) > pcfDepth ? 1.0 : 0.0;\n        }\n    }\n    shadow /= 9.0;\n    \n    // Keep shadow at 0.0 when outside the far plane region of the light's frustum\n    if(projCoords.z > 1.0)\n        shadow = 0.0;\n        \n    return shadow;\n}\n\n// Function to calculate directional light\nvec3 calcDirectionalLight(int index, vec3 normal, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(-u_lightDirections[index]);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_material.shininess);\n    \n    vec3 ambient = u_lightColors[index] * u_material.ambient;\n    vec3 diffuse = u_lightColors[index] * diff * baseColor;\n    vec3 specular = u_lightColors[index] * spec * u_material.specular;\n    \n    return (ambient + diffuse + specular) * u_lightIntensities[index];\n}\n\n// Function to calculate point light\nvec3 calcPointLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(u_lightPositions[index] - fragPos);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_material.shininess);\n    \n    // Attenuation\n    float distance = length(u_lightPositions[index] - fragPos);\n    float attenuation = 1.0 / (u_lightConstants[index] + u_lightLinears[index] * distance + u_lightQuadratics[index] * distance * distance);\n    \n    vec3 ambient = u_lightColors[index] * u_material.ambient;\n    vec3 diffuse = u_lightColors[index] * diff * baseColor;\n    vec3 specular = u_lightColors[index] * spec * u_material.specular;\n    \n    return (ambient + diffuse + specular) * attenuation * u_lightIntensities[index];\n}\n\n// Function to calculate spot light\nvec3 calcSpotLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(u_lightPositions[index] - fragPos);\n    \n    // Spot light intensity\n    float theta = dot(lightDir, normalize(-u_lightDirections[index]));\n    float epsilon = u_lightCutOffs[index] - u_lightOuterCutOffs[index];\n    float intensity = clamp((theta - u_lightOuterCutOffs[index]) / epsilon, 0.0, 1.0);\n    \n    // Use point light calculation and multiply by spot intensity\n    return calcPointLight(index, normal, fragPos, viewDir, baseColor) * intensity;\n}\n\nvoid main() {\n    vec3 normal = normalize(v_normal);\n    vec3 viewDir = normalize(u_viewPos - v_fragPos);\n    \n    // Get base color from texture or vertex color\n    vec3 baseColor;\n    if (u_useTexture) {\n        baseColor = texture(u_material.diffuseMap, v_texCoord).rgb;\n    } else {\n        baseColor = v_color;\n    }\n    \n    vec3 result = vec3(0.0);\n    \n    // Calculate contribution from each light\n    for(int i = 0; i < u_numLights; i++) {\n        if(i >= MAX_LIGHTS) break;\n        \n        // Skip inactive lights\n        if(u_lightTypes[i] == LIGHT_TYPE_INACTIVE) continue;\n        \n        float shadow = 0.0;\n        if(u_castsShadow[i]) {\n            vec4 fragPosLightSpace = u_lightSpaceMatrices[i] * vec4(v_fragPos, 1.0);\n            shadow = ShadowCalculation(fragPosLightSpace, normal, normalize(u_lightPositions[i] - v_fragPos), i);\n        }\n        \n        if(u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            result += u_lightColors[i] * u_lightIntensities[i] * baseColor;\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            vec3 lighting = calcDirectionalLight(i, normal, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_POINT) {\n            vec3 lighting = calcPointLight(i, normal, v_fragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n            vec3 lighting = calcSpotLight(i, normal, v_fragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n    }\n    \n    fragColor = vec4(result, 1.0);\n}";
+var fragmentShaderSource = "#version 300 es\nprecision highp float;\n\n// Maximum number of lights\n#define MAX_LIGHTS 10\n\n// Light types\n#define LIGHT_TYPE_INACTIVE -1\n#define LIGHT_TYPE_AMBIENT 0\n#define LIGHT_TYPE_DIRECTIONAL 1\n#define LIGHT_TYPE_POINT 2\n#define LIGHT_TYPE_SPOT 3\n\n// Input from vertex shader\nin vec3 v_normal;\nin vec2 v_texCoord;\nin vec3 v_fragPos;\nin vec3 v_color;\nin vec4 v_fragPosLightSpace;\n\n// Material structure\nstruct Material {\n    vec3 ambient;\n    vec3 diffuse;\n    vec3 specular;\n    float shininess;\n    sampler2D diffuseMap;\n};\n\n// Light uniforms\nuniform int u_lightTypes[MAX_LIGHTS];\nuniform vec3 u_lightPositions[MAX_LIGHTS];\nuniform vec3 u_lightDirections[MAX_LIGHTS];\nuniform vec3 u_lightColors[MAX_LIGHTS];\nuniform float u_lightIntensities[MAX_LIGHTS];\nuniform float u_lightConstants[MAX_LIGHTS];\nuniform float u_lightLinears[MAX_LIGHTS];\nuniform float u_lightQuadratics[MAX_LIGHTS];\nuniform float u_lightCutOffs[MAX_LIGHTS];\nuniform float u_lightOuterCutOffs[MAX_LIGHTS];\nuniform int u_numLights;\n\n// Material uniforms\nuniform Material u_material;\nuniform bool u_useTexture;\n\n// Shadow mapping uniforms\nuniform sampler2D u_shadowMap0;\nuniform sampler2D u_shadowMap1;\nuniform sampler2D u_shadowMap2;\nuniform sampler2D u_shadowMap3;\nuniform sampler2D u_shadowMap4;\nuniform sampler2D u_shadowMap5;\nuniform sampler2D u_shadowMap6;\nuniform sampler2D u_shadowMap7;\nuniform sampler2D u_shadowMap8;\nuniform sampler2D u_shadowMap9;\nuniform mat4 u_lightSpaceMatrices[MAX_LIGHTS];\nuniform bool u_castsShadow[MAX_LIGHTS];\n\n// Other uniforms\nuniform vec3 u_viewPos;\n\n// Output\nout vec4 fragColor;\n\nfloat getShadowMap(int index, vec2 coords) {\n    // We have to use a switch statement because WebGL2 requires constant array indices for samplers\n    switch(index) {\n        case 0: return texture(u_shadowMap0, coords).r;\n        case 1: return texture(u_shadowMap1, coords).r;\n        case 2: return texture(u_shadowMap2, coords).r;\n        case 3: return texture(u_shadowMap3, coords).r;\n        case 4: return texture(u_shadowMap4, coords).r;\n        case 5: return texture(u_shadowMap5, coords).r;\n        case 6: return texture(u_shadowMap6, coords).r;\n        case 7: return texture(u_shadowMap7, coords).r;\n        case 8: return texture(u_shadowMap8, coords).r;\n        case 9: return texture(u_shadowMap9, coords).r;\n        default: return 1.0; // No shadow if invalid index\n    }\n}\n\nfloat ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir, int shadowMapIndex) {\n    // Perform perspective divide\n    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;\n    \n    // Transform to [0,1] range\n    projCoords = projCoords * 0.5 + 0.5;\n    \n    // Get closest depth value from light's perspective using the helper function\n    float closestDepth = getShadowMap(shadowMapIndex, projCoords.xy);\n    \n    // Get current depth\n    float currentDepth = projCoords.z;\n    \n    // Calculate bias based on surface angle\n    float cosTheta = dot(normal, lightDir);\n    float bias = 0.01; // Moderate base bias\n    \n    // Add angle-dependent component\n    bias += 0.02 * (1.0 - max(cosTheta, 0.0));\n    \n    // PCF (Percentage Closer Filtering)\n    float shadow = 0.0;\n    vec2 texelSize = 1.0 / vec2(textureSize(u_shadowMap0, 0)); // All shadow maps are same size\n    for(int x = -1; x <= 1; ++x) {\n        for(int y = -1; y <= 1; ++y) {\n            float pcfDepth = getShadowMap(shadowMapIndex, projCoords.xy + vec2(x, y) * texelSize);\n            shadow += (currentDepth - bias) > pcfDepth ? 1.0 : 0.0;\n        }\n    }\n    shadow /= 9.0;\n    \n    // Keep shadow at 0.0 when outside the far plane region of the light's frustum\n    if(projCoords.z > 1.0)\n        shadow = 0.0;\n        \n    return shadow;\n}\n\n// Function to calculate directional light\nvec3 calcDirectionalLight(int index, vec3 normal, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(-u_lightDirections[index]);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_material.shininess);\n    \n    vec3 ambient = u_lightColors[index] * u_material.ambient;\n    vec3 diffuse = u_lightColors[index] * diff * baseColor;\n    vec3 specular = u_lightColors[index] * spec * u_material.specular;\n    \n    return (ambient + diffuse + specular) * u_lightIntensities[index];\n}\n\n// Function to calculate point light\nvec3 calcPointLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(u_lightPositions[index] - fragPos);\n    \n    // Diffuse\n    float diff = max(dot(normal, lightDir), 0.0);\n    \n    // Specular\n    vec3 reflectDir = reflect(-lightDir, normal);\n    float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_material.shininess);\n    \n    // Attenuation\n    float distance = length(u_lightPositions[index] - fragPos);\n    float attenuation = 1.0 / (u_lightConstants[index] + u_lightLinears[index] * distance + u_lightQuadratics[index] * distance * distance);\n    \n    vec3 ambient = u_lightColors[index] * u_material.ambient;\n    vec3 diffuse = u_lightColors[index] * diff * baseColor * u_material.diffuse;\n    vec3 specular = u_lightColors[index] * spec * u_material.specular;\n    \n    return (ambient + diffuse + specular) * attenuation * u_lightIntensities[index];\n}\n\n// Function to calculate spot light\nvec3 calcSpotLight(int index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 baseColor) {\n    vec3 lightDir = normalize(u_lightPositions[index] - fragPos);\n    \n    // Spot light intensity\n    float theta = dot(lightDir, normalize(-u_lightDirections[index]));\n    float epsilon = u_lightCutOffs[index] - u_lightOuterCutOffs[index];\n    float intensity = clamp((theta - u_lightOuterCutOffs[index]) / epsilon, 0.0, 1.0);\n    \n    // Use point light calculation and multiply by spot intensity\n    return calcPointLight(index, normal, fragPos, viewDir, baseColor) * intensity;\n}\n\nvoid main() {\n    vec3 normal = normalize(v_normal);\n    vec3 viewDir = normalize(u_viewPos - v_fragPos);\n    \n    // Get base color from texture or vertex color\n    vec3 baseColor;\n    if (u_useTexture) {\n        baseColor = texture(u_material.diffuseMap, v_texCoord).rgb;\n    } else {\n        baseColor = v_color;\n    }\n    \n    vec3 result = vec3(0.0);\n    \n    // Calculate contribution from each light\n    for(int i = 0; i < u_numLights; i++) {\n        if(i >= MAX_LIGHTS) break;\n        \n        // Skip inactive lights\n        if(u_lightTypes[i] == LIGHT_TYPE_INACTIVE) continue;\n        \n        float shadow = 0.0;\n        if(u_castsShadow[i]) {\n            vec4 fragPosLightSpace = u_lightSpaceMatrices[i] * vec4(v_fragPos, 1.0);\n            shadow = ShadowCalculation(fragPosLightSpace, normal, normalize(u_lightPositions[i] - v_fragPos), i);\n        }\n        \n        if(u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            result += u_lightColors[i] * u_lightIntensities[i] * baseColor;\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            vec3 lighting = calcDirectionalLight(i, normal, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_POINT) {\n            vec3 lighting = calcPointLight(i, normal, v_fragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n        else if(u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n            vec3 lighting = calcSpotLight(i, normal, v_fragPos, viewDir, baseColor);\n            result += lighting * (1.0 - shadow);\n        }\n    }\n    \n    fragColor = vec4(result, 1.0);\n}";
 
 // ts/classes/webgl2/shaders/vertexShaderSource.ts
 var vertexShaderSource = "#version 300 es\nprecision highp float;\n\n// Attributes\nin vec3 a_position;\nin vec3 a_normal;\nin vec2 a_texCoord;\nin vec3 a_color;\n\n// Uniforms\nuniform mat4 u_modelMatrix;\nuniform mat4 u_viewMatrix;\nuniform mat4 u_projectionMatrix;\nuniform mat3 u_normalMatrix; // Added for correct normal transformation\n\n// Material uniforms\nstruct Material {\n    vec3 ambient;\n    vec3 diffuse;\n    vec3 specular;\n    float shininess;\n    sampler2D diffuseMap;\n};\nuniform Material u_material;\nuniform bool u_useTexture;\n\n// Varyings (output to fragment shader)\nout vec3 v_normal;\nout vec2 v_texCoord;\nout vec3 v_fragPos;\nout vec3 v_color;\n\nvoid main() {\n    v_fragPos = vec3(u_modelMatrix * vec4(a_position, 1.0));\n    v_normal = u_normalMatrix * a_normal;\n    v_texCoord = a_texCoord;\n    v_color = a_color;\n    \n    gl_Position = u_projectionMatrix * u_viewMatrix * vec4(v_fragPos, 1.0);\n}";
@@ -777,12 +777,23 @@ var Renderer = class extends DomElement {
     this.dom.addEventListener("mousedown", (e) => {
       this.lastClick = v2(e.offsetX / this.width, e.offsetY / this.height);
     });
+    this.dom.addEventListener("touchstart", (e) => {
+      this.lastClick = v2(e.touches[0].clientX / this.width, e.touches[0].clientY / this.height);
+    });
     this.dom.addEventListener("mousemove", (e) => {
       if (this.lastClick) {
         this.lastClick = v2(e.offsetX / this.width, e.offsetY / this.height);
       }
     });
+    this.dom.addEventListener("touchmove", (e) => {
+      if (this.lastClick) {
+        this.lastClick = v2(e.touches[0].clientX / this.width, e.touches[0].clientY / this.height);
+      }
+    });
     this.dom.addEventListener("mouseup", (e) => {
+      this.lastClick = null;
+    });
+    this.dom.addEventListener("touchend", (e) => {
       this.lastClick = null;
     });
     this.resize();
@@ -3627,7 +3638,7 @@ _Material._materials = {
   },
   "metal": {
     baseColor: v3(0.8, 0.8, 0.8),
-    roughness: 0.5,
+    roughness: 0.3,
     metallic: 1,
     ambientOcclusion: 1,
     emissive: v3(0, 0, 0)
@@ -6144,44 +6155,54 @@ var TestLevel = class extends Scene {
   constructor() {
     super(new Camera({ position: v3(0, 1, 6), target: v3(0, 0, 0), fov: 50 }), {
       ambientLightColor: v3(1, 1, 1),
-      ambientLightIntensity: 1e-3
+      ambientLightIntensity: 0
       // Increased to illuminate shadowed areas better
     });
     this.clearColor = [0.01, 0.01, 0.01, 1];
     const rotation = new Quaternion();
     rotation.setAxisAngle(v3(1, 0, 0), 0);
     this.keyLight = new DirectionalLight({
-      direction: v3(-0.5, -1, -0.3).normalize(),
+      direction: v3(-0.5, -3, -1).normalize(),
       color: v3(1, 0.98, 0.9),
       // Slightly warm white
-      intensity: 0.51,
+      intensity: 0.2,
       // Reduced from 1.2,
       enabled: true
     });
     this.addLight(this.keyLight);
     this.spotLight4 = new SpotLight({
       position: v3(0, 5, 0),
-      color: v3(1, 1, 1),
+      color: v3(0, 0, 1),
       // Pure white
-      intensity: 4,
-      // Moderate intensity
-      cutOff: 0.9,
-      outerCutOff: 0.85,
+      intensity: 40,
+      cutOff: 0.96,
+      outerCutOff: 0.95,
       meshContainer: this
     });
     this.spotLight4.lookAt(v3(0, 0, 0));
     this.addLight(this.spotLight4);
+    for (let i = 0; i < 2; i++) {
+      let vari = ["spotLight", "spotLight2", "spotLight3"][i];
+      let color = [v3(1, 0, 0), v3(0, 1, 0), v3(0, 0, 1)][i];
+      this[vari] = new SpotLight({
+        color,
+        intensity: 40,
+        cutOff: 0.97,
+        outerCutOff: 0.96,
+        meshContainer: this,
+        enabled: false
+      });
+      this.addLight(this[vari]);
+    }
     this.add(this.floorPlane = Plane.create({
       position: v3(0, -2, 0),
       scale: v2(10, 10),
-      pickColor: 90,
       material: Material.library("rough", v3(0.7, 0.7, 0.73))
     }));
     this.add(Plane.create({
       position: v3(0, 0.5, -4),
       scale: v2(5, 10),
       rotation: Quaternion.fromEuler(-Math.PI / 2, 0, Math.PI / 2),
-      pickColor: 80,
       material: Material.library("rough", v3(0.7, 0.7, 0.73))
     }));
     this.add(this.frontWall = Plane.create({
@@ -6196,9 +6217,6 @@ var TestLevel = class extends Scene {
       smoothShading: false,
       subdivisions: 2,
       material: Material.library("metal", v3(0.95, 0.6, 0.95))
-    }));
-    this.add(this.static = new ContainerObject({
-      position: v3(1, 2, -1)
     }));
     for (let i = 0; i < 2; i++) {
       const container = new ContainerObject({
@@ -6256,6 +6274,32 @@ var TestLevel = class extends Scene {
   }
   tick(obj) {
     super.tick(obj);
+    if (this.mesh) {
+      const rotation = new Quaternion();
+      rotation.setAxisAngle(v3(0, 1, 0), 0.01);
+      this.mesh.transform.setRotation(
+        rotation.multiply(this.mesh.transform.getLocalRotation())
+      );
+    }
+    this.spotLight.setPosition(
+      Math.sin((obj.total + 1e3) * 6e-4) % 1 * 4,
+      Math.sin((obj.total + 8e3) * 2e-3) % 1 * 4 + 3,
+      6
+    );
+    this.spotLight.lookAt(v3(0, 0, 0));
+    this.spotLight2.setPosition(
+      Math.sin((obj.total + 300) * 15e-4 + 0.3) % 1 * 4,
+      (Math.sin((obj.total + 4e3) * 1e-3) % 1 + 0.6) * 4 + 3,
+      6
+    );
+    this.spotLight2.lookAt(v3(0, 0, 0));
+    this.camera.setPosition(
+      v3(
+        Math.sin(obj.total * 8e-4) % 1 * 5,
+        Math.sin(obj.total * 12e-4) % 1 * 1,
+        Math.sin(obj.total * 5e-4) % 1 * 2 + 9
+      )
+    );
   }
 };
 

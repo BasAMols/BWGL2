@@ -73,7 +73,7 @@ export class Material {
         },
         'metal': {
             baseColor: v3(0.8, 0.8, 0.8),
-            roughness: 0.5,
+            roughness: 0.3,
             metallic: 1.0,
             ambientOcclusion: 1.0,
             emissive: v3(0.0, 0.0, 0.0)

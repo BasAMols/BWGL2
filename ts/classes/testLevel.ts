@@ -33,7 +33,7 @@ export class TestLevel extends Scene {
     constructor() {
         super(new Camera({ position: v3(0, 1, 6), target: v3(0, 0, 0), fov: 50 }), {
             ambientLightColor: v3(1, 1, 1),
-            ambientLightIntensity: 0.001 // Increased to illuminate shadowed areas better
+            ambientLightIntensity: 0.0 // Increased to illuminate shadowed areas better
         });
 
         const rotation = new Quaternion();
@@ -41,9 +41,9 @@ export class TestLevel extends Scene {
 
         // Add a main directional light (key light) for better overall illumination
         this.keyLight = new DirectionalLight({
-            direction: v3(-0.5, -1, -0.3).normalize(),
+            direction: v3(-0.5, -3, -   1 ).normalize(),
             color: v3(1, 0.98, 0.9),   // Slightly warm white
-            intensity: 0.51,         // Reduced from 1.2,
+            intensity: 0.2,         // Reduced from 1.2,
             enabled: true
         });
         this.addLight(this.keyLight);
@@ -51,20 +51,37 @@ export class TestLevel extends Scene {
         // Add an interactive spotlight that follows mouse clicks
         this.spotLight4 = new SpotLight({
             position: v3(0, 5, 0),
-            color: v3(1.0, 1.0, 1.0),     // Pure white
-            intensity: 4,                // Moderate intensity
-            cutOff: 0.9,
-            outerCutOff: 0.85,
+            color: v3(0, 0, 1.0),     // Pure white
+            intensity: 40,
+            cutOff: 0.96,
+            outerCutOff: 0.95,
             meshContainer: this,
         });
         this.spotLight4.lookAt(v3(0, 0, 0));
         this.addLight(this.spotLight4);
 
+        //     intensity: 0.8,   
+        //     meshContainer: this,  
+        // }));
+
+
+        for (let i = 0; i < 2; i++) {
+            let vari = ["spotLight", "spotLight2", "spotLight3"][i] as "spotLight" | "spotLight2" | "spotLight3";
+            let color = [v3(1, 0, 0), v3(0, 1, 0), v3(0, 0, 1)][i];
+            this[vari] = new SpotLight({
+                color: color,
+                intensity: 40,
+                cutOff: 0.97,
+                outerCutOff: 0.96,
+                meshContainer: this,
+                enabled: false
+            });
+            this.addLight(this[vari]);
+        }
 
         this.add(this.floorPlane = Plane.create({
             position: v3(0, -2, 0),
             scale: v2(10, 10),
-            pickColor: 90,
             material: Material.library('rough', v3(0.7, 0.7, 0.73))
         }));
 
@@ -72,7 +89,6 @@ export class TestLevel extends Scene {
             position: v3(0, 0.5, -4),
             scale: v2(5, 10),
             rotation: Quaternion.fromEuler(-Math.PI / 2, 0, Math.PI / 2),
-            pickColor: 80,
             material: Material.library('rough', v3(0.7, 0.7, 0.73))
         }));
 
@@ -90,10 +106,6 @@ export class TestLevel extends Scene {
             smoothShading: false,
             subdivisions: 2,
             material: Material.library('metal', v3(0.95, 0.6, 0.95))
-        }));
-
-        this.add(this.static = new ContainerObject({
-            position: v3(1, 2, -1),
         }));
 
         // Create a variety of objects with different PBR materials
@@ -154,7 +166,6 @@ export class TestLevel extends Scene {
 
         this.camera.setPosition(v3(-1, 3, 6));
 
-        // Initial click to position interactive spotlight
         this.click(v2(0.5, 0.3));
     }
 
@@ -173,6 +184,42 @@ export class TestLevel extends Scene {
     tick(obj: TickerReturnData) {
         super.tick(obj);
 
+        // Rotate the cube slowly
+        if (this.mesh) {
+            const rotation = new Quaternion();
+            rotation.setAxisAngle(v3(0, 1, 0), 0.01);
+            this.mesh.transform.setRotation(
+                rotation.multiply(this.mesh.transform.getLocalRotation())
+            );
+        }
 
+        this.spotLight.setPosition(
+            (Math.sin((obj.total + 1000) * 0.0006) % 1) * 4,
+            (Math.sin((obj.total + 8000) * 0.002) % 1) * 4 + 3,
+            6
+        );
+        this.spotLight.lookAt(v3(0, 0, 0));
+
+        this.spotLight2.setPosition(
+            (Math.sin((obj.total + 300) * 0.0015 + 0.3) % 1) * 4,
+            ((Math.sin((obj.total + 4000) * 0.001) % 1) + 0.6) * 4 + 3,
+            6
+        );
+        this.spotLight2.lookAt(v3(0, 0, 0));
+
+        // this.spotLight3.setPosition(
+        //     (Math.sin((obj.total + 1000) * 0.001) % 1) * 4,
+        //     ((Math.sin((obj.total + 2000) * 0.0015) % 1) + 0.6) * 4 + 3,
+        //     6
+        // );
+        // this.spotLight3.lookAt(v3(0, 0, 0));
+
+        this.camera.setPosition(
+            v3(
+                (Math.sin(obj.total * 0.0008) % 1) * 5,
+                (Math.sin(obj.total * 0.0012) % 1) * 1,
+                (Math.sin(obj.total * 0.0005) % 1) * 2 + 9,
+            )
+        );
     }
 }
