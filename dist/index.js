@@ -743,12 +743,23 @@ var Renderer = class extends DomElement {
     this.dom.addEventListener("mousedown", (e) => {
       this.lastClick = v2(e.offsetX / this.width, e.offsetY / this.height);
     });
+    this.dom.addEventListener("touchstart", (e) => {
+      this.lastClick = v2(e.touches[0].clientX / this.width, e.touches[0].clientY / this.height);
+    });
     this.dom.addEventListener("mousemove", (e) => {
       if (this.lastClick) {
         this.lastClick = v2(e.offsetX / this.width, e.offsetY / this.height);
       }
     });
+    this.dom.addEventListener("touchmove", (e) => {
+      if (this.lastClick) {
+        this.lastClick = v2(e.touches[0].clientX / this.width, e.touches[0].clientY / this.height);
+      }
+    });
     this.dom.addEventListener("mouseup", (e) => {
+      this.lastClick = null;
+    });
+    this.dom.addEventListener("touchend", (e) => {
       this.lastClick = null;
     });
     this.resize();
@@ -5526,7 +5537,7 @@ var Wedge = class extends BaseMesh {
 // ts/classes/testLevel.ts
 var TestLevel = class extends Scene {
   constructor() {
-    super(new Camera({ position: v3(0, 1, 6), target: v3(0, 0, 0), fov: 40 }), {
+    super(new Camera({ position: v3(0, 1, 6), target: v3(0, 0, 0), fov: 55 }), {
       ambientLightColor: v3(1, 1, 1),
       ambientLightIntensity: 0.05
       // reduced from 0 to allow some ambient light

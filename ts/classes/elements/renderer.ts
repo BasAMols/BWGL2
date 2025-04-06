@@ -45,13 +45,24 @@ export class Renderer extends DomElement<'canvas'> {
         this.dom.addEventListener('mousedown', (e) => {
             this.lastClick = v2(e.offsetX / this.width, e.offsetY / this.height);
         });
+        this.dom.addEventListener('touchstart', (e) => {
+            this.lastClick = v2(e.touches[0].clientX / this.width, e.touches[0].clientY / this.height);
+        });
 
         this.dom.addEventListener('mousemove', (e) => {
             if (this.lastClick) {
                 this.lastClick = v2(e.offsetX / this.width, e.offsetY / this.height);
             }
         });
+        this.dom.addEventListener('touchmove', (e) => {
+            if (this.lastClick) {
+                this.lastClick = v2(e.touches[0].clientX / this.width, e.touches[0].clientY / this.height);
+            }
+        });
         this.dom.addEventListener('mouseup', (e) => {
+            this.lastClick = null;
+        });
+        this.dom.addEventListener('touchend', (e) => {
             this.lastClick = null;
         });
         this.resize();

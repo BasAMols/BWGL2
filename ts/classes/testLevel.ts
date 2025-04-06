@@ -32,7 +32,7 @@ export class TestLevel extends Scene {
     floorPlane: SceneObject;
 
     constructor() {
-        super(new Camera({ position: v3(0, 1, 6), target: v3(0, 0, 0), fov: 40 }), {
+        super(new Camera({ position: v3(0, 1, 6), target: v3(0, 0, 0), fov: 55 }), {
             ambientLightColor: v3(1, 1, 1),
             ambientLightIntensity: 0.05  // reduced from 0 to allow some ambient light
         });
