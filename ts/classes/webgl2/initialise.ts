@@ -5,6 +5,7 @@ import { vertexShaderSource } from './shaders/vertexShaderSource';
 import { shadowVertexShaderSource } from './shaders/shadowVertexShader';
 import { pbrVertexShader } from './shaders/pbrVertexShader';
 import { pbrFragmentShader } from './shaders/pbrFragmentShader';
+import { debugDepthVertexShader, debugDepthFragmentShader } from './shaders/debugDepthShader';
 
 export class WebGL2Initializer {
     private canvas: HTMLCanvasElement;
@@ -35,9 +36,14 @@ export class WebGL2Initializer {
             precision highp float;
             out vec4 fragColor;
             void main() {
-                // Only depth values are written
+                // Explicitly output a color (not used) but required for valid fragment shader
+                // The actual depth is written automatically by WebGL
+                fragColor = vec4(1.0, 1.0, 1.0, 1.0);
             }
         `);
+        
+        // Add debug shader for shadow map visualization
+        this.shaderManager.loadShaderProgram('debug', debugDepthVertexShader, debugDepthFragmentShader);
         
         // Use PBR shader as default
         this.shaderManager.useProgram('pbr');
@@ -75,7 +81,7 @@ export class WebGL2Initializer {
         // Initialize shadow mapping arrays
         const castsShadow = new Int32Array(numLights);
         const lightSpaceMatrices = new Float32Array(numLights * 16); // 4x4 matrices
-        castsShadow.fill(0); // Default to not casting shadows
+        castsShadow.fill(1); // Default to not casting shadows
 
         this.shaderManager.setUniform('u_castsShadow', castsShadow);
         this.shaderManager.setUniform('u_lightSpaceMatrices', lightSpaceMatrices);

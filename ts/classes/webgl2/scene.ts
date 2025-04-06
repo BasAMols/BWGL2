@@ -7,6 +7,7 @@ import { LightManager } from './lights/lightManager';
 import { v3, Vector3 } from '../util/math/vector3';
 import { Vector2 } from '../util/math/vector2';
 import { colorPickingVertexShader, colorPickingFragmentShader } from './shaders/colorPickingShader';
+import { VertexArray, VertexBuffer } from './buffer';
 
 export interface SceneOptions {
     ambientLightColor?: Vector3;
@@ -34,6 +35,9 @@ export class Scene {
     protected showShadowMap: boolean = false;
     protected frameCount: number = 0;
     protected lastClick: Vector2;
+    protected debugShadowMap: boolean = false;
+    protected debugLightIndex: number = 0;
+    protected fullScreenQuadVAO: VertexArray | null = null;
 
     public click(vector2: Vector2) {
         this.lastClick = vector2;
@@ -51,49 +55,11 @@ export class Scene {
         // Load color picking shader
         glob.shaderManager.loadShaderProgram('picking', colorPickingVertexShader, colorPickingFragmentShader);
 
-        // Initialize picking framebuffer
-        this.initializePickingBuffers();
+        // Initialize shadow rendering once all lights are added
+        // This will ensure shadow textures are properly bound
 
         glob.events.resize.subscribe('level', this.resize.bind(this));
-    }
 
-    private initializePickingBuffers(): void {
-        const gl = glob.ctx;
-        
-        // Create framebuffer
-        this.pickingFramebuffer = gl.createFramebuffer();
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this.pickingFramebuffer);
-        
-        // Create color texture
-        this.pickingTexture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, this.pickingTexture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 
-            gl.canvas.width, gl.canvas.height, 
-            0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        
-        // Create depth buffer
-        this.pickingDepthBuffer = gl.createRenderbuffer();
-        gl.bindRenderbuffer(gl.RENDERBUFFER, this.pickingDepthBuffer);
-        gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, 
-            gl.canvas.width, gl.canvas.height);
-        
-        // Attach buffers
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, 
-            gl.TEXTURE_2D, this.pickingTexture, 0);
-        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, 
-            gl.RENDERBUFFER, this.pickingDepthBuffer);
-        
-        // Check framebuffer is complete
-        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
-            console.error('Picking framebuffer is not complete');
-        }
-        
-        // Reset bindings
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        gl.bindTexture(gl.TEXTURE_2D, null);
-        gl.bindRenderbuffer(gl.RENDERBUFFER, null);
     }
 
     public add(object: SceneObject): void {
@@ -141,7 +107,7 @@ export class Scene {
 
         // Second render pass: create shadow maps
         const shadowCastingLights = this.getLights().filter(light => light instanceof PointLight);
-        const castsShadow = new Int32Array(10); // MAX_LIGHTS
+        const castsShadow = new Array(10).fill(false); // Use an array of booleans instead of Int32Array
         const lightSpaceMatrices = new Float32Array(10 * 16); // MAX_LIGHTS * 4x4 matrix
         const hasAmbientLight = this.ambientLight !== null;
         const indexOffset = hasAmbientLight ? 1 : 0; // Account for ambient light being at index 0
@@ -152,6 +118,7 @@ export class Scene {
             const lightIndex = i + indexOffset; // Adjust index for ambient light offset
             const shadowMap = light.getShadowMap();
             shadowMap.bind(glob.ctx);
+            shadowMap.bindDepthTexture(glob.ctx, 0);
 
             // Use shadow shader program
             glob.shaderManager.useProgram('shadow');
@@ -160,9 +127,10 @@ export class Scene {
             const lightSpaceMatrix = light.getLightSpaceMatrix();
             glob.shaderManager.setUniform('u_lightSpaceMatrix', lightSpaceMatrix.mat4);
 
-            // Set up depth state
+            // Set up depth state for shadow map rendering
             glob.ctx.enable(glob.ctx.DEPTH_TEST);
             glob.ctx.depthFunc(glob.ctx.LESS);
+            glob.ctx.depthMask(true); // Ensure depth writing is enabled
             glob.ctx.clearDepth(1.0);
             glob.ctx.clear(glob.ctx.DEPTH_BUFFER_BIT);
 
@@ -170,21 +138,30 @@ export class Scene {
             lightSpaceMatrix.mat4.forEach((value, index) => {
                 lightSpaceMatrices[lightIndex * 16 + index] = value;
             });
-            castsShadow[lightIndex] = 1;
+            castsShadow[lightIndex] = true; // Set to true instead of 1
 
-            // Render scene from light's perspective
+            // Render scene from light's perspective - render ALL objects
             for (const object of this.objects) {
-                if (object.vao && !object.ignoreLighting) {
-                    glob.shaderManager.setUniform('u_modelMatrix', object.transform.getWorldMatrix().mat4);
-                    object.vao.bind();
-                    if (object.indexBuffer) {
-                        glob.ctx.drawElements(glob.ctx.TRIANGLES, object.indexBuffer.getCount(), glob.ctx.UNSIGNED_SHORT, 0);
-                    } else {
-                        glob.ctx.drawArrays(glob.ctx.TRIANGLES, 0, object.drawCount);
-                    }
+                // Skip objects without geometry
+                if (!object.vao) continue;
+                
+                // Always render objects into shadow map, regardless of ignoreLighting flag
+                glob.shaderManager.setUniform('u_modelMatrix', object.transform.getWorldMatrix().mat4);
+                object.vao.bind();
+                
+                if (object.indexBuffer) {
+                    glob.ctx.drawElements(glob.ctx.TRIANGLES, object.indexBuffer.getCount(), glob.ctx.UNSIGNED_SHORT, 0);
+                } else {
+                    glob.ctx.drawArrays(glob.ctx.TRIANGLES, 0, object.drawCount);
                 }
             }
+            
+            // Important: Unbind the shadow map framebuffer and restore color mask
+            shadowMap.unbind(glob.ctx);
+
         }
+
+
 
         // Third render pass: regular scene rendering with shadows
         glob.ctx.bindFramebuffer(glob.ctx.FRAMEBUFFER, null);
@@ -217,10 +194,24 @@ export class Scene {
                 shadowMap.bindDepthTexture(glob.ctx, lightIndex + 5); // Use higher texture units to avoid conflicts
                 // Only set uniform if it exists in the shader (max 4 shadow maps)
                 if (lightIndex < 4) {
+                    // Ensure u_shadowMap uniform is correctly set with the texture unit
                     glob.shaderManager.setUniform(`u_shadowMap${lightIndex}`, lightIndex + 5);
+                    
+                    // Make sure the light's world-to-light matrix is correctly set
+                    const lightSpaceMatrix = light.getLightSpaceMatrix();
+                    for (let j = 0; j < 16; j++) {
+                        lightSpaceMatrices[lightIndex * 16 + j] = lightSpaceMatrix.mat4[j];
+                    }
+                    
+                    // Explicitly mark this light as casting shadows
+                    castsShadow[lightIndex] = true;
                 }
             }
         });
+        
+        // Re-set critical shadow uniforms right before rendering
+        glob.shaderManager.setUniform('u_lightSpaceMatrices', lightSpaceMatrices);
+        glob.shaderManager.setUniform('u_castsShadow', castsShadow);
 
         // For each object in the scene
         for (const object of this.objects) {
@@ -335,5 +326,139 @@ export class Scene {
     // Add method to toggle color picking visualization
     public toggleColorPicking(): void {
         this.showColorPicking = !this.showColorPicking;
+    }
+
+    // Helper method to toggle shadow map debugging
+    public toggleShadowMapDebug(): void {
+        this.debugShadowMap = !this.debugShadowMap;
+    }
+
+    // Helper method to switch which light's shadow map to debug
+    public nextShadowMapDebug(): void {
+        this.debugLightIndex++;
+        const shadowCastingLights = this.getLights().filter(light => light instanceof PointLight);
+        if (this.debugLightIndex >= shadowCastingLights.length) {
+            this.debugLightIndex = 0;
+        }
+    }
+
+    // Helper method to render a full-screen quad
+    private renderFullScreenQuad(): void {
+        if (!this.fullScreenQuadVAO) {
+            // Create a VAO for a full-screen quad if it doesn't exist
+            this.fullScreenQuadVAO = new VertexArray(glob.ctx);
+            this.fullScreenQuadVAO.bind();
+            
+            // Full-screen quad vertices (2 triangles)
+            const vertices = new Float32Array([
+                // positions  // texture coords
+                -1.0,  1.0,   0.0, 1.0,
+                -1.0, -1.0,   0.0, 0.0,
+                 1.0, -1.0,   1.0, 0.0,
+                
+                -1.0,  1.0,   0.0, 1.0,
+                 1.0, -1.0,   1.0, 0.0,
+                 1.0,  1.0,   1.0, 1.0
+            ]);
+            
+            const vertexBuffer = new VertexBuffer(glob.ctx);
+            vertexBuffer.bind();
+            vertexBuffer.setData(vertices);
+            
+            // Get attribute locations
+            const positionAttribLocation = glob.shaderManager.getAttributeLocation('a_position');
+            const texCoordAttribLocation = glob.shaderManager.getAttributeLocation('a_texCoord');
+            
+            // Set attribute pointers
+            this.fullScreenQuadVAO.setAttributePointer(
+                positionAttribLocation,
+                2,
+                glob.ctx.FLOAT,
+                false,
+                4 * 4,
+                0
+            );
+            
+            this.fullScreenQuadVAO.setAttributePointer(
+                texCoordAttribLocation,
+                2,
+                glob.ctx.FLOAT,
+                false,
+                4 * 4,
+                2 * 4
+            );
+        }
+        
+        this.fullScreenQuadVAO.bind();
+        glob.ctx.drawArrays(glob.ctx.TRIANGLES, 0, 6);
+    }
+
+    // Initialize shadow maps and uniforms to ensure they work on first render
+    private initializeShadows(): void {
+
+
+        const gl = glob.ctx;
+        const shadowCastingLights = this.getLights().filter(light => light instanceof PointLight);
+        const castsShadow = new Array(10).fill(false);
+        const lightSpaceMatrices = new Float32Array(10 * 16);
+        const hasAmbientLight = this.ambientLight !== null;
+        const indexOffset = hasAmbientLight ? 1 : 0;
+
+        // Force shadow map generation for each light
+        for (let i = 0; i < shadowCastingLights.length; i++) {
+            const light = shadowCastingLights[i] as PointLight;
+            const lightIndex = i + indexOffset;
+            const shadowMap = light.getShadowMap();
+            
+            // Generate the shadow map
+            shadowMap.bind(gl);
+            
+            // Set light space matrix uniform for shadow pass
+            const lightSpaceMatrix = light.getLightSpaceMatrix();
+            
+            // Render scene from light's perspective
+            for (const object of this.objects) {
+                if (!object.vao) continue;
+                
+                // Always render objects into shadow map
+                glob.shaderManager.setUniform('u_modelMatrix', object.transform.getWorldMatrix().mat4);
+                object.vao.bind();
+                
+                if (object.indexBuffer) {
+                    gl.drawElements(gl.TRIANGLES, object.indexBuffer.getCount(), gl.UNSIGNED_SHORT, 0);
+                } else {
+                    gl.drawArrays(gl.TRIANGLES, 0, object.drawCount);
+                }
+            }
+            
+            // Important: Unbind the shadow map framebuffer and restore color mask
+            shadowMap.unbind(gl);
+            
+            // Store light space matrix for main render pass
+            lightSpaceMatrix.mat4.forEach((value, index) => {
+                lightSpaceMatrices[lightIndex * 16 + index] = value;
+            });
+            
+            // Mark this light as casting shadows
+            castsShadow[lightIndex] = true;
+            
+            // Bind the shadow map texture
+            shadowMap.bindDepthTexture(gl, lightIndex + 5);
+            
+            if (lightIndex < 4) {
+                // Set the shader uniform
+                glob.shaderManager.useProgram('pbr');
+                glob.shaderManager.setUniform(`u_shadowMap${lightIndex}`, lightIndex + 5);
+            }
+        }
+        
+        // Update the shadow uniforms
+        glob.shaderManager.useProgram('pbr');
+        glob.shaderManager.setUniform('u_lightSpaceMatrices', lightSpaceMatrices);
+        glob.shaderManager.setUniform('u_castsShadow', castsShadow);
+
+        
+        this.toggleShadowMapDebug();
+        this.toggleShadowMapDebug();
     }
 } 

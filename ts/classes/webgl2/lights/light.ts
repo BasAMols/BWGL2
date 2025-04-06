@@ -177,14 +177,23 @@ export class PointLight extends Light {
             v3(0, 0, 0)        // Looking at scene center
         );
 
-        // Create orthographic projection that encompasses the scene
+        // Get distance to determine appropriate frustum size
+        const distanceToCenter = Math.sqrt(
+            this.position.x * this.position.x + 
+            this.position.y * this.position.y + 
+            this.position.z * this.position.z
+        );
+        
+        // Create a much larger orthographic projection to ensure it captures everything
+        // Make near plane much closer and far plane much farther
         this.lightProjection = new Matrix4().ortho(
-            -10, 10,    // left, right
-            -10, 10,    // bottom, top
-            1, 20       // near, far (adjusted to better match scene depth)
+            -20, 20,     // Much wider left/right bounds
+            -20, 20,     // Much wider top/bottom bounds
+            0.01,        // Much closer near plane (was 0.1 or higher)
+            50           // Much farther far plane 
         );
 
-        return this.lightProjection.multiply(lightView);  // Note: projection * view order
+        return this.lightProjection.multiply(lightView);  // projection * view order is correct
     }
 
     getShadowMap(): ShadowMap {

@@ -71,6 +71,7 @@ out vec4 fragColor;
 // Utility function to get shadowmap value
 float getShadowMap(int index, vec2 coords) {
     // We have to use a switch statement because WebGL2 requires constant array indices for samplers
+    // Note: Explicitly using .r component as we're using DEPTH_COMPONENT textures
     switch(index) {
         case 0: return texture(u_shadowMap0, coords).r;
         case 1: return texture(u_shadowMap1, coords).r;
@@ -101,21 +102,35 @@ float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir, int 
     }
     
     // Calculate bias based on surface angle to reduce shadow acne
-    float bias = max(0.005 * (1.0 - dot(normal, lightDir)), 0.0005);
+    // Use a smaller bias since we've improved shadow map precision
+    float bias = max(0.001 * (1.0 - dot(normal, lightDir)), 0.0005);
     
     // Get depth from shadow map
     float closestDepth = getShadowMap(shadowMapIndex, projCoords.xy);
     float currentDepth = projCoords.z;
     
+    // Debug - uncomment to log values
+    // if (gl_FragCoord.x < 1.0 && gl_FragCoord.y < 1.0) {
+    //     float diff = currentDepth - closestDepth;
+    //     if (abs(diff) < 0.1) {
+    //         // Add code to print values if needed
+    //     }
+    // }
+    
+    // Simple shadow check with bias
+    // return (currentDepth - bias) > closestDepth ? 1.0 : 0.0;
+    
     // PCF (Percentage Closer Filtering) with larger kernel for softer shadows
     float shadow = 0.0;
     vec2 texelSize = 1.0 / vec2(textureSize(u_shadowMap0, 0));
+    
     for(int x = -2; x <= 2; ++x) {
         for(int y = -2; y <= 2; ++y) {
             float pcfDepth = getShadowMap(shadowMapIndex, projCoords.xy + vec2(x, y) * texelSize);
-            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+            shadow += (currentDepth - bias) > pcfDepth ? 1.0 : 0.0;
         }
     }
+    
     shadow /= 25.0; // 5x5 kernel
     
     // Fade out shadows at the edge of the light's frustum for smoother transitions
