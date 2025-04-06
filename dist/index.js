@@ -3631,7 +3631,7 @@ var _Material = class _Material {
 _Material._materials = {
   "plastic": {
     baseColor: v3(0.8, 0.8, 0.8),
-    roughness: 0.7,
+    roughness: 0.4,
     metallic: 0.4,
     ambientOcclusion: 1,
     emissive: v3(0, 0, 0)
@@ -3645,7 +3645,7 @@ _Material._materials = {
   },
   "rough": {
     baseColor: v3(0.8, 0.8, 0.8),
-    roughness: 0.8,
+    roughness: 0.4,
     metallic: 0.5,
     ambientOcclusion: 1,
     emissive: v3(0, 0, 0)
@@ -6165,32 +6165,21 @@ var TestLevel = class extends Scene {
       direction: v3(-0.5, -3, -1).normalize(),
       color: v3(1, 0.98, 0.9),
       // Slightly warm white
-      intensity: 0.2,
+      intensity: 0.15,
       // Reduced from 1.2,
       enabled: true
     });
     this.addLight(this.keyLight);
-    this.spotLight4 = new SpotLight({
-      position: v3(0, 5, 0),
-      color: v3(0, 0, 1),
-      // Pure white
-      intensity: 40,
-      cutOff: 0.96,
-      outerCutOff: 0.95,
-      meshContainer: this
-    });
-    this.spotLight4.lookAt(v3(0, 0, 0));
-    this.addLight(this.spotLight4);
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 3; i++) {
       let vari = ["spotLight", "spotLight2", "spotLight3"][i];
       let color = [v3(1, 0, 0), v3(0, 1, 0), v3(0, 0, 1)][i];
       this[vari] = new SpotLight({
         color,
-        intensity: 40,
-        cutOff: 0.97,
-        outerCutOff: 0.96,
+        intensity: 30,
+        cutOff: 0.94,
+        outerCutOff: 0.91,
         meshContainer: this,
-        enabled: false
+        enabled: true
       });
       this.addLight(this[vari]);
     }
@@ -6235,13 +6224,13 @@ var TestLevel = class extends Scene {
         smoothShading: true,
         subdivisions: 2,
         parent: container,
-        material: Material.library("plastic", v3(0.2, 0.7, 0.9))
+        material: Material.library("metal", v3(0.2, 0.7, 0.9))
       }));
       this.add(Cube.create({
         position: positions[1],
         scale: v3(1.5, 1.5, 1.5),
         parent: container,
-        material: Material.library("metal", v3(0.85, 0.45, 0.35))
+        material: Material.library("plastic", v3(0.85, 0.45, 0.35))
       }));
       this.add(Wedge.create({
         rotation: Quaternion.fromEuler(0, Math.PI / 2, 0),
@@ -6257,19 +6246,20 @@ var TestLevel = class extends Scene {
         smoothShading: false,
         sides: 12,
         parent: container,
-        material: Material.library("plastic", v3(0.15, 0.8, 0.15))
+        material: Material.library("metal", v3(0.15, 0.8, 0.15))
       }));
       this.add(container);
     }
     this.camera.setPosition(v3(-1, 3, 6));
+    this.camera.setTarget(v3(0, 0, 0));
     this.click(v2(0.5, 0.3));
   }
   click(vector2) {
     super.click(vector2);
     const pos2 = Vector3.screenToWorldPlane(vector2, this.camera, v3(0, 0, 1), 4);
     if (pos2) {
-      this.spotLight4.setPosition(pos2);
-      this.spotLight4.lookAt(v3(0, 0, 0));
+      this.spotLight3.setPosition(pos2);
+      this.spotLight3.lookAt(v3(0, 0, 0));
     }
   }
   tick(obj) {

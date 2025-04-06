@@ -66,7 +66,7 @@ export class Material {
     } = {
         'plastic': {
             baseColor: v3(0.8, 0.8, 0.8),
-            roughness: 0.7,
+            roughness: 0.4,
             metallic: 0.4,
             ambientOcclusion: 1.0,
             emissive: v3(0.0, 0.0, 0.0)
@@ -80,7 +80,7 @@ export class Material {
         },
         'rough': {
             baseColor: v3(0.8, 0.8, 0.8),
-            roughness: 0.8,
+            roughness: 0.4,
             metallic: 0.5,
             ambientOcclusion: 1.0,
             emissive: v3(0.0, 0.0, 0.0)
