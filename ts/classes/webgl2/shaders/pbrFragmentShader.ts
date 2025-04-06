@@ -325,7 +325,7 @@ void main() {
     }
     
     // Add ambient light contribution (factoring in ambient occlusion)
-    vec3 ambient = vec3(0.1) * albedo * ao; // Increased base ambient level
+    vec3 ambient = vec3(0.0); // Initialize with no ambient
 
     // Add ambient from any ambient light sources
     for(int i = 0; i < u_numLights; i++) {
@@ -337,10 +337,50 @@ void main() {
     // Add emissive contribution
     vec3 color = ambient + Lo + emissive;
 
-    // Apply some rim lighting to highlight edges even in shadow
-    float rim = 1.0 - max(dot(N, V), 0.0);
-    rim = pow(rim, 3.0) * 0.2;
-    color += rim * albedo * 0.3;
+    // Calculate rim lighting based on lights in the scene
+    vec3 rimColor = vec3(0.0);
+    float rimPower = 3.0; // Controls how sharp the rim effect is
+    float viewFacing = 1.0 - max(dot(N, V), 0.0);
+    
+    // Add rim contribution from each light
+    for(int i = 0; i < u_numLights; i++) {
+        if(i >= MAX_LIGHTS || u_lightTypes[i] == LIGHT_TYPE_INACTIVE || u_lightTypes[i] == LIGHT_TYPE_AMBIENT) 
+            continue;
+            
+        vec3 L;
+        float rimStrength = 0.0;
+        
+        if (u_lightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {
+            L = normalize(-u_lightDirections[i]);
+            rimStrength = u_lightIntensities[i] * 0.3; // Scale rim by light intensity
+        } 
+        else if (u_lightTypes[i] == LIGHT_TYPE_POINT || u_lightTypes[i] == LIGHT_TYPE_SPOT) {
+            vec3 lightToPos = v_worldPos - u_lightPositions[i];
+            L = normalize(lightToPos);
+            
+            // Rim strength falls off with distance
+            float distance = length(lightToPos);
+            float attenuation = 1.0 / (u_lightConstants[i] + 
+                                     u_lightLinears[i] * distance + 
+                                     u_lightQuadratics[i] * distance * distance);
+                                     
+            rimStrength = u_lightIntensities[i] * attenuation * 0.3;
+            
+            // For spotlights, consider the cone angle
+            if (u_lightTypes[i] == LIGHT_TYPE_SPOT) {
+                float theta = dot(-L, normalize(u_lightDirections[i]));
+                float epsilon = u_lightCutOffs[i] - u_lightOuterCutOffs[i];
+                rimStrength *= clamp((theta - u_lightOuterCutOffs[i]) / epsilon, 0.0, 1.0);
+            }
+        }
+        
+        // Calculate rim contribution from this light
+        float lightRim = pow(viewFacing * max(dot(L, N), 0.0), rimPower) * rimStrength;
+        rimColor += u_lightColors[i] * lightRim;
+    }
+    
+    // Add rim lighting to final color
+    color += rimColor * albedo;
 
     // Enhance colored light visibility
     color = mix(color, color * 1.2, metallic);

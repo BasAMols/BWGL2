@@ -60,4 +60,37 @@ export class Material {
         this.aoMap = aoMap;
         this.emissiveMap = emissiveMap;
     }
+
+    private static _materials: {
+        [key: string]: ConstructorParameters<typeof Material>[0]
+    } = {
+        'plastic': {
+            baseColor: v3(0.8, 0.8, 0.8),
+            roughness: 0.7,
+            metallic: 0.4,
+            ambientOcclusion: 1.0,
+            emissive: v3(0.0, 0.0, 0.0)
+        },
+        'metal': {
+            baseColor: v3(0.8, 0.8, 0.8),
+            roughness: 0.5,
+            metallic: 1.0,
+            ambientOcclusion: 1.0,
+            emissive: v3(0.0, 0.0, 0.0)
+        },
+        'rough': {
+            baseColor: v3(0.8, 0.8, 0.8),
+            roughness: 0.8,
+            metallic: 0.5,
+            ambientOcclusion: 1.0,
+            emissive: v3(0.0, 0.0, 0.0)
+        }
+    }
+
+
+    public static library(name: 'plastic' | 'metal' | 'rough', color: Vector3): Material {
+        const material = new Material(this._materials[name]);
+        material.baseColor = color;
+        return material;
+    }
 } 

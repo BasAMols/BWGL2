@@ -12,12 +12,14 @@ export enum LightType {
     AMBIENT = 0,
     DIRECTIONAL = 1,
     POINT = 2,
-    SPOT = 3
+    SPOT = 3,
+    INACTIVE = 4
 }
 
 export interface LightData {
     color: Vector3;
     intensity: number;
+    enabled?: boolean;
 }
 
 export interface DirectionalLightData extends LightData {
@@ -38,28 +40,52 @@ export interface SpotLightData extends PointLightData {
 }
 
 export class Light {
+    protected type: LightType;
     protected color: Vector3;
     protected intensity: number;
-    protected type: LightType;
+    protected enabled: boolean = true;
 
-    constructor({ color = v3(1, 1, 1), intensity = 1.0 }: { color?: Vector3; intensity?: number; } = {}) {
+    constructor({ 
+        color = v3(1, 1, 1), 
+        intensity = 1.0,
+        enabled = true 
+    }: { 
+        color?: Vector3, 
+        intensity?: number,
+        enabled?: boolean 
+    } = {}) {
         this.color = color;
         this.intensity = intensity;
+        this.enabled = enabled;
+        this.type = LightType.INACTIVE;
+    }
+
+    public getIntensity(): number {
+        return this.enabled ? this.intensity : 0;
+    }
+
+    public isEnabled(): boolean {
+        return this.enabled;
+    }
+
+    public setEnabled(enabled: boolean): void {
+        this.enabled = enabled;
     }
 
     getType(): LightType {
-        return this.type;
+        return this.enabled ? this.type : LightType.INACTIVE;
     }
 
     getData(): LightData {
         return {
             color: this.color,
-            intensity: this.intensity
+            intensity: this.getIntensity(),
+            enabled: this.enabled
         };
     }
 
     getShadowMap(): ShadowMap | null {
-        return null;
+        return this.enabled ? null : null;
     }
 }
 
@@ -71,19 +97,32 @@ export class AmbientLight extends Light {
 }
 
 export class DirectionalLight extends Light {
-    private direction: Vector3;
+    protected direction: Vector3;
+    protected shadowMap: ShadowMap;
+    protected lightProjection: Matrix4;
 
     constructor({
         direction = v3(0, -1, 0),
         color = v3(1, 1, 1),
-        intensity = 1.0 }: {
-            direction?: Vector3;
-            color?: Vector3;
-            intensity?: number;
-        } = {}) {
-        super({ color, intensity });
+        intensity = 1.0,
+        enabled = true
+    }: {
+        direction?: Vector3;
+        color?: Vector3;
+        intensity?: number;
+        enabled?: boolean;
+    } = {}) {
+        super({ color, intensity, enabled });
         this.direction = direction.normalize();
         this.type = LightType.DIRECTIONAL;
+        this.shadowMap = new ShadowMap(glob.ctx, 4096); // High resolution for directional shadows
+
+        // Create orthographic projection matrix for the light
+        this.lightProjection = new Matrix4().ortho(
+            -20, 20,    // left, right
+            -20, 20,    // bottom, top
+            0.1, 200.0  // near, far
+        );
     }
 
     getData(): DirectionalLightData {
@@ -91,6 +130,39 @@ export class DirectionalLight extends Light {
             ...super.getData(),
             direction: this.direction
         };
+    }
+
+    getDirection(): Vector3 {
+        return this.direction;
+    }
+
+    setDirection(direction: Vector3): void {
+        this.direction = direction.normalize();
+    }
+
+    getLightSpaceMatrix(): Matrix4 {
+        // Calculate view matrix from light's direction
+        const lightView = Matrix4.lookAt(
+            this.direction.scale(-10), // Position light far enough away in opposite direction
+            v3(0, 0, 0)               // Look at scene center
+        );
+
+        return this.lightProjection.multiply(lightView);
+    }
+
+    getShadowMap(): ShadowMap {
+        return this.shadowMap;
+    }
+
+    public lookAt(from: Vector3, target: Vector3) {
+        const direction = target.subtract(from).normalize();
+
+        // Calculate rotation axis and angle
+        const defaultDir = v3(0, -1, 0); // Light points down by default
+        const rotationAxis = defaultDir.cross(direction).normalize();
+        const angle = Math.acos(defaultDir.y * direction.y + defaultDir.x * direction.x + defaultDir.z * direction.z);
+
+        this.direction = new Quaternion().setAxisAngle(rotationAxis, angle).toEuler();
     }
 }
 
@@ -108,7 +180,8 @@ export class PointLight extends Light {
         color = v3(1, 1, 1),
         intensity = 5.0, // Increased intensity for PBR
         attenuation = { constant: 1.0, linear: 0.22, quadratic: 0.20 }, // Better PBR attenuation values
-        meshContainer
+        meshContainer,
+        enabled = true
     }: {
         position?: Vector3;
         color?: Vector3;
@@ -119,8 +192,9 @@ export class PointLight extends Light {
             quadratic: number;
         };
         meshContainer?: Scene;
+        enabled?: boolean;
     } = {}) {
-        super({ color, intensity });
+        super({ color, intensity, enabled });
         this.position = position;
         this.constant = attenuation.constant;
         this.linear = attenuation.linear;
@@ -130,9 +204,9 @@ export class PointLight extends Light {
 
         // Create orthographic projection matrix for the light
         this.lightProjection = new Matrix4().ortho(
-            -10, 10,  // left, right
-            -10, 10,  // bottom, top
-            0.1, 100.0  // near, far
+            -20, 20,    // left, right - doubled for wider coverage
+            -20, 20,    // bottom, top - doubled for wider coverage
+            0.1, 200.0  // near, far - increased far plane for deeper shadows
         );
 
         if (meshContainer) {
@@ -196,6 +270,7 @@ export class PointLight extends Light {
         return this.lightProjection.multiply(lightView);  // projection * view order is correct
     }
 
+
     getShadowMap(): ShadowMap {
         return this.shadowMap;
     }
@@ -214,7 +289,8 @@ export class SpotLight extends PointLight {
             intensity = 8.0, // Increased intensity for PBR
             cutOff = Math.cos(Math.PI / 6), // 30 degrees
             outerCutOff = Math.cos(Math.PI / 4), // 45 degrees
-            meshContainer
+            meshContainer,
+            enabled = true
         }: {
             position?: Vector3;
             direction?: Vector3;
@@ -223,6 +299,7 @@ export class SpotLight extends PointLight {
             cutOff?: number;
             outerCutOff?: number;
             meshContainer?: Scene;
+            enabled?: boolean;
         } = {}) {
 
         // Update attenuation for better PBR values
@@ -235,7 +312,8 @@ export class SpotLight extends PointLight {
                 linear: 0.22, 
                 quadratic: 0.20 
             }, 
-            meshContainer 
+            meshContainer,
+            enabled
         });
         
         this.rotation = new Quaternion();

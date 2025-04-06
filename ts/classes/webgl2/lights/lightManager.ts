@@ -66,7 +66,7 @@ export class LightManager {
     updateShaderUniforms() {
         // Initialize arrays for each light component
         const types = new Int32Array(this.MAX_LIGHTS);
-        const positions = new Float32Array(this.MAX_LIGHTS * 3); // 10 lights * 3 components
+        const positions = new Float32Array(this.MAX_LIGHTS * 3);
         const directions = new Float32Array(this.MAX_LIGHTS * 3);
         const colors = new Float32Array(this.MAX_LIGHTS * 3);
         const intensities = new Float32Array(this.MAX_LIGHTS);
@@ -77,32 +77,34 @@ export class LightManager {
         const outerCutOffs = new Float32Array(this.MAX_LIGHTS);
 
         // Initialize all lights as inactive
-        types.fill(-1);
+        types.fill(LightType.INACTIVE);
         // Set default attenuation values
         constants.fill(1.0);
 
-        // Set ambient light first (if exists)
-        if (this.ambientLight) {
+        let currentIndex = 0;
+
+        // Set ambient light first (if exists and enabled)
+        if (this.ambientLight && this.ambientLight.isEnabled()) {
             const data = this.ambientLight.getData();
-            types[0] = LightType.AMBIENT;
+            types[currentIndex] = LightType.AMBIENT;
             
             // Set color
-            colors[0] = data.color.x;
-            colors[1] = data.color.y;
-            colors[2] = data.color.z;
+            colors[currentIndex * 3] = data.color.x;
+            colors[currentIndex * 3 + 1] = data.color.y;
+            colors[currentIndex * 3 + 2] = data.color.z;
             
             // Set intensity
-            intensities[0] = data.intensity;
+            intensities[currentIndex] = data.intensity;
+            currentIndex++;
         }
 
-        // Fill in active lights (starting from index 1 if we have ambient light)
-        const startIndex = this.ambientLight ? 1 : 0;
-        for (let i = 0; i < this.lights.length; i++) {
-            const light = this.lights[i];
-            const index = i + startIndex;
+        // Fill in active lights
+        for (const light of this.lights) {
+            // Skip disabled lights
+            if (!light.isEnabled()) continue;
             
             // Skip if we've reached the maximum lights
-            if (index >= this.MAX_LIGHTS) {
+            if (currentIndex >= this.MAX_LIGHTS) {
                 console.warn(`Maximum number of lights (${this.MAX_LIGHTS}) reached. Some lights will not be rendered.`);
                 break;
             }
@@ -110,21 +112,21 @@ export class LightManager {
             const data = light.getData();
 
             // Set type
-            types[index] = light.getType();
+            types[currentIndex] = light.getType();
 
             // Set color and intensity (common to all lights)
-            const colorOffset = index * 3;
+            const colorOffset = currentIndex * 3;
             colors[colorOffset] = data.color.x;
             colors[colorOffset + 1] = data.color.y;
             colors[colorOffset + 2] = data.color.z;
-            intensities[index] = data.intensity;
+            intensities[currentIndex] = data.intensity;
 
             // Type-specific properties
             switch (light.getType()) {
                 case LightType.DIRECTIONAL: {
                     const dirLight = light as DirectionalLight;
                     const dirData = dirLight.getData();
-                    const dirOffset = index * 3;
+                    const dirOffset = currentIndex * 3;
                     directions[dirOffset] = dirData.direction.x;
                     directions[dirOffset + 1] = dirData.direction.y;
                     directions[dirOffset + 2] = dirData.direction.z;
@@ -133,39 +135,39 @@ export class LightManager {
                 case LightType.POINT: {
                     const pointLight = light as PointLight;
                     const pointData = pointLight.getData();
-                    const posOffset = index * 3;
+                    const posOffset = currentIndex * 3;
                     positions[posOffset] = pointData.position.x;
                     positions[posOffset + 1] = pointData.position.y;
                     positions[posOffset + 2] = pointData.position.z;
-                    constants[index] = pointData.constant;
-                    linears[index] = pointData.linear;
-                    quadratics[index] = pointData.quadratic;
+                    constants[currentIndex] = pointData.constant;
+                    linears[currentIndex] = pointData.linear;
+                    quadratics[currentIndex] = pointData.quadratic;
                     break;
                 }
                 case LightType.SPOT: {
                     const spotLight = light as SpotLight;
                     const spotData = spotLight.getData();
-                    const posOffset = index * 3;
-                    const dirOffset = index * 3;
+                    const posOffset = currentIndex * 3;
+                    const dirOffset = currentIndex * 3;
                     positions[posOffset] = spotData.position.x;
                     positions[posOffset + 1] = spotData.position.y;
                     positions[posOffset + 2] = spotData.position.z;
                     directions[dirOffset] = spotData.direction.x;
                     directions[dirOffset + 1] = spotData.direction.y;
                     directions[dirOffset + 2] = spotData.direction.z;
-                    constants[index] = spotData.constant;
-                    linears[index] = spotData.linear;
-                    quadratics[index] = spotData.quadratic;
-                    cutOffs[index] = spotData.cutOff;
-                    outerCutOffs[index] = spotData.outerCutOff;
+                    constants[currentIndex] = spotData.constant;
+                    linears[currentIndex] = spotData.linear;
+                    quadratics[currentIndex] = spotData.quadratic;
+                    cutOffs[currentIndex] = spotData.cutOff;
+                    outerCutOffs[currentIndex] = spotData.outerCutOff;
                     break;
                 }
             }
+            currentIndex++;
         }
 
-        // Update shader uniforms
-        const numLights = Math.min(this.lights.length + (this.ambientLight ? 1 : 0), this.MAX_LIGHTS);
-        this.shaderManager.setUniform('u_numLights', numLights);
+        // Update shader uniforms with the actual number of active lights
+        this.shaderManager.setUniform('u_numLights', currentIndex);
         this.shaderManager.setUniform('u_lightTypes', types);
         this.shaderManager.setUniform('u_lightPositions', positions);
         this.shaderManager.setUniform('u_lightDirections', directions);

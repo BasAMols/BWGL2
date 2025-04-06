@@ -681,7 +681,7 @@ var shadowVertexShaderSource = "#version 300 es\nprecision highp float;\n\nin ve
 var pbrVertexShader = "#version 300 es\nprecision highp float;\n\n// Attributes\nin vec3 a_position;\nin vec3 a_normal;\nin vec2 a_texCoord;\nin vec3 a_tangent;\nin vec3 a_bitangent;\nin vec3 a_color;\n\n// Uniforms\nuniform mat4 u_modelMatrix;\nuniform mat4 u_viewMatrix;\nuniform mat4 u_projectionMatrix;\nuniform mat3 u_normalMatrix;\n\n// Varyings (output to fragment shader)\nout vec3 v_position;\nout vec3 v_normal;\nout vec2 v_texCoord;\nout vec3 v_worldPos;\nout mat3 v_tbn; // Tangent-Bitangent-Normal matrix for normal mapping\nout vec3 v_color;\n\nvoid main() {\n    // Calculate world position\n    v_worldPos = vec3(u_modelMatrix * vec4(a_position, 1.0));\n    \n    // Transform normals using normal matrix\n    v_normal = normalize(u_normalMatrix * a_normal);\n    \n    // Pass texture coordinates\n    v_texCoord = a_texCoord;\n    \n    // Pass color\n    v_color = a_color;\n    \n    // Calculate TBN matrix for normal mapping when tangents are available\n    if (length(a_tangent) > 0.0) {\n        vec3 T = normalize(u_normalMatrix * a_tangent);\n        vec3 B = normalize(u_normalMatrix * a_bitangent);\n        vec3 N = v_normal;\n        v_tbn = mat3(T, B, N);\n    } else {\n        // Identity TBN when no tangents provided\n        v_tbn = mat3(1.0);\n    }\n    \n    // Calculate clip-space position\n    gl_Position = u_projectionMatrix * u_viewMatrix * vec4(v_worldPos, 1.0);\n}";
 
 // ts/classes/webgl2/shaders/pbrFragmentShader.ts
-var pbrFragmentShader = "#version 300 es\nprecision highp float;\n\n// Constants\n#define PI 3.14159265359\n#define MAX_LIGHTS 10\n\n// Light types\n#define LIGHT_TYPE_INACTIVE -1\n#define LIGHT_TYPE_AMBIENT 0\n#define LIGHT_TYPE_DIRECTIONAL 1\n#define LIGHT_TYPE_POINT 2\n#define LIGHT_TYPE_SPOT 3\n\n// PBR Material uniforms\nstruct PBRMaterial {\n    vec3 baseColor;\n    float roughness;\n    float metallic;\n    float ambientOcclusion;\n    vec3 emissive;\n    \n    sampler2D albedoMap;\n    sampler2D normalMap;\n    sampler2D metallicRoughnessMap;\n    sampler2D aoMap;\n    sampler2D emissiveMap;\n    \n    bool hasAlbedoMap;\n    bool hasNormalMap;\n    bool hasMetallicRoughnessMap;\n    bool hasAoMap;\n    bool hasEmissiveMap;\n};\n\n// Light uniforms\nuniform int u_lightTypes[MAX_LIGHTS];\nuniform vec3 u_lightPositions[MAX_LIGHTS];\nuniform vec3 u_lightDirections[MAX_LIGHTS];\nuniform vec3 u_lightColors[MAX_LIGHTS];\nuniform float u_lightIntensities[MAX_LIGHTS];\nuniform float u_lightConstants[MAX_LIGHTS];\nuniform float u_lightLinears[MAX_LIGHTS];\nuniform float u_lightQuadratics[MAX_LIGHTS];\nuniform float u_lightCutOffs[MAX_LIGHTS];\nuniform float u_lightOuterCutOffs[MAX_LIGHTS];\nuniform int u_numLights;\n\n// Shadow mapping uniforms\nuniform sampler2D u_shadowMap0;\nuniform sampler2D u_shadowMap1;\nuniform sampler2D u_shadowMap2;\nuniform sampler2D u_shadowMap3;\nuniform mat4 u_lightSpaceMatrices[MAX_LIGHTS];\nuniform bool u_castsShadow[MAX_LIGHTS];\n\n// Material uniforms\nuniform PBRMaterial u_material;\nuniform vec3 u_viewPos;\n\n// Varyings from vertex shader\nin vec3 v_normal;\nin vec2 v_texCoord;\nin vec3 v_worldPos;\nin mat3 v_tbn;\nin vec3 v_color;\n\n// Output\nout vec4 fragColor;\n\n// Utility function to get shadowmap value\nfloat getShadowMap(int index, vec2 coords) {\n    // We have to use a switch statement because WebGL2 requires constant array indices for samplers\n    // Note: Explicitly using .r component as we're using DEPTH_COMPONENT textures\n    switch(index) {\n        case 0: return texture(u_shadowMap0, coords).r;\n        case 1: return texture(u_shadowMap1, coords).r;\n        case 2: return texture(u_shadowMap2, coords).r;\n        case 3: return texture(u_shadowMap3, coords).r;\n        default: return 1.0; // No shadow if invalid index\n    }\n}\n\n// Shadow calculation function\nfloat ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir, int shadowMapIndex) {\n    // Ensure we only process shadow maps that exist in the shader\n    if (shadowMapIndex > 3) {\n        return 0.0; // Return no shadow if the index is beyond the available shadow maps\n    }\n    \n    // Perform perspective divide\n    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;\n    \n    // Transform to [0,1] range\n    projCoords = projCoords * 0.5 + 0.5;\n    \n    // Check if fragment is in light's view frustum\n    if (projCoords.x < 0.0 || projCoords.x > 1.0 || \n        projCoords.y < 0.0 || projCoords.y > 1.0 || \n        projCoords.z < 0.0 || projCoords.z > 1.0) {\n        return 0.0; // Not in shadow if outside frustum\n    }\n    \n    // Calculate bias based on surface angle to reduce shadow acne\n    // Use a smaller bias since we've improved shadow map precision\n    float bias = max(0.001 * (1.0 - dot(normal, lightDir)), 0.0005);\n    \n    // Get depth from shadow map\n    float closestDepth = getShadowMap(shadowMapIndex, projCoords.xy);\n    float currentDepth = projCoords.z;\n    \n    // Debug - uncomment to log values\n    // if (gl_FragCoord.x < 1.0 && gl_FragCoord.y < 1.0) {\n    //     float diff = currentDepth - closestDepth;\n    //     if (abs(diff) < 0.1) {\n    //         // Add code to print values if needed\n    //     }\n    // }\n    \n    // Simple shadow check with bias\n    // return (currentDepth - bias) > closestDepth ? 1.0 : 0.0;\n    \n    // PCF (Percentage Closer Filtering) with larger kernel for softer shadows\n    float shadow = 0.0;\n    vec2 texelSize = 1.0 / vec2(textureSize(u_shadowMap0, 0));\n    \n    for(int x = -2; x <= 2; ++x) {\n        for(int y = -2; y <= 2; ++y) {\n            float pcfDepth = getShadowMap(shadowMapIndex, projCoords.xy + vec2(x, y) * texelSize);\n            shadow += (currentDepth - bias) > pcfDepth ? 1.0 : 0.0;\n        }\n    }\n    \n    shadow /= 25.0; // 5x5 kernel\n    \n    // Fade out shadows at the edge of the light's frustum for smoother transitions\n    float fadeStart = 0.9;\n    float distanceFromCenter = length(vec2(0.5, 0.5) - projCoords.xy) * 2.0;\n    if (distanceFromCenter > fadeStart) {\n        float fadeRatio = (distanceFromCenter - fadeStart) / (1.0 - fadeStart);\n        shadow = mix(shadow, 0.0, fadeRatio);\n    }\n    \n    return shadow;\n}\n\n// PBR functions\n\n// Normal Distribution Function (GGX/Trowbridge-Reitz)\nfloat DistributionGGX(vec3 N, vec3 H, float roughness) {\n    float a = roughness * roughness;\n    float a2 = a * a;\n    float NdotH = max(dot(N, H), 0.0);\n    float NdotH2 = NdotH * NdotH;\n    \n    float denom = (NdotH2 * (a2 - 1.0) + 1.0);\n    denom = PI * denom * denom;\n    \n    return a2 / max(denom, 0.0000001);\n}\n\n// Geometry function (Smith model)\nfloat GeometrySchlickGGX(float NdotV, float roughness) {\n    float r = (roughness + 1.0);\n    float k = (r * r) / 8.0;\n    \n    float denom = NdotV * (1.0 - k) + k;\n    return NdotV / max(denom, 0.0000001);\n}\n\n// Combined Geometry function\nfloat GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {\n    float NdotV = max(dot(N, V), 0.0);\n    float NdotL = max(dot(N, L), 0.0);\n    float ggx2 = GeometrySchlickGGX(NdotV, roughness);\n    float ggx1 = GeometrySchlickGGX(NdotL, roughness);\n    \n    return ggx1 * ggx2;\n}\n\n// Fresnel function (Schlick's approximation)\nvec3 FresnelSchlick(float cosTheta, vec3 F0) {\n    return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);\n}\n\n// Calculates radiance for a light source\nvec3 calculateRadiance(vec3 N, vec3 V, vec3 L, vec3 H, vec3 F0, \n                       vec3 albedo, float metallic, float roughness,\n                       vec3 lightColor, float lightIntensity,\n                       float attenuation) {\n    // Calculate light attenuation\n    float attenuatedIntensity = lightIntensity * attenuation;\n    \n    // Ensure roughness is never zero (to prevent divide-by-zero in GGX)\n    roughness = max(roughness, 0.01);\n    \n    // Cook-Torrance BRDF calculation\n    float NDF = DistributionGGX(N, H, roughness);\n    float G = GeometrySmith(N, V, L, roughness);\n    vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);\n    \n    // Calculate specular component\n    vec3 numerator = NDF * G * F;\n    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);\n    vec3 specular = numerator / max(denominator, 0.0000001);\n    \n    // Prevent uncontrolled specular highlights by clamping\n    specular = min(specular, vec3(10.0));\n    \n    // For energy conservation\n    vec3 kS = F;\n    vec3 kD = vec3(1.0) - kS;\n    kD *= 1.0 - metallic; // Metallic materials don't have diffuse\n    \n    // Combine diffuse and specular terms\n    float NdotL = max(dot(N, L), 0.0);\n    return (kD * albedo / PI + specular) * lightColor * attenuatedIntensity * NdotL;\n}\n\nvoid main() {\n    // Get material properties, using textures if available\n    \n    // Base color (albedo)\n    vec3 albedo = u_material.baseColor;\n    if (u_material.hasAlbedoMap) {\n        albedo = texture(u_material.albedoMap, v_texCoord).rgb;\n    } else {\n        // Use vertex color if no albedo map is provided\n        albedo = v_color;\n    }\n    \n    // Metallic and roughness\n    float metallic = u_material.metallic;\n    float roughness = u_material.roughness;\n    if (u_material.hasMetallicRoughnessMap) {\n        // Standard PBR convention: G channel = roughness, B channel = metallic\n        vec3 metallicRoughness = texture(u_material.metallicRoughnessMap, v_texCoord).rgb;\n        roughness = metallicRoughness.g;\n        metallic = metallicRoughness.b;\n    }\n    \n    // Ambient occlusion\n    float ao = u_material.ambientOcclusion;\n    if (u_material.hasAoMap) {\n        ao = texture(u_material.aoMap, v_texCoord).r;\n    }\n    \n    // Normals (with normal mapping if available)\n    vec3 N = normalize(v_normal);\n    if (u_material.hasNormalMap) {\n        vec3 normalMapValue = texture(u_material.normalMap, v_texCoord).rgb * 2.0 - 1.0;\n        N = normalize(v_tbn * normalMapValue);\n    }\n    \n    // Emissive\n    vec3 emissive = u_material.emissive;\n    if (u_material.hasEmissiveMap) {\n        emissive = texture(u_material.emissiveMap, v_texCoord).rgb;\n    }\n    \n    // Calculate view direction\n    vec3 V = normalize(u_viewPos - v_worldPos);\n    \n    // Calculate fresnel reflection at normal incidence (F0)\n    // For most materials, F0 is monochromatic (0.04)\n    // For metals, we use the albedo color \n    vec3 F0 = vec3(0.04);\n    F0 = mix(F0, albedo, metallic);\n    \n    // Initialize result\n    vec3 Lo = vec3(0.0);\n    \n    // Calculate lighting contribution from each light\n    for(int i = 0; i < u_numLights; i++) {\n        if(i >= MAX_LIGHTS || u_lightTypes[i] == LIGHT_TYPE_INACTIVE) \n            continue;\n        \n        // Calculate light direction and intensity\n        vec3 L;\n        float attenuation = 1.0;\n        \n        if (u_lightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            // Directional light\n            L = normalize(-u_lightDirections[i]);\n        } \n        else if (u_lightTypes[i] == LIGHT_TYPE_POINT || u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n            // Point or spot light\n            L = normalize(u_lightPositions[i] - v_worldPos);\n            \n            // Calculate attenuation\n            float distance = length(u_lightPositions[i] - v_worldPos);\n            attenuation = 1.0 / (u_lightConstants[i] + \n                                 u_lightLinears[i] * distance + \n                                 u_lightQuadratics[i] * distance * distance);\n            \n            // For spot lights, calculate spotlight intensity\n            if (u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n                float theta = dot(L, normalize(-u_lightDirections[i]));\n                float epsilon = u_lightCutOffs[i] - u_lightOuterCutOffs[i];\n                float intensity = clamp((theta - u_lightOuterCutOffs[i]) / epsilon, 0.0, 1.0);\n                attenuation *= intensity;\n            }\n        }\n        else if (u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            // Ambient light (applied separately)\n            continue;\n        }\n        \n        // Calculate half vector\n        vec3 H = normalize(V + L);\n        \n        // Calculate shadow\n        float shadow = 0.0;\n        if(u_castsShadow[i]) {\n            vec4 fragPosLightSpace = u_lightSpaceMatrices[i] * vec4(v_worldPos, 1.0);\n            shadow = ShadowCalculation(fragPosLightSpace, N, L, i);\n        }\n        \n        // Add light contribution\n        vec3 radiance = calculateRadiance(N, V, L, H, F0, albedo, metallic, roughness,\n                                         u_lightColors[i], u_lightIntensities[i],\n                                         attenuation);\n        \n        Lo += radiance * (1.0 - shadow);\n    }\n    \n    // Add ambient light contribution (factoring in ambient occlusion)\n    vec3 ambient = vec3(0.1) * albedo * ao; // Increased base ambient level\n\n    // Add ambient from any ambient light sources\n    for(int i = 0; i < u_numLights; i++) {\n        if(i < MAX_LIGHTS && u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            ambient += u_lightColors[i] * u_lightIntensities[i] * albedo * ao;\n        }\n    }\n\n    // Add emissive contribution\n    vec3 color = ambient + Lo + emissive;\n\n    // Apply some rim lighting to highlight edges even in shadow\n    float rim = 1.0 - max(dot(N, V), 0.0);\n    rim = pow(rim, 3.0) * 0.2;\n    color += rim * albedo * 0.3;\n\n    // Enhance colored light visibility\n    color = mix(color, color * 1.2, metallic);\n\n    // Prevent oversaturation by clamping extremely bright values\n    float maxLuminance = max(max(color.r, color.g), color.b);\n    if (maxLuminance > 10.0) {\n        color *= 10.0 / maxLuminance;\n    }\n\n    // Apply ACES filmic tone mapping for better dynamic range\n    // Source: https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/\n    vec3 mapped = (color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14);\n    mapped = clamp(mapped, 0.0, 1.0);\n\n    // Gamma correction\n    color = pow(mapped, vec3(1.0/2.2));\n\n    fragColor = vec4(color, 1.0);\n}";
+var pbrFragmentShader = "#version 300 es\nprecision highp float;\n\n// Constants\n#define PI 3.14159265359\n#define MAX_LIGHTS 10\n\n// Light types\n#define LIGHT_TYPE_INACTIVE -1\n#define LIGHT_TYPE_AMBIENT 0\n#define LIGHT_TYPE_DIRECTIONAL 1\n#define LIGHT_TYPE_POINT 2\n#define LIGHT_TYPE_SPOT 3\n\n// PBR Material uniforms\nstruct PBRMaterial {\n    vec3 baseColor;\n    float roughness;\n    float metallic;\n    float ambientOcclusion;\n    vec3 emissive;\n    \n    sampler2D albedoMap;\n    sampler2D normalMap;\n    sampler2D metallicRoughnessMap;\n    sampler2D aoMap;\n    sampler2D emissiveMap;\n    \n    bool hasAlbedoMap;\n    bool hasNormalMap;\n    bool hasMetallicRoughnessMap;\n    bool hasAoMap;\n    bool hasEmissiveMap;\n};\n\n// Light uniforms\nuniform int u_lightTypes[MAX_LIGHTS];\nuniform vec3 u_lightPositions[MAX_LIGHTS];\nuniform vec3 u_lightDirections[MAX_LIGHTS];\nuniform vec3 u_lightColors[MAX_LIGHTS];\nuniform float u_lightIntensities[MAX_LIGHTS];\nuniform float u_lightConstants[MAX_LIGHTS];\nuniform float u_lightLinears[MAX_LIGHTS];\nuniform float u_lightQuadratics[MAX_LIGHTS];\nuniform float u_lightCutOffs[MAX_LIGHTS];\nuniform float u_lightOuterCutOffs[MAX_LIGHTS];\nuniform int u_numLights;\n\n// Shadow mapping uniforms\nuniform sampler2D u_shadowMap0;\nuniform sampler2D u_shadowMap1;\nuniform sampler2D u_shadowMap2;\nuniform sampler2D u_shadowMap3;\nuniform mat4 u_lightSpaceMatrices[MAX_LIGHTS];\nuniform bool u_castsShadow[MAX_LIGHTS];\n\n// Material uniforms\nuniform PBRMaterial u_material;\nuniform vec3 u_viewPos;\n\n// Varyings from vertex shader\nin vec3 v_normal;\nin vec2 v_texCoord;\nin vec3 v_worldPos;\nin mat3 v_tbn;\nin vec3 v_color;\n\n// Output\nout vec4 fragColor;\n\n// Utility function to get shadowmap value\nfloat getShadowMap(int index, vec2 coords) {\n    // We have to use a switch statement because WebGL2 requires constant array indices for samplers\n    // Note: Explicitly using .r component as we're using DEPTH_COMPONENT textures\n    switch(index) {\n        case 0: return texture(u_shadowMap0, coords).r;\n        case 1: return texture(u_shadowMap1, coords).r;\n        case 2: return texture(u_shadowMap2, coords).r;\n        case 3: return texture(u_shadowMap3, coords).r;\n        default: return 1.0; // No shadow if invalid index\n    }\n}\n\n// Shadow calculation function\nfloat ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir, int shadowMapIndex) {\n    // Ensure we only process shadow maps that exist in the shader\n    if (shadowMapIndex > 3) {\n        return 0.0; // Return no shadow if the index is beyond the available shadow maps\n    }\n    \n    // Perform perspective divide\n    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;\n    \n    // Transform to [0,1] range\n    projCoords = projCoords * 0.5 + 0.5;\n    \n    // Check if fragment is in light's view frustum\n    if (projCoords.x < 0.0 || projCoords.x > 1.0 || \n        projCoords.y < 0.0 || projCoords.y > 1.0 || \n        projCoords.z < 0.0 || projCoords.z > 1.0) {\n        return 0.0; // Not in shadow if outside frustum\n    }\n    \n    // Calculate bias based on surface angle to reduce shadow acne\n    // Use a smaller bias since we've improved shadow map precision\n    float bias = max(0.001 * (1.0 - dot(normal, lightDir)), 0.0005);\n    \n    // Get depth from shadow map\n    float closestDepth = getShadowMap(shadowMapIndex, projCoords.xy);\n    float currentDepth = projCoords.z;\n    \n    // Debug - uncomment to log values\n    // if (gl_FragCoord.x < 1.0 && gl_FragCoord.y < 1.0) {\n    //     float diff = currentDepth - closestDepth;\n    //     if (abs(diff) < 0.1) {\n    //         // Add code to print values if needed\n    //     }\n    // }\n    \n    // Simple shadow check with bias\n    // return (currentDepth - bias) > closestDepth ? 1.0 : 0.0;\n    \n    // PCF (Percentage Closer Filtering) with larger kernel for softer shadows\n    float shadow = 0.0;\n    vec2 texelSize = 1.0 / vec2(textureSize(u_shadowMap0, 0));\n    \n    for(int x = -2; x <= 2; ++x) {\n        for(int y = -2; y <= 2; ++y) {\n            float pcfDepth = getShadowMap(shadowMapIndex, projCoords.xy + vec2(x, y) * texelSize);\n            shadow += (currentDepth - bias) > pcfDepth ? 1.0 : 0.0;\n        }\n    }\n    \n    shadow /= 25.0; // 5x5 kernel\n    \n    // Fade out shadows at the edge of the light's frustum for smoother transitions\n    float fadeStart = 0.9;\n    float distanceFromCenter = length(vec2(0.5, 0.5) - projCoords.xy) * 2.0;\n    if (distanceFromCenter > fadeStart) {\n        float fadeRatio = (distanceFromCenter - fadeStart) / (1.0 - fadeStart);\n        shadow = mix(shadow, 0.0, fadeRatio);\n    }\n    \n    return shadow;\n}\n\n// PBR functions\n\n// Normal Distribution Function (GGX/Trowbridge-Reitz)\nfloat DistributionGGX(vec3 N, vec3 H, float roughness) {\n    float a = roughness * roughness;\n    float a2 = a * a;\n    float NdotH = max(dot(N, H), 0.0);\n    float NdotH2 = NdotH * NdotH;\n    \n    float denom = (NdotH2 * (a2 - 1.0) + 1.0);\n    denom = PI * denom * denom;\n    \n    return a2 / max(denom, 0.0000001);\n}\n\n// Geometry function (Smith model)\nfloat GeometrySchlickGGX(float NdotV, float roughness) {\n    float r = (roughness + 1.0);\n    float k = (r * r) / 8.0;\n    \n    float denom = NdotV * (1.0 - k) + k;\n    return NdotV / max(denom, 0.0000001);\n}\n\n// Combined Geometry function\nfloat GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {\n    float NdotV = max(dot(N, V), 0.0);\n    float NdotL = max(dot(N, L), 0.0);\n    float ggx2 = GeometrySchlickGGX(NdotV, roughness);\n    float ggx1 = GeometrySchlickGGX(NdotL, roughness);\n    \n    return ggx1 * ggx2;\n}\n\n// Fresnel function (Schlick's approximation)\nvec3 FresnelSchlick(float cosTheta, vec3 F0) {\n    return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);\n}\n\n// Calculates radiance for a light source\nvec3 calculateRadiance(vec3 N, vec3 V, vec3 L, vec3 H, vec3 F0, \n                       vec3 albedo, float metallic, float roughness,\n                       vec3 lightColor, float lightIntensity,\n                       float attenuation) {\n    // Calculate light attenuation\n    float attenuatedIntensity = lightIntensity * attenuation;\n    \n    // Ensure roughness is never zero (to prevent divide-by-zero in GGX)\n    roughness = max(roughness, 0.01);\n    \n    // Cook-Torrance BRDF calculation\n    float NDF = DistributionGGX(N, H, roughness);\n    float G = GeometrySmith(N, V, L, roughness);\n    vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);\n    \n    // Calculate specular component\n    vec3 numerator = NDF * G * F;\n    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);\n    vec3 specular = numerator / max(denominator, 0.0000001);\n    \n    // Prevent uncontrolled specular highlights by clamping\n    specular = min(specular, vec3(10.0));\n    \n    // For energy conservation\n    vec3 kS = F;\n    vec3 kD = vec3(1.0) - kS;\n    kD *= 1.0 - metallic; // Metallic materials don't have diffuse\n    \n    // Combine diffuse and specular terms\n    float NdotL = max(dot(N, L), 0.0);\n    return (kD * albedo / PI + specular) * lightColor * attenuatedIntensity * NdotL;\n}\n\nvoid main() {\n    // Get material properties, using textures if available\n    \n    // Base color (albedo)\n    vec3 albedo = u_material.baseColor;\n    if (u_material.hasAlbedoMap) {\n        albedo = texture(u_material.albedoMap, v_texCoord).rgb;\n    } else {\n        // Use vertex color if no albedo map is provided\n        albedo = v_color;\n    }\n    \n    // Metallic and roughness\n    float metallic = u_material.metallic;\n    float roughness = u_material.roughness;\n    if (u_material.hasMetallicRoughnessMap) {\n        // Standard PBR convention: G channel = roughness, B channel = metallic\n        vec3 metallicRoughness = texture(u_material.metallicRoughnessMap, v_texCoord).rgb;\n        roughness = metallicRoughness.g;\n        metallic = metallicRoughness.b;\n    }\n    \n    // Ambient occlusion\n    float ao = u_material.ambientOcclusion;\n    if (u_material.hasAoMap) {\n        ao = texture(u_material.aoMap, v_texCoord).r;\n    }\n    \n    // Normals (with normal mapping if available)\n    vec3 N = normalize(v_normal);\n    if (u_material.hasNormalMap) {\n        vec3 normalMapValue = texture(u_material.normalMap, v_texCoord).rgb * 2.0 - 1.0;\n        N = normalize(v_tbn * normalMapValue);\n    }\n    \n    // Emissive\n    vec3 emissive = u_material.emissive;\n    if (u_material.hasEmissiveMap) {\n        emissive = texture(u_material.emissiveMap, v_texCoord).rgb;\n    }\n    \n    // Calculate view direction\n    vec3 V = normalize(u_viewPos - v_worldPos);\n    \n    // Calculate fresnel reflection at normal incidence (F0)\n    // For most materials, F0 is monochromatic (0.04)\n    // For metals, we use the albedo color \n    vec3 F0 = vec3(0.04);\n    F0 = mix(F0, albedo, metallic);\n    \n    // Initialize result\n    vec3 Lo = vec3(0.0);\n    \n    // Calculate lighting contribution from each light\n    for(int i = 0; i < u_numLights; i++) {\n        if(i >= MAX_LIGHTS || u_lightTypes[i] == LIGHT_TYPE_INACTIVE) \n            continue;\n        \n        // Calculate light direction and intensity\n        vec3 L;\n        float attenuation = 1.0;\n        \n        if (u_lightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            // Directional light\n            L = normalize(-u_lightDirections[i]);\n        } \n        else if (u_lightTypes[i] == LIGHT_TYPE_POINT || u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n            // Point or spot light\n            L = normalize(u_lightPositions[i] - v_worldPos);\n            \n            // Calculate attenuation\n            float distance = length(u_lightPositions[i] - v_worldPos);\n            attenuation = 1.0 / (u_lightConstants[i] + \n                                 u_lightLinears[i] * distance + \n                                 u_lightQuadratics[i] * distance * distance);\n            \n            // For spot lights, calculate spotlight intensity\n            if (u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n                float theta = dot(L, normalize(-u_lightDirections[i]));\n                float epsilon = u_lightCutOffs[i] - u_lightOuterCutOffs[i];\n                float intensity = clamp((theta - u_lightOuterCutOffs[i]) / epsilon, 0.0, 1.0);\n                attenuation *= intensity;\n            }\n        }\n        else if (u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            // Ambient light (applied separately)\n            continue;\n        }\n        \n        // Calculate half vector\n        vec3 H = normalize(V + L);\n        \n        // Calculate shadow\n        float shadow = 0.0;\n        if(u_castsShadow[i]) {\n            vec4 fragPosLightSpace = u_lightSpaceMatrices[i] * vec4(v_worldPos, 1.0);\n            shadow = ShadowCalculation(fragPosLightSpace, N, L, i);\n        }\n        \n        // Add light contribution\n        vec3 radiance = calculateRadiance(N, V, L, H, F0, albedo, metallic, roughness,\n                                         u_lightColors[i], u_lightIntensities[i],\n                                         attenuation);\n        \n        Lo += radiance * (1.0 - shadow);\n    }\n    \n    // Add ambient light contribution (factoring in ambient occlusion)\n    vec3 ambient = vec3(0.0); // Initialize with no ambient\n\n    // Add ambient from any ambient light sources\n    for(int i = 0; i < u_numLights; i++) {\n        if(i < MAX_LIGHTS && u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            ambient += u_lightColors[i] * u_lightIntensities[i] * albedo * ao;\n        }\n    }\n\n    // Add emissive contribution\n    vec3 color = ambient + Lo + emissive;\n\n    // Calculate rim lighting based on lights in the scene\n    vec3 rimColor = vec3(0.0);\n    float rimPower = 3.0; // Controls how sharp the rim effect is\n    float viewFacing = 1.0 - max(dot(N, V), 0.0);\n    \n    // Add rim contribution from each light\n    for(int i = 0; i < u_numLights; i++) {\n        if(i >= MAX_LIGHTS || u_lightTypes[i] == LIGHT_TYPE_INACTIVE || u_lightTypes[i] == LIGHT_TYPE_AMBIENT) \n            continue;\n            \n        vec3 L;\n        float rimStrength = 0.0;\n        \n        if (u_lightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            L = normalize(-u_lightDirections[i]);\n            rimStrength = u_lightIntensities[i] * 0.3; // Scale rim by light intensity\n        } \n        else if (u_lightTypes[i] == LIGHT_TYPE_POINT || u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n            vec3 lightToPos = v_worldPos - u_lightPositions[i];\n            L = normalize(lightToPos);\n            \n            // Rim strength falls off with distance\n            float distance = length(lightToPos);\n            float attenuation = 1.0 / (u_lightConstants[i] + \n                                     u_lightLinears[i] * distance + \n                                     u_lightQuadratics[i] * distance * distance);\n                                     \n            rimStrength = u_lightIntensities[i] * attenuation * 0.3;\n            \n            // For spotlights, consider the cone angle\n            if (u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n                float theta = dot(-L, normalize(u_lightDirections[i]));\n                float epsilon = u_lightCutOffs[i] - u_lightOuterCutOffs[i];\n                rimStrength *= clamp((theta - u_lightOuterCutOffs[i]) / epsilon, 0.0, 1.0);\n            }\n        }\n        \n        // Calculate rim contribution from this light\n        float lightRim = pow(viewFacing * max(dot(L, N), 0.0), rimPower) * rimStrength;\n        rimColor += u_lightColors[i] * lightRim;\n    }\n    \n    // Add rim lighting to final color\n    color += rimColor * albedo;\n\n    // Enhance colored light visibility\n    color = mix(color, color * 1.2, metallic);\n\n    // Prevent oversaturation by clamping extremely bright values\n    float maxLuminance = max(max(color.r, color.g), color.b);\n    if (maxLuminance > 10.0) {\n        color *= 10.0 / maxLuminance;\n    }\n\n    // Apply ACES filmic tone mapping for better dynamic range\n    // Source: https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/\n    vec3 mapped = (color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14);\n    mapped = clamp(mapped, 0.0, 1.0);\n\n    // Gamma correction\n    color = pow(mapped, vec3(1.0/2.2));\n\n    fragColor = vec4(color, 1.0);\n}";
 
 // ts/classes/webgl2/shaders/debugDepthShader.ts
 var debugDepthVertexShader = "#version 300 es\nprecision highp float;\n\nin vec2 a_position;\nin vec2 a_texCoord;\n\nout vec2 v_texCoord;\n\nvoid main() {\n    v_texCoord = a_texCoord;\n    gl_Position = vec4(a_position, 0.0, 1.0);\n}\n";
@@ -3211,6 +3211,12 @@ var Quaternion = class _Quaternion {
     this.w = Math.cos(halfAngle);
     return this;
   }
+  toEuler() {
+    const x = Math.atan2(2 * (this.w * this.x + this.y * this.z), 1 - 2 * (this.x * this.x + this.y * this.y));
+    const y = Math.asin(2 * (this.w * this.y - this.z * this.x));
+    const z = Math.atan2(2 * (this.w * this.z + this.x * this.y), 1 - 2 * (this.y * this.y + this.z * this.z));
+    return new Vector3(x, y, z);
+  }
 };
 
 // ts/classes/util/math/transform.ts
@@ -3581,7 +3587,7 @@ var BaseMesh = class _BaseMesh extends SceneObject {
 };
 
 // ts/classes/webgl2/material.ts
-var Material = class {
+var _Material = class _Material {
   constructor({
     baseColor = v3(0.8, 0.8, 0.8),
     roughness = 0.5,
@@ -3605,7 +3611,36 @@ var Material = class {
     this.aoMap = aoMap;
     this.emissiveMap = emissiveMap;
   }
+  static library(name, color) {
+    const material = new _Material(this._materials[name]);
+    material.baseColor = color;
+    return material;
+  }
 };
+_Material._materials = {
+  "plastic": {
+    baseColor: v3(0.8, 0.8, 0.8),
+    roughness: 0.7,
+    metallic: 0.4,
+    ambientOcclusion: 1,
+    emissive: v3(0, 0, 0)
+  },
+  "metal": {
+    baseColor: v3(0.8, 0.8, 0.8),
+    roughness: 0.5,
+    metallic: 1,
+    ambientOcclusion: 1,
+    emissive: v3(0, 0, 0)
+  },
+  "rough": {
+    baseColor: v3(0.8, 0.8, 0.8),
+    roughness: 0.8,
+    metallic: 0.5,
+    ambientOcclusion: 1,
+    emissive: v3(0, 0, 0)
+  }
+};
+var Material = _Material;
 
 // ts/classes/webgl2/meshes/cone.ts
 var Cone = class extends BaseMesh {
@@ -4467,21 +4502,38 @@ var ShadowMap = class {
 
 // ts/classes/webgl2/lights/light.ts
 var Light = class {
-  constructor({ color = v3(1, 1, 1), intensity = 1 } = {}) {
+  constructor({
+    color = v3(1, 1, 1),
+    intensity = 1,
+    enabled = true
+  } = {}) {
+    this.enabled = true;
     this.color = color;
     this.intensity = intensity;
+    this.enabled = enabled;
+    this.type = 4 /* INACTIVE */;
+  }
+  getIntensity() {
+    return this.enabled ? this.intensity : 0;
+  }
+  isEnabled() {
+    return this.enabled;
+  }
+  setEnabled(enabled) {
+    this.enabled = enabled;
   }
   getType() {
-    return this.type;
+    return this.enabled ? this.type : 4 /* INACTIVE */;
   }
   getData() {
     return {
       color: this.color,
-      intensity: this.intensity
+      intensity: this.getIntensity(),
+      enabled: this.enabled
     };
   }
   getShadowMap() {
-    return null;
+    return this.enabled ? null : null;
   }
 };
 var AmbientLight = class extends Light {
@@ -4494,16 +4546,54 @@ var DirectionalLight = class extends Light {
   constructor({
     direction = v3(0, -1, 0),
     color = v3(1, 1, 1),
-    intensity = 1
+    intensity = 1,
+    enabled = true
   } = {}) {
-    super({ color, intensity });
+    super({ color, intensity, enabled });
     this.direction = direction.normalize();
     this.type = 1 /* DIRECTIONAL */;
+    this.shadowMap = new ShadowMap(glob.ctx, 4096);
+    this.lightProjection = new Matrix4().ortho(
+      -20,
+      20,
+      // left, right
+      -20,
+      20,
+      // bottom, top
+      0.1,
+      200
+      // near, far
+    );
   }
   getData() {
     return __spreadProps(__spreadValues({}, super.getData()), {
       direction: this.direction
     });
+  }
+  getDirection() {
+    return this.direction;
+  }
+  setDirection(direction) {
+    this.direction = direction.normalize();
+  }
+  getLightSpaceMatrix() {
+    const lightView = Matrix4.lookAt(
+      this.direction.scale(-10),
+      // Position light far enough away in opposite direction
+      v3(0, 0, 0)
+      // Look at scene center
+    );
+    return this.lightProjection.multiply(lightView);
+  }
+  getShadowMap() {
+    return this.shadowMap;
+  }
+  lookAt(from, target) {
+    const direction = target.subtract(from).normalize();
+    const defaultDir = v3(0, -1, 0);
+    const rotationAxis = defaultDir.cross(direction).normalize();
+    const angle2 = Math.acos(defaultDir.y * direction.y + defaultDir.x * direction.x + defaultDir.z * direction.z);
+    this.direction = new Quaternion().setAxisAngle(rotationAxis, angle2).toEuler();
   }
 };
 var PointLight = class extends Light {
@@ -4514,9 +4604,10 @@ var PointLight = class extends Light {
     // Increased intensity for PBR
     attenuation = { constant: 1, linear: 0.22, quadratic: 0.2 },
     // Better PBR attenuation values
-    meshContainer
+    meshContainer,
+    enabled = true
   } = {}) {
-    super({ color, intensity });
+    super({ color, intensity, enabled });
     this.position = position;
     this.constant = attenuation.constant;
     this.linear = attenuation.linear;
@@ -4524,15 +4615,15 @@ var PointLight = class extends Light {
     this.type = 2 /* POINT */;
     this.shadowMap = new ShadowMap(glob.ctx, 4096);
     this.lightProjection = new Matrix4().ortho(
-      -10,
-      10,
-      // left, right
-      -10,
-      10,
-      // bottom, top
+      -20,
+      20,
+      // left, right - doubled for wider coverage
+      -20,
+      20,
+      // bottom, top - doubled for wider coverage
       0.1,
-      100
-      // near, far
+      200
+      // near, far - increased far plane for deeper shadows
     );
     if (meshContainer) {
       meshContainer.add(this.mesh = IcoSphere.create({
@@ -4602,7 +4693,8 @@ var SpotLight = class extends PointLight {
     // 30 degrees
     outerCutOff = Math.cos(Math.PI / 4),
     // 45 degrees
-    meshContainer
+    meshContainer,
+    enabled = true
   } = {}) {
     super({
       position,
@@ -4613,7 +4705,8 @@ var SpotLight = class extends PointLight {
         linear: 0.22,
         quadratic: 0.2
       },
-      meshContainer
+      meshContainer,
+      enabled
     });
     this.rotation = new Quaternion();
     this.cutOff = cutOff;
@@ -4745,36 +4838,37 @@ var LightManager = class {
     const quadratics = new Float32Array(this.MAX_LIGHTS);
     const cutOffs = new Float32Array(this.MAX_LIGHTS);
     const outerCutOffs = new Float32Array(this.MAX_LIGHTS);
-    types.fill(-1);
+    types.fill(4 /* INACTIVE */);
     constants.fill(1);
-    if (this.ambientLight) {
+    let currentIndex = 0;
+    if (this.ambientLight && this.ambientLight.isEnabled()) {
       const data = this.ambientLight.getData();
-      types[0] = 0 /* AMBIENT */;
-      colors[0] = data.color.x;
-      colors[1] = data.color.y;
-      colors[2] = data.color.z;
-      intensities[0] = data.intensity;
+      types[currentIndex] = 0 /* AMBIENT */;
+      colors[currentIndex * 3] = data.color.x;
+      colors[currentIndex * 3 + 1] = data.color.y;
+      colors[currentIndex * 3 + 2] = data.color.z;
+      intensities[currentIndex] = data.intensity;
+      currentIndex++;
     }
-    const startIndex = this.ambientLight ? 1 : 0;
-    for (let i = 0; i < this.lights.length; i++) {
-      const light = this.lights[i];
-      const index = i + startIndex;
-      if (index >= this.MAX_LIGHTS) {
+    for (const light of this.lights) {
+      if (!light.isEnabled())
+        continue;
+      if (currentIndex >= this.MAX_LIGHTS) {
         console.warn("Maximum number of lights (".concat(this.MAX_LIGHTS, ") reached. Some lights will not be rendered."));
         break;
       }
       const data = light.getData();
-      types[index] = light.getType();
-      const colorOffset = index * 3;
+      types[currentIndex] = light.getType();
+      const colorOffset = currentIndex * 3;
       colors[colorOffset] = data.color.x;
       colors[colorOffset + 1] = data.color.y;
       colors[colorOffset + 2] = data.color.z;
-      intensities[index] = data.intensity;
+      intensities[currentIndex] = data.intensity;
       switch (light.getType()) {
         case 1 /* DIRECTIONAL */: {
           const dirLight = light;
           const dirData = dirLight.getData();
-          const dirOffset = index * 3;
+          const dirOffset = currentIndex * 3;
           directions[dirOffset] = dirData.direction.x;
           directions[dirOffset + 1] = dirData.direction.y;
           directions[dirOffset + 2] = dirData.direction.z;
@@ -4783,37 +4877,37 @@ var LightManager = class {
         case 2 /* POINT */: {
           const pointLight = light;
           const pointData = pointLight.getData();
-          const posOffset = index * 3;
+          const posOffset = currentIndex * 3;
           positions[posOffset] = pointData.position.x;
           positions[posOffset + 1] = pointData.position.y;
           positions[posOffset + 2] = pointData.position.z;
-          constants[index] = pointData.constant;
-          linears[index] = pointData.linear;
-          quadratics[index] = pointData.quadratic;
+          constants[currentIndex] = pointData.constant;
+          linears[currentIndex] = pointData.linear;
+          quadratics[currentIndex] = pointData.quadratic;
           break;
         }
         case 3 /* SPOT */: {
           const spotLight = light;
           const spotData = spotLight.getData();
-          const posOffset = index * 3;
-          const dirOffset = index * 3;
+          const posOffset = currentIndex * 3;
+          const dirOffset = currentIndex * 3;
           positions[posOffset] = spotData.position.x;
           positions[posOffset + 1] = spotData.position.y;
           positions[posOffset + 2] = spotData.position.z;
           directions[dirOffset] = spotData.direction.x;
           directions[dirOffset + 1] = spotData.direction.y;
           directions[dirOffset + 2] = spotData.direction.z;
-          constants[index] = spotData.constant;
-          linears[index] = spotData.linear;
-          quadratics[index] = spotData.quadratic;
-          cutOffs[index] = spotData.cutOff;
-          outerCutOffs[index] = spotData.outerCutOff;
+          constants[currentIndex] = spotData.constant;
+          linears[currentIndex] = spotData.linear;
+          quadratics[currentIndex] = spotData.quadratic;
+          cutOffs[currentIndex] = spotData.cutOff;
+          outerCutOffs[currentIndex] = spotData.outerCutOff;
           break;
         }
       }
+      currentIndex++;
     }
-    const numLights = Math.min(this.lights.length + (this.ambientLight ? 1 : 0), this.MAX_LIGHTS);
-    this.shaderManager.setUniform("u_numLights", numLights);
+    this.shaderManager.setUniform("u_numLights", currentIndex);
     this.shaderManager.setUniform("u_lightTypes", types);
     this.shaderManager.setUniform("u_lightPositions", positions);
     this.shaderManager.setUniform("u_lightDirections", directions);
@@ -4850,9 +4944,7 @@ var Scene = class {
     var _a;
     this.camera = camera;
     this.lightManager = new LightManager(glob.shaderManager);
-    const ambientColor = options.ambientLightColor || v3(1, 1, 1);
-    const ambientIntensity = (_a = options.ambientLightIntensity) != null ? _a : 0.1;
-    this.ambientLight = new AmbientLight({ color: ambientColor, intensity: ambientIntensity });
+    this.ambientLight = new AmbientLight({ color: options.ambientLightColor || v3(1, 1, 1), intensity: (_a = options.ambientLightIntensity) != null ? _a : 0.1 });
     glob.shaderManager.loadShaderProgram("picking", colorPickingVertexShader, colorPickingFragmentShader);
     glob.events.resize.subscribe("level", this.resize.bind(this));
   }
@@ -4897,10 +4989,13 @@ var Scene = class {
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-    const shadowCastingLights = this.getLights().filter((light) => light instanceof PointLight);
+    const shadowCastingLights = this.getLights().filter(
+      (light) => light instanceof PointLight && light.isEnabled() && light.getIntensity() > 1e-4
+      // Only cast shadows for lights that are actually contributing
+    );
     const castsShadow = new Array(10).fill(false);
     const lightSpaceMatrices = new Float32Array(10 * 16);
-    const hasAmbientLight = this.ambientLight !== null;
+    const hasAmbientLight = this.ambientLight !== null && this.ambientLight.isEnabled();
     const indexOffset = hasAmbientLight ? 1 : 0;
     for (let i = 0; i < shadowCastingLights.length; i++) {
       const light = shadowCastingLights[i];
@@ -5049,122 +5144,9 @@ var Scene = class {
     }
     this.lightManager.removeLight(light);
   }
-  update(data) {
-  }
   // Add method to toggle color picking visualization
   toggleColorPicking() {
     this.showColorPicking = !this.showColorPicking;
-  }
-  // Helper method to toggle shadow map debugging
-  toggleShadowMapDebug() {
-    this.debugShadowMap = !this.debugShadowMap;
-  }
-  // Helper method to switch which light's shadow map to debug
-  nextShadowMapDebug() {
-    this.debugLightIndex++;
-    const shadowCastingLights = this.getLights().filter((light) => light instanceof PointLight);
-    if (this.debugLightIndex >= shadowCastingLights.length) {
-      this.debugLightIndex = 0;
-    }
-  }
-  // Helper method to render a full-screen quad
-  renderFullScreenQuad() {
-    if (!this.fullScreenQuadVAO) {
-      this.fullScreenQuadVAO = new VertexArray(glob.ctx);
-      this.fullScreenQuadVAO.bind();
-      const vertices = new Float32Array([
-        // positions  // texture coords
-        -1,
-        1,
-        0,
-        1,
-        -1,
-        -1,
-        0,
-        0,
-        1,
-        -1,
-        1,
-        0,
-        -1,
-        1,
-        0,
-        1,
-        1,
-        -1,
-        1,
-        0,
-        1,
-        1,
-        1,
-        1
-      ]);
-      const vertexBuffer = new VertexBuffer(glob.ctx);
-      vertexBuffer.bind();
-      vertexBuffer.setData(vertices);
-      const positionAttribLocation = glob.shaderManager.getAttributeLocation("a_position");
-      const texCoordAttribLocation = glob.shaderManager.getAttributeLocation("a_texCoord");
-      this.fullScreenQuadVAO.setAttributePointer(
-        positionAttribLocation,
-        2,
-        glob.ctx.FLOAT,
-        false,
-        4 * 4,
-        0
-      );
-      this.fullScreenQuadVAO.setAttributePointer(
-        texCoordAttribLocation,
-        2,
-        glob.ctx.FLOAT,
-        false,
-        4 * 4,
-        2 * 4
-      );
-    }
-    this.fullScreenQuadVAO.bind();
-    glob.ctx.drawArrays(glob.ctx.TRIANGLES, 0, 6);
-  }
-  // Initialize shadow maps and uniforms to ensure they work on first render
-  initializeShadows() {
-    const gl = glob.ctx;
-    const shadowCastingLights = this.getLights().filter((light) => light instanceof PointLight);
-    const castsShadow = new Array(10).fill(false);
-    const lightSpaceMatrices = new Float32Array(10 * 16);
-    const hasAmbientLight = this.ambientLight !== null;
-    const indexOffset = hasAmbientLight ? 1 : 0;
-    for (let i = 0; i < shadowCastingLights.length; i++) {
-      const light = shadowCastingLights[i];
-      const lightIndex = i + indexOffset;
-      const shadowMap = light.getShadowMap();
-      shadowMap.bind(gl);
-      const lightSpaceMatrix = light.getLightSpaceMatrix();
-      for (const object of this.objects) {
-        if (!object.vao)
-          continue;
-        glob.shaderManager.setUniform("u_modelMatrix", object.transform.getWorldMatrix().mat4);
-        object.vao.bind();
-        if (object.indexBuffer) {
-          gl.drawElements(gl.TRIANGLES, object.indexBuffer.getCount(), gl.UNSIGNED_SHORT, 0);
-        } else {
-          gl.drawArrays(gl.TRIANGLES, 0, object.drawCount);
-        }
-      }
-      shadowMap.unbind(gl);
-      lightSpaceMatrix.mat4.forEach((value, index) => {
-        lightSpaceMatrices[lightIndex * 16 + index] = value;
-      });
-      castsShadow[lightIndex] = true;
-      shadowMap.bindDepthTexture(gl, lightIndex + 5);
-      if (lightIndex < 4) {
-        glob.shaderManager.useProgram("pbr");
-        glob.shaderManager.setUniform("u_shadowMap".concat(lightIndex), lightIndex + 5);
-      }
-    }
-    glob.shaderManager.useProgram("pbr");
-    glob.shaderManager.setUniform("u_lightSpaceMatrices", lightSpaceMatrices);
-    glob.shaderManager.setUniform("u_castsShadow", castsShadow);
-    this.toggleShadowMapDebug();
-    this.toggleShadowMapDebug();
   }
 };
 
@@ -6172,42 +6154,37 @@ var TestLevel = class extends Scene {
       direction: v3(-0.5, -1, -0.3).normalize(),
       color: v3(1, 0.98, 0.9),
       // Slightly warm white
-      intensity: 0.3
-      // Reduced from 1.2
+      intensity: 0.51,
+      // Reduced from 1.2,
+      enabled: true
     });
     this.addLight(this.keyLight);
+    this.spotLight4 = new SpotLight({
+      position: v3(0, 5, 0),
+      color: v3(1, 1, 1),
+      // Pure white
+      intensity: 4,
+      // Moderate intensity
+      cutOff: 0.9,
+      outerCutOff: 0.85,
+      meshContainer: this
+    });
+    this.spotLight4.lookAt(v3(0, 0, 0));
+    this.addLight(this.spotLight4);
     this.add(this.floorPlane = Plane.create({
       position: v3(0, -2, 0),
       scale: v2(10, 10),
       pickColor: 90,
-      material: new Material({
-        baseColor: v3(0.7, 0.7, 0.73),
-        // Light gray
-        roughness: 0.3,
-        // Somewhat polished
-        metallic: 0,
-        // Non-metallic
-        ambientOcclusion: 1,
-        emissive: v3(0, 0, 0)
-      })
+      material: Material.library("rough", v3(0.7, 0.7, 0.73))
     }));
     this.add(Plane.create({
       position: v3(0, 0.5, -4),
       scale: v2(5, 10),
       rotation: Quaternion.fromEuler(-Math.PI / 2, 0, Math.PI / 2),
       pickColor: 80,
-      material: new Material({
-        baseColor: v3(0.95, 0.95, 0.95),
-        // Off-white
-        roughness: 0.85,
-        // Rough plaster
-        metallic: 0,
-        // Non-metallic
-        ambientOcclusion: 1,
-        emissive: v3(0, 0, 0)
-      })
+      material: Material.library("rough", v3(0.7, 0.7, 0.73))
     }));
-    this.add(this.backPlane = Plane.create({
+    this.add(this.frontWall = Plane.create({
       position: v3(0, 0.5, 4),
       flipNormal: true,
       scale: v2(5, 10),
@@ -6216,19 +6193,9 @@ var TestLevel = class extends Scene {
     this.add(this.mesh = IcoSphere.create({
       position: v3(0, 0, -2.5),
       scale: v3(2.5, 2.5, 2.5),
-      smoothShading: true,
+      smoothShading: false,
       subdivisions: 2,
-      pickColor: 250,
-      material: new Material({
-        baseColor: v3(0.95, 0.95, 0.95),
-        // White to reflect colors better
-        roughness: 0.4,
-        // Very smooth for high reflectivity
-        metallic: 1,
-        // Highly metallic
-        ambientOcclusion: 1,
-        emissive: v3(0, 0, 0)
-      })
+      material: Material.library("metal", v3(0.95, 0.6, 0.95))
     }));
     this.add(this.static = new ContainerObject({
       position: v3(1, 2, -1)
@@ -6250,133 +6217,33 @@ var TestLevel = class extends Scene {
         smoothShading: true,
         subdivisions: 2,
         parent: container,
-        pickColor: 10,
-        material: new Material({
-          baseColor: v3(0.2, 0.7, 0.9),
-          // Light blue
-          roughness: 0.2,
-          // Smooth ceramic
-          metallic: 0,
-          // Non-metallic
-          ambientOcclusion: 1,
-          emissive: v3(0, 0, 0)
-        })
+        material: Material.library("plastic", v3(0.2, 0.7, 0.9))
       }));
       this.add(Cube.create({
         position: positions[1],
         scale: v3(1.5, 1.5, 1.5),
         parent: container,
-        pickColor: 20,
-        material: new Material({
-          baseColor: v3(0.85, 0.45, 0.35),
-          // Copper color
-          roughness: 0.4,
-          // Slightly rough copper
-          metallic: 0.9,
-          // Highly metallic
-          ambientOcclusion: 1,
-          emissive: v3(0, 0, 0)
-        })
+        material: Material.library("metal", v3(0.85, 0.45, 0.35))
       }));
       this.add(Wedge.create({
         rotation: Quaternion.fromEuler(0, Math.PI / 2, 0),
         position: positions[2],
         scale: v3(1.5, 1.5, 1.5),
         parent: container,
-        pickColor: 30,
-        material: new Material({
-          baseColor: v3(0.15, 0.8, 0.15),
-          // Green
-          roughness: 0.9,
-          // Very rough like rubber
-          metallic: 0,
-          // Non-metallic
-          ambientOcclusion: 1,
-          emissive: v3(0, 0, 0)
-        })
+        material: Material.library("plastic", v3(0.15, 0.8, 0.15))
       }));
       this.add(Cone.create({
         position: positions[3],
         scale: v3(2, 1.5, 2),
         rotation: Quaternion.fromEuler(0, Math.PI / 2, 0),
-        smoothShading: true,
+        smoothShading: false,
         sides: 12,
         parent: container,
-        pickColor: 40,
-        material: new Material({
-          baseColor: v3(0.8, 0.3, 0.1),
-          // Orange-red
-          roughness: 0.5,
-          // Medium roughness
-          metallic: 0,
-          // Non-metallic
-          ambientOcclusion: 1,
-          emissive: v3(0.7, 0.2, 0)
-          // Strong orange glow
-        })
+        material: Material.library("plastic", v3(0.15, 0.8, 0.15))
       }));
       this.add(container);
     }
-    this.addLight(new PointLight({
-      position: v3(2, 5, -2),
-      // Above and behind
-      color: v3(0.9, 0.95, 1),
-      // Slightly cool white
-      intensity: 2.5,
-      // Reduced from 5.0
-      meshContainer: this
-    }));
-    for (let i = 0; i < 3; i++) {
-      let vari = ["spotLight", "spotLight2", "spotLight3"][i];
-      let color = [
-        v3(1, 0, 0),
-        // Pure red
-        v3(0, 0, 1),
-        // Pure blue
-        v3(0, 1, 0)
-        // Pure green
-      ][i];
-      let position = [
-        v3(4, 4, 2),
-        // Red light - right side
-        v3(-4, 3, -2),
-        // Blue light - left back side
-        v3(0, 5, -4)
-        // Green light - back center
-      ][i];
-      this[vari] = new SpotLight({
-        position,
-        color,
-        intensity: 0,
-        // Much higher intensity
-        cutOff: 0.92,
-        outerCutOff: 0.85,
-        meshContainer: this
-      });
-      let target = [
-        v3(-1, 0, 0),
-        // Red light targets left of center
-        v3(1, -1, 0),
-        // Blue light targets right side, lower
-        v3(0, 0, 1)
-        // Green light targets front of scene
-      ][i];
-      this[vari].lookAt(target);
-      this.addLight(this[vari]);
-    }
-    this.spotLight4 = new SpotLight({
-      position: v3(0, 5, 0),
-      color: v3(1, 1, 1),
-      // Pure white
-      intensity: 3,
-      // Moderate intensity
-      cutOff: 0.92,
-      outerCutOff: 0.85,
-      meshContainer: this
-    });
-    this.spotLight4.lookAt(v3(0, 0, 0));
-    this.addLight(this.spotLight4);
-    this.camera.setPosition(this.mesh.transform.getWorldPosition());
+    this.camera.setPosition(v3(-1, 3, 6));
     this.click(v2(0.5, 0.3));
   }
   click(vector2) {
@@ -6389,47 +6256,6 @@ var TestLevel = class extends Scene {
   }
   tick(obj) {
     super.tick(obj);
-    if (this.mesh) {
-      const rotation = new Quaternion();
-      rotation.setAxisAngle(v3(0, 1, 0), 0.01);
-      this.mesh.transform.setRotation(
-        rotation.multiply(this.mesh.transform.getLocalRotation())
-      );
-    }
-    const t = obj.total * 3e-4;
-    this.spotLight.setPosition(
-      4 * Math.sin(t),
-      4 + Math.sin(t * 0.5) * 0.5,
-      // Small vertical movement
-      2 * Math.cos(t * 2)
-      // Figure-8 by using 2x frequency
-    );
-    this.spotLight.lookAt(v3(-1 + Math.sin(t * 0.2), 0, 0));
-    this.spotLight2.setPosition(
-      -4 + Math.cos(t) * 0.7,
-      // Small horizontal movement
-      3 + Math.sin(t * 0.7) * 1.5,
-      // Larger vertical movement
-      -2 + Math.sin(t) * 0.7
-      // Small depth movement
-    );
-    this.spotLight2.lookAt(v3(1, -1 + Math.sin(t * 0.3), 0));
-    this.spotLight3.setPosition(
-      Math.sin(t + Math.PI / 4) * 2,
-      // Horizontal arc
-      5 + Math.cos(t) * 0.5,
-      // Small height change
-      -4 + Math.sin(t * 0.5) * 1.2
-      // Depth movement
-    );
-    this.spotLight3.lookAt(v3(0, 0, 1 + Math.sin(t * 0.4)));
-    this.camera.setPosition(
-      v3(
-        Math.sin(obj.total * 8e-4) % 1 * 5,
-        Math.sin(obj.total * 12e-4) % 1 * 1,
-        Math.sin(obj.total * 5e-4) % 1 * 2 + 9
-      )
-    );
   }
 };
 
