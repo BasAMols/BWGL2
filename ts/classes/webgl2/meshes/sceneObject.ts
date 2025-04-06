@@ -6,6 +6,8 @@ import { v3, Vector3 } from '../../util/math/vector3';
 import { Transform } from '../../util/math/transform';
 import { Quaternion } from '../../util/math/quaternion';
 import { hslToRgb } from '../../util/math/color';
+import { Material } from '../material';
+
 export interface SceneObjectData {
     vao: VertexArray;
     indexBuffer: IndexBuffer;
@@ -23,6 +25,7 @@ export interface SceneObjectProps {
     parent?: SceneObject;
     ignoreLighting?: boolean;
     pickColor?: number;
+    material?: Material;
 }
 
 export class SceneObject implements SceneObjectData {
@@ -34,6 +37,7 @@ export class SceneObject implements SceneObjectData {
     public readonly drawCount: number;
     public readonly drawType: number = glob.ctx.UNSIGNED_SHORT;
     public readonly ignoreLighting: boolean = false;
+    public readonly material?: Material;
     private set pickColor(value: number) {
         if (value === 0) {
             this.pickColorArray = v3(1, 1, 1);
@@ -59,6 +63,7 @@ export class SceneObject implements SceneObjectData {
         this.drawCount = data.drawCount;
         this.ignoreLighting = data.ignoreLighting ?? false;
         this.pickColor = props.pickColor ?? 0;
+        this.material = props.material;
 
         this.transform = new Transform();
         if (props.position) this.transform.setPosition(props.position);
@@ -94,6 +99,56 @@ export class SceneObject implements SceneObjectData {
                 normalMatrix.mat4[8], normalMatrix.mat4[9], normalMatrix.mat4[10]
             ]);
             this.shaderManager.setUniform('u_normalMatrix', normalMat3);
+        }
+        
+        // Apply material settings if available
+        if (this.material && this.shaderManager.hasUniform('u_material.baseColor')) {
+            // Set base color
+            this.shaderManager.setUniform('u_material.baseColor', new Float32Array(this.material.baseColor.vec));
+            
+            // Set PBR properties
+            this.shaderManager.setUniform('u_material.roughness', this.material.roughness);
+            this.shaderManager.setUniform('u_material.metallic', this.material.metallic);
+            this.shaderManager.setUniform('u_material.ambientOcclusion', this.material.ambientOcclusion);
+            this.shaderManager.setUniform('u_material.emissive', new Float32Array(this.material.emissive.vec));
+            
+            // Set texture flags
+            this.shaderManager.setUniform('u_material.hasAlbedoMap', this.material.albedoMap ? 1 : 0);
+            this.shaderManager.setUniform('u_material.hasNormalMap', this.material.normalMap ? 1 : 0);
+            this.shaderManager.setUniform('u_material.hasMetallicRoughnessMap', this.material.metallicRoughnessMap ? 1 : 0);
+            this.shaderManager.setUniform('u_material.hasAoMap', this.material.aoMap ? 1 : 0);
+            this.shaderManager.setUniform('u_material.hasEmissiveMap', this.material.emissiveMap ? 1 : 0);
+
+            // Bind textures if available
+            if (this.material.albedoMap) {
+                glob.ctx.activeTexture(glob.ctx.TEXTURE0);
+                glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.albedoMap);
+                this.shaderManager.setUniform('u_material.albedoMap', 0);
+            }
+            
+            if (this.material.normalMap) {
+                glob.ctx.activeTexture(glob.ctx.TEXTURE1);
+                glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.normalMap);
+                this.shaderManager.setUniform('u_material.normalMap', 1);
+            }
+            
+            if (this.material.metallicRoughnessMap) {
+                glob.ctx.activeTexture(glob.ctx.TEXTURE2);
+                glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.metallicRoughnessMap);
+                this.shaderManager.setUniform('u_material.metallicRoughnessMap', 2);
+            }
+            
+            if (this.material.aoMap) {
+                glob.ctx.activeTexture(glob.ctx.TEXTURE3);
+                glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.aoMap);
+                this.shaderManager.setUniform('u_material.aoMap', 3);
+            }
+            
+            if (this.material.emissiveMap) {
+                glob.ctx.activeTexture(glob.ctx.TEXTURE4);
+                glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.emissiveMap);
+                this.shaderManager.setUniform('u_material.emissiveMap', 4);
+            }
         }
 
         // Bind VAO

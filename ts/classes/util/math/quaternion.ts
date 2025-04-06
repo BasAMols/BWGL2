@@ -101,4 +101,12 @@ export class Quaternion {
         
         return this;
     }
+
+    public toEuler(): Vector3 {
+        // convert to euler angles
+        const x = Math.atan2(2 * (this.w * this.x + this.y * this.z), 1 - 2 * (this.x * this.x + this.y * this.y));
+        const y = Math.asin(2 * (this.w * this.y - this.z * this.x));
+        const z = Math.atan2(2 * (this.w * this.z + this.x * this.y), 1 - 2 * (this.y * this.y + this.z * this.z));
+        return new Vector3(x, y, z);    
+    }
 } 

@@ -200,7 +200,23 @@ export class ShaderManager {
                 this.gl.uniformMatrix3fv(location, false, value as Float32Array);
                 break;
             case 'int':
+                if (Array.isArray(value) || value instanceof Int32Array) {
+                    this.gl.uniform1iv(location, value);
+                } else {
+                    this.gl.uniform1i(location, value as number);
+                }
+                break;
             case 'bool':
+                if (Array.isArray(value)) {
+                    // Convert boolean array to int array (true=1, false=0)
+                    const intArray = new Int32Array((value as (boolean | number)[]).map(v => v ? 1 : 0));
+                    this.gl.uniform1iv(location, intArray);
+                } else if (value instanceof Int32Array) {
+                    this.gl.uniform1iv(location, value);
+                } else {
+                    this.gl.uniform1i(location, value ? 1 : 0);
+                }
+                break;
             case 'sampler2D':
             case 'sampler2D[]':
                 if (Array.isArray(value) || value instanceof Int32Array) {
