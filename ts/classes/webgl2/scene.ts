@@ -160,8 +160,6 @@ export class Scene {
 
         }
 
-
-
         // Third render pass: regular scene rendering with shadows
         glob.ctx.bindFramebuffer(glob.ctx.FRAMEBUFFER, null);
         glob.ctx.viewport(0, 0, glob.ctx.canvas.width, glob.ctx.canvas.height);
@@ -175,7 +173,7 @@ export class Scene {
         glob.ctx.enable(glob.ctx.BLEND);
         glob.ctx.blendFunc(glob.ctx.SRC_ALPHA, glob.ctx.ONE_MINUS_SRC_ALPHA);
 
-        // Switch to the PBR shader program instead of the basic one
+        // Use PBR shader program for rendering
         glob.shaderManager.useProgram('pbr');
 
         // Update light uniforms including shadow maps

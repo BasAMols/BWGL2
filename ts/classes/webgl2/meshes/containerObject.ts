@@ -6,6 +6,8 @@ import { Matrix4 } from '../../util/math/matrix4';
  * It only handles transforms and parenting without any rendering functionality.
  */
 export class ContainerObject extends SceneObject {
+    private children: SceneObject[] = [];
+
     constructor(props: SceneObjectProps = {}) {
         // Create a dummy SceneObjectData with minimal requirements
         const dummyData = {
@@ -19,9 +21,31 @@ export class ContainerObject extends SceneObject {
     }
 
     /**
-     * Override render to do nothing since this is just a container
+     * Add a child object to this container
+     */
+    public addChild(child: SceneObject): void {
+        this.children.push(child);
+        child.transform.setParent(this.transform);
+    }
+
+    /**
+     * Remove a child object from this container
+     */
+    public removeChild(child: SceneObject): void {
+        const index = this.children.indexOf(child);
+        if (index !== -1) {
+            this.children.splice(index, 1);
+            child.transform.setParent(null);
+        }
+    }
+
+    /**
+     * Override render to render all children
      */
     public render(viewMatrix: Matrix4, projectionMatrix: Matrix4): void {
-        // No rendering needed for containers
+        // Render all children
+        for (const child of this.children) {
+            child.render(viewMatrix, projectionMatrix);
+        }
     }
 } 

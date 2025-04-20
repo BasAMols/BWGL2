@@ -35,7 +35,8 @@ export abstract class BaseMesh extends SceneObject {
 
         // Create and setup color buffer
         const colorBuffer = new VertexBuffer(glob.ctx);
-        colorBuffer.setData(meshData.colors!);
+        const colors = meshData.colors || new Float32Array(Array(meshData.vertices.length).fill(1.0));
+        colorBuffer.setData(colors);
         vao.setAttributePointer(
             SceneObject.getAttributeLocation('color'),
             3,
@@ -47,7 +48,8 @@ export abstract class BaseMesh extends SceneObject {
 
         // Create and setup normal buffer
         const normalBuffer = new VertexBuffer(glob.ctx);
-        normalBuffer.setData(meshData.normals!);
+        const normals = meshData.normals || new Float32Array(Array(meshData.vertices.length).fill(0.0, 0, meshData.vertices.length / 3 * 3));
+        normalBuffer.setData(normals);
         vao.setAttributePointer(
             SceneObject.getAttributeLocation('normal'),
             3,
@@ -59,7 +61,8 @@ export abstract class BaseMesh extends SceneObject {
 
         // Create and setup texture coordinate buffer
         const texCoordBuffer = new VertexBuffer(glob.ctx);
-        texCoordBuffer.setData(meshData.texCoords!);
+        const texCoords = meshData.texCoords || new Float32Array(Array(meshData.vertices.length / 3 * 2).fill(0.0));
+        texCoordBuffer.setData(texCoords);
         vao.setAttributePointer(
             SceneObject.getAttributeLocation('texCoord'),
             2,
