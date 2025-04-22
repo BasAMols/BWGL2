@@ -96,7 +96,8 @@ export class WebGL2Initializer {
         // Initialize texture flags to false by default
         this.shaderManager.setUniform('u_material.hasAlbedoMap', 0);
         this.shaderManager.setUniform('u_material.hasNormalMap', 0);
-        this.shaderManager.setUniform('u_material.hasMetallicRoughnessMap', 0);
+        this.shaderManager.setUniform('u_material.hasMetallicMap', 0);
+        this.shaderManager.setUniform('u_material.hasRoughnessMap', 0);
         this.shaderManager.setUniform('u_material.hasAoMap', 0);
         this.shaderManager.setUniform('u_material.hasEmissiveMap', 0);
 

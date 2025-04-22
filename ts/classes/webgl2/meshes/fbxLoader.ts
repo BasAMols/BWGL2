@@ -107,7 +107,10 @@ export class FBXLoader extends BaseMesh {
 
         const uvs = uvsNode?.props[0] as number[] || [];
         const uvIndices = uvIndexNode?.props[0] as number[] || indices;
-        const uvPairs = Util.duplicate(Util.chunk(uvs, 2) as [number, number][], 1) as [number, number][];
+        const uvPairs = Util.duplicate(
+            Util.chunk(uvs, 2).map(([u, v]: [number, number]) => [u, 1.0 - v]) as [number, number][],
+            1
+        ) as [number, number][];
 
 
         // Helper function to normalize a vector
@@ -131,10 +134,11 @@ export class FBXLoader extends BaseMesh {
         const flatNormals: number[] = [];
         const flatIndices: number[] = [];
         const flatTexCoords: number[] = [];
+        const flatTangents: number[] = [];
+        const flatBitangents: number[] = [];
 
         // Process all triangles in the mesh
         for (let i = 0; i < indices.length; i += 3) {
-
             // Get vertex indices for this triangle
             const v1Index = indices[i] * 3;
             const v2Index = indices[i + 1] * 3;
@@ -157,36 +161,46 @@ export class FBXLoader extends BaseMesh {
                 vertices[v3Index + 2]
             );
 
+            // Get texture coordinates
+            const uv1 = uvPairs[uvIndices[i]];
+            const uv2 = uvPairs[uvIndices[i + 1]];
+            const uv3 = uvPairs[uvIndices[i + 2]];
+
             // Calculate face normal
-            const ax = v2[0] - v1[0];
-            const ay = v2[1] - v1[1];
-            const az = v2[2] - v1[2];
-
-            const bx = v3[0] - v1[0];
-            const by = v3[1] - v1[1];
-            const bz = v3[2] - v1[2];
-
+            const edge1 = [v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]];
+            const edge2 = [v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]];
             const normal = normalizeVector(
-                ay * bz - az * by,
-                az * bx - ax * bz,
-                ax * by - ay * bx
+                edge1[1] * edge2[2] - edge1[2] * edge2[1],
+                edge1[2] * edge2[0] - edge1[0] * edge2[2],
+                edge1[0] * edge2[1] - edge1[1] * edge2[0]
             );
 
-            // const uv1 = [uvs[uvIndices[i]], uvs[uvIndices[i] + 1]];
-            // const uv2 = [uvs[uvIndices[i + 1]], uvs[uvIndices[i + 1] + 1]];
-            // const uv3 = [uvs[uvIndices[i + 2]], uvs[uvIndices[i + 2] + 1]];
+            // Calculate tangent and bitangent
+            const deltaUV1 = [uv2[0] - uv1[0], uv2[1] - uv1[1]];
+            const deltaUV2 = [uv3[0] - uv1[0], uv3[1] - uv1[1]];
+
+            const f = 1.0 / (deltaUV1[0] * deltaUV2[1] - deltaUV2[0] * deltaUV1[1]);
+
+            const tangent = normalizeVector(
+                f * (deltaUV2[1] * edge1[0] - deltaUV1[1] * edge2[0]),
+                f * (deltaUV2[1] * edge1[1] - deltaUV1[1] * edge2[1]),
+                f * (deltaUV2[1] * edge1[2] - deltaUV1[1] * edge2[2])
+            );
+
+            const bitangent = normalizeVector(
+                f * (-deltaUV2[0] * edge1[0] + deltaUV1[0] * edge2[0]),
+                f * (-deltaUV2[0] * edge1[1] + deltaUV1[0] * edge2[1]),
+                f * (-deltaUV2[0] * edge1[2] + deltaUV1[0] * edge2[2])
+            );
 
             const vertexCount = Math.floor(flatVertices.length / 3);
 
-            // Add triangle
+            // Add triangle vertices
             flatVertices.push(...v1, ...v2, ...v3);
-            flatTexCoords.push
-                (
-                    ...uvPairs[uvIndices[i + 0]],
-                    ...uvPairs[uvIndices[i + 1]],
-                    ...uvPairs[uvIndices[i + 2]]
-                );
+            flatTexCoords.push(...uv1, ...uv2, ...uv3);
             flatNormals.push(...normal, ...normal, ...normal);
+            flatTangents.push(...tangent, ...tangent, ...tangent);
+            flatBitangents.push(...bitangent, ...bitangent, ...bitangent);
             flatIndices.push(vertexCount, vertexCount + 1, vertexCount + 2);
         }
 
@@ -194,7 +208,9 @@ export class FBXLoader extends BaseMesh {
             vertices: new Float32Array(flatVertices),
             indices: new Uint16Array(flatIndices),
             normals: new Float32Array(flatNormals),
-            texCoords: new Float32Array(flatTexCoords.map((v, i) => i % 2 !== 0 ? (1 - v) : v)) // flip v 
+            texCoords: new Float32Array(flatTexCoords),
+            tangents: new Float32Array(flatTangents),
+            bitangents: new Float32Array(flatBitangents)
         };
     }
 
@@ -209,6 +225,11 @@ export class FBXLoader extends BaseMesh {
         let ambientOcclusion = 1.0;
         let emissive = v3(0, 0, 0);
         let albedoMap: WebGLTexture | undefined;
+        let metallicMap: WebGLTexture | undefined;
+        let roughnessMap: WebGLTexture | undefined;
+        let normalMap: WebGLTexture | undefined;
+        let emissiveMap: WebGLTexture | undefined;
+        let emissiveStrengthMap: WebGLTexture | undefined;
 
         // Find textures connected to this material
         const objectsNode = fbxData.find(node => node.name === 'Objects') as FBXObjectsNode;
@@ -251,6 +272,24 @@ export class FBXLoader extends BaseMesh {
                             textureName?.toLowerCase().includes('base_color')) {
                             albedoMap = texture;
                             baseColor = v3(1, 1, 1); // Set base color to white to let texture color show through
+                        } else if (textureName?.toLowerCase().includes('metallic') ||
+                                 textureName?.toLowerCase().includes('metalness')) {
+                            metallicMap = texture;
+                            metallic = 1.0; // Set metallic to 1.0 to let texture control it
+                        } else if (textureName?.toLowerCase().includes('roughness')) {
+                            roughnessMap = texture;
+                            roughness = 1.0; // Set roughness to 1.0 to let texture control it
+                        } else if (textureName?.toLowerCase().includes('normal') ||
+                                 textureName?.toLowerCase().includes('bump')) {
+                            normalMap = texture;
+                        } else if (textureName?.toLowerCase().includes('emission') ||
+                                 textureName?.toLowerCase().includes('emissive')) {
+                            if (textureName?.toLowerCase().includes('strength')) {
+                                emissiveStrengthMap = texture;
+                            } else {
+                                emissiveMap = texture;
+                                emissive = v3(1, 1, 1); // Set emissive to white to let texture control it
+                            }
                         }
                     } catch (error) {
                         console.error('Failed to load texture:', error);
@@ -318,13 +357,19 @@ export class FBXLoader extends BaseMesh {
             }
         }
 
+        // Return the material with all maps
         return new Material({
             baseColor,
             roughness,
             metallic,
             ambientOcclusion,
             emissive,
-            albedoMap
+            albedoMap,
+            metallicMap,
+            roughnessMap,
+            normalMap,
+            emissiveMap,
+            emissiveStrengthMap
         });
     }
 

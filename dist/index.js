@@ -110,11 +110,11 @@ var require_lib = __commonJS({
         this.offset += 8;
         return v;
       }
-      readUint8Array(length) {
-        return this.binary.subarray(this.offset, this.offset += length);
+      readUint8Array(length2) {
+        return this.binary.subarray(this.offset, this.offset += length2);
       }
-      readArrayAsString(length) {
-        return String.fromCharCode.apply(null, this.binary.subarray(this.offset, this.offset += length));
+      readArrayAsString(length2) {
+        return String.fromCharCode.apply(null, this.binary.subarray(this.offset, this.offset += length2));
       }
     };
     exports.BinaryReader = BinaryReader;
@@ -129,10 +129,10 @@ var require_trees = __commonJS({
     var Z_BINARY = 0;
     var Z_TEXT = 1;
     var Z_UNKNOWN = 2;
-    function zero(buf) {
-      let len = buf.length;
-      while (--len >= 0) {
-        buf[len] = 0;
+    function zero2(buf) {
+      let len2 = buf.length;
+      while (--len2 >= 0) {
+        buf[len2] = 0;
       }
     }
     var STORED_BLOCK = 0;
@@ -168,17 +168,17 @@ var require_trees = __commonJS({
     var bl_order = new Uint8Array([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
     var DIST_CODE_LEN = 512;
     var static_ltree = new Array((L_CODES + 2) * 2);
-    zero(static_ltree);
+    zero2(static_ltree);
     var static_dtree = new Array(D_CODES * 2);
-    zero(static_dtree);
+    zero2(static_dtree);
     var _dist_code = new Array(DIST_CODE_LEN);
-    zero(_dist_code);
+    zero2(_dist_code);
     var _length_code = new Array(MAX_MATCH - MIN_MATCH + 1);
-    zero(_length_code);
+    zero2(_length_code);
     var base_length = new Array(LENGTH_CODES);
-    zero(base_length);
+    zero2(base_length);
     var base_dist = new Array(D_CODES);
-    zero(base_dist);
+    zero2(base_dist);
     function StaticTreeDesc(static_tree, extra_bits, extra_base, elems, max_length) {
       this.static_tree = static_tree;
       this.extra_bits = extra_bits;
@@ -195,22 +195,22 @@ var require_trees = __commonJS({
       this.max_code = 0;
       this.stat_desc = stat_desc;
     }
-    var d_code = (dist) => {
-      return dist < 256 ? _dist_code[dist] : _dist_code[256 + (dist >>> 7)];
+    var d_code = (dist2) => {
+      return dist2 < 256 ? _dist_code[dist2] : _dist_code[256 + (dist2 >>> 7)];
     };
     var put_short = (s, w) => {
       s.pending_buf[s.pending++] = w & 255;
       s.pending_buf[s.pending++] = w >>> 8 & 255;
     };
-    var send_bits = (s, value, length) => {
-      if (s.bi_valid > Buf_size - length) {
+    var send_bits = (s, value, length2) => {
+      if (s.bi_valid > Buf_size - length2) {
         s.bi_buf |= value << s.bi_valid & 65535;
         put_short(s, s.bi_buf);
         s.bi_buf = value >> Buf_size - s.bi_valid;
-        s.bi_valid += length - Buf_size;
+        s.bi_valid += length2 - Buf_size;
       } else {
         s.bi_buf |= value << s.bi_valid & 65535;
-        s.bi_valid += length;
+        s.bi_valid += length2;
       }
     };
     var send_code = (s, c, tree) => {
@@ -221,13 +221,13 @@ var require_trees = __commonJS({
         /*.Len*/
       );
     };
-    var bi_reverse = (code, len) => {
+    var bi_reverse = (code, len2) => {
       let res = 0;
       do {
         res |= code & 1;
         code >>>= 1;
         res <<= 1;
-      } while (--len > 0);
+      } while (--len2 > 0);
       return res >>> 1;
     };
     var bi_flush = (s) => {
@@ -319,40 +319,40 @@ var require_trees = __commonJS({
         next_code[bits] = code;
       }
       for (n = 0; n <= max_code; n++) {
-        let len = tree[n * 2 + 1];
-        if (len === 0) {
+        let len2 = tree[n * 2 + 1];
+        if (len2 === 0) {
           continue;
         }
-        tree[n * 2] = bi_reverse(next_code[len]++, len);
+        tree[n * 2] = bi_reverse(next_code[len2]++, len2);
       }
     };
     var tr_static_init = () => {
       let n;
       let bits;
-      let length;
+      let length2;
       let code;
-      let dist;
+      let dist2;
       const bl_count = new Array(MAX_BITS + 1);
-      length = 0;
+      length2 = 0;
       for (code = 0; code < LENGTH_CODES - 1; code++) {
-        base_length[code] = length;
+        base_length[code] = length2;
         for (n = 0; n < 1 << extra_lbits[code]; n++) {
-          _length_code[length++] = code;
+          _length_code[length2++] = code;
         }
       }
-      _length_code[length - 1] = code;
-      dist = 0;
+      _length_code[length2 - 1] = code;
+      dist2 = 0;
       for (code = 0; code < 16; code++) {
-        base_dist[code] = dist;
+        base_dist[code] = dist2;
         for (n = 0; n < 1 << extra_dbits[code]; n++) {
-          _dist_code[dist++] = code;
+          _dist_code[dist2++] = code;
         }
       }
-      dist >>= 7;
+      dist2 >>= 7;
       for (; code < D_CODES; code++) {
-        base_dist[code] = dist << 7;
+        base_dist[code] = dist2 << 7;
         for (n = 0; n < 1 << extra_dbits[code] - 7; n++) {
-          _dist_code[256 + dist++] = code;
+          _dist_code[256 + dist2++] = code;
         }
       }
       for (bits = 0; bits <= MAX_BITS; bits++) {
@@ -434,17 +434,17 @@ var require_trees = __commonJS({
       s.heap[k] = v;
     };
     var compress_block = (s, ltree, dtree) => {
-      let dist;
+      let dist2;
       let lc;
       let sx = 0;
       let code;
       let extra;
       if (s.sym_next !== 0) {
         do {
-          dist = s.pending_buf[s.sym_buf + sx++] & 255;
-          dist += (s.pending_buf[s.sym_buf + sx++] & 255) << 8;
+          dist2 = s.pending_buf[s.sym_buf + sx++] & 255;
+          dist2 += (s.pending_buf[s.sym_buf + sx++] & 255) << 8;
           lc = s.pending_buf[s.sym_buf + sx++];
-          if (dist === 0) {
+          if (dist2 === 0) {
             send_code(s, lc, ltree);
           } else {
             code = _length_code[lc];
@@ -454,13 +454,13 @@ var require_trees = __commonJS({
               lc -= base_length[code];
               send_bits(s, lc, extra);
             }
-            dist--;
-            code = d_code(dist);
+            dist2--;
+            code = d_code(dist2);
             send_code(s, code, dtree);
             extra = extra_dbits[code];
             if (extra !== 0) {
-              dist -= base_dist[code];
-              send_bits(s, dist, extra);
+              dist2 -= base_dist[code];
+              send_bits(s, dist2, extra);
             }
           }
         } while (sx < s.sym_next);
@@ -737,17 +737,17 @@ var require_trees = __commonJS({
         bi_windup(s);
       }
     };
-    var _tr_tally = (s, dist, lc) => {
-      s.pending_buf[s.sym_buf + s.sym_next++] = dist;
-      s.pending_buf[s.sym_buf + s.sym_next++] = dist >> 8;
+    var _tr_tally = (s, dist2, lc) => {
+      s.pending_buf[s.sym_buf + s.sym_next++] = dist2;
+      s.pending_buf[s.sym_buf + s.sym_next++] = dist2 >> 8;
       s.pending_buf[s.sym_buf + s.sym_next++] = lc;
-      if (dist === 0) {
+      if (dist2 === 0) {
         s.dyn_ltree[lc * 2]++;
       } else {
         s.matches++;
-        dist--;
+        dist2--;
         s.dyn_ltree[(_length_code[lc] + LITERALS + 1) * 2]++;
-        s.dyn_dtree[d_code(dist) * 2]++;
+        s.dyn_dtree[d_code(dist2) * 2]++;
       }
       return s.sym_next === s.sym_end;
     };
@@ -763,11 +763,11 @@ var require_trees = __commonJS({
 var require_adler32 = __commonJS({
   "node_modules/pako/lib/zlib/adler32.js"(exports, module) {
     "use strict";
-    var adler32 = (adler, buf, len, pos) => {
+    var adler32 = (adler, buf, len2, pos) => {
       let s1 = adler & 65535 | 0, s2 = adler >>> 16 & 65535 | 0, n = 0;
-      while (len !== 0) {
-        n = len > 2e3 ? 2e3 : len;
-        len -= n;
+      while (len2 !== 0) {
+        n = len2 > 2e3 ? 2e3 : len2;
+        len2 -= n;
         do {
           s1 = s1 + buf[pos++] | 0;
           s2 = s2 + s1 | 0;
@@ -797,9 +797,9 @@ var require_crc32 = __commonJS({
       return table;
     };
     var crcTable = new Uint32Array(makeTable());
-    var crc32 = (crc, buf, len, pos) => {
+    var crc32 = (crc, buf, len2, pos) => {
       const t = crcTable;
-      const end = pos + len;
+      const end = pos + len2;
       crc ^= -1;
       for (let i = pos; i < end; i++) {
         crc = crc >>> 8 ^ t[(crc ^ buf[i]) & 255];
@@ -946,10 +946,10 @@ var require_deflate = __commonJS({
     var rank = (f) => {
       return f * 2 - (f > 4 ? 9 : 0);
     };
-    var zero = (buf) => {
-      let len = buf.length;
-      while (--len >= 0) {
-        buf[len] = 0;
+    var zero2 = (buf) => {
+      let len2 = buf.length;
+      while (--len2 >= 0) {
+        buf[len2] = 0;
       }
     };
     var slide_hash = (s) => {
@@ -973,19 +973,19 @@ var require_deflate = __commonJS({
     var HASH = HASH_ZLIB;
     var flush_pending = (strm) => {
       const s = strm.state;
-      let len = s.pending;
-      if (len > strm.avail_out) {
-        len = strm.avail_out;
+      let len2 = s.pending;
+      if (len2 > strm.avail_out) {
+        len2 = strm.avail_out;
       }
-      if (len === 0) {
+      if (len2 === 0) {
         return;
       }
-      strm.output.set(s.pending_buf.subarray(s.pending_out, s.pending_out + len), strm.next_out);
-      strm.next_out += len;
-      s.pending_out += len;
-      strm.total_out += len;
-      strm.avail_out -= len;
-      s.pending -= len;
+      strm.output.set(s.pending_buf.subarray(s.pending_out, s.pending_out + len2), strm.next_out);
+      strm.next_out += len2;
+      s.pending_out += len2;
+      strm.total_out += len2;
+      strm.avail_out -= len2;
+      s.pending -= len2;
       if (s.pending === 0) {
         s.pending_out = 0;
       }
@@ -1003,29 +1003,29 @@ var require_deflate = __commonJS({
       s.pending_buf[s.pending++] = b & 255;
     };
     var read_buf = (strm, buf, start, size) => {
-      let len = strm.avail_in;
-      if (len > size) {
-        len = size;
+      let len2 = strm.avail_in;
+      if (len2 > size) {
+        len2 = size;
       }
-      if (len === 0) {
+      if (len2 === 0) {
         return 0;
       }
-      strm.avail_in -= len;
-      buf.set(strm.input.subarray(strm.next_in, strm.next_in + len), start);
+      strm.avail_in -= len2;
+      buf.set(strm.input.subarray(strm.next_in, strm.next_in + len2), start);
       if (strm.state.wrap === 1) {
-        strm.adler = adler32(strm.adler, buf, len, start);
+        strm.adler = adler32(strm.adler, buf, len2, start);
       } else if (strm.state.wrap === 2) {
-        strm.adler = crc32(strm.adler, buf, len, start);
+        strm.adler = crc32(strm.adler, buf, len2, start);
       }
-      strm.next_in += len;
-      strm.total_in += len;
-      return len;
+      strm.next_in += len2;
+      strm.total_in += len2;
+      return len2;
     };
     var longest_match = (s, cur_match) => {
       let chain_length = s.max_chain_length;
       let scan = s.strstart;
       let match;
-      let len;
+      let len2;
       let best_len = s.prev_length;
       let nice_match = s.nice_match;
       const limit = s.strstart > s.w_size - MIN_LOOKAHEAD ? s.strstart - (s.w_size - MIN_LOOKAHEAD) : 0;
@@ -1050,12 +1050,12 @@ var require_deflate = __commonJS({
         match++;
         do {
         } while (_win[++scan] === _win[++match] && _win[++scan] === _win[++match] && _win[++scan] === _win[++match] && _win[++scan] === _win[++match] && _win[++scan] === _win[++match] && _win[++scan] === _win[++match] && _win[++scan] === _win[++match] && _win[++scan] === _win[++match] && scan < strend);
-        len = MAX_MATCH - (strend - scan);
+        len2 = MAX_MATCH - (strend - scan);
         scan = strend - MAX_MATCH;
-        if (len > best_len) {
+        if (len2 > best_len) {
           s.match_start = cur_match;
-          best_len = len;
-          if (len >= nice_match) {
+          best_len = len2;
+          if (len2 >= nice_match) {
             break;
           }
           scan_end1 = _win[scan + best_len - 1];
@@ -1069,7 +1069,7 @@ var require_deflate = __commonJS({
     };
     var fill_window = (s) => {
       const _w_size = s.w_size;
-      let n, more, str2;
+      let n, more, str3;
       do {
         more = s.window_size - s.lookahead - s.strstart;
         if (s.strstart >= _w_size + (_w_size - MIN_LOOKAHEAD)) {
@@ -1089,14 +1089,14 @@ var require_deflate = __commonJS({
         n = read_buf(s.strm, s.window, s.strstart + s.lookahead, more);
         s.lookahead += n;
         if (s.lookahead + s.insert >= MIN_MATCH) {
-          str2 = s.strstart - s.insert;
-          s.ins_h = s.window[str2];
-          s.ins_h = HASH(s, s.ins_h, s.window[str2 + 1]);
+          str3 = s.strstart - s.insert;
+          s.ins_h = s.window[str3];
+          s.ins_h = HASH(s, s.ins_h, s.window[str3 + 1]);
           while (s.insert) {
-            s.ins_h = HASH(s, s.ins_h, s.window[str2 + MIN_MATCH - 1]);
-            s.prev[str2 & s.w_mask] = s.head[s.ins_h];
-            s.head[s.ins_h] = str2;
-            str2++;
+            s.ins_h = HASH(s, s.ins_h, s.window[str3 + MIN_MATCH - 1]);
+            s.prev[str3 & s.w_mask] = s.head[s.ins_h];
+            s.head[s.ins_h] = str3;
+            str3++;
             s.insert--;
             if (s.lookahead + s.insert < MIN_MATCH) {
               break;
@@ -1107,48 +1107,48 @@ var require_deflate = __commonJS({
     };
     var deflate_stored = (s, flush) => {
       let min_block = s.pending_buf_size - 5 > s.w_size ? s.w_size : s.pending_buf_size - 5;
-      let len, left, have, last = 0;
+      let len2, left, have, last = 0;
       let used = s.strm.avail_in;
       do {
-        len = 65535;
+        len2 = 65535;
         have = s.bi_valid + 42 >> 3;
         if (s.strm.avail_out < have) {
           break;
         }
         have = s.strm.avail_out - have;
         left = s.strstart - s.block_start;
-        if (len > left + s.strm.avail_in) {
-          len = left + s.strm.avail_in;
+        if (len2 > left + s.strm.avail_in) {
+          len2 = left + s.strm.avail_in;
         }
-        if (len > have) {
-          len = have;
+        if (len2 > have) {
+          len2 = have;
         }
-        if (len < min_block && (len === 0 && flush !== Z_FINISH || flush === Z_NO_FLUSH || len !== left + s.strm.avail_in)) {
+        if (len2 < min_block && (len2 === 0 && flush !== Z_FINISH || flush === Z_NO_FLUSH || len2 !== left + s.strm.avail_in)) {
           break;
         }
-        last = flush === Z_FINISH && len === left + s.strm.avail_in ? 1 : 0;
+        last = flush === Z_FINISH && len2 === left + s.strm.avail_in ? 1 : 0;
         _tr_stored_block(s, 0, 0, last);
-        s.pending_buf[s.pending - 4] = len;
-        s.pending_buf[s.pending - 3] = len >> 8;
-        s.pending_buf[s.pending - 2] = ~len;
-        s.pending_buf[s.pending - 1] = ~len >> 8;
+        s.pending_buf[s.pending - 4] = len2;
+        s.pending_buf[s.pending - 3] = len2 >> 8;
+        s.pending_buf[s.pending - 2] = ~len2;
+        s.pending_buf[s.pending - 1] = ~len2 >> 8;
         flush_pending(s.strm);
         if (left) {
-          if (left > len) {
-            left = len;
+          if (left > len2) {
+            left = len2;
           }
           s.strm.output.set(s.window.subarray(s.block_start, s.block_start + left), s.strm.next_out);
           s.strm.next_out += left;
           s.strm.avail_out -= left;
           s.strm.total_out += left;
           s.block_start += left;
-          len -= left;
+          len2 -= left;
         }
-        if (len) {
-          read_buf(s.strm, s.strm.output, s.strm.next_out, len);
-          s.strm.next_out += len;
-          s.strm.avail_out -= len;
-          s.strm.total_out += len;
+        if (len2) {
+          read_buf(s.strm, s.strm.output, s.strm.next_out, len2);
+          s.strm.next_out += len2;
+          s.strm.avail_out -= len2;
+          s.strm.total_out += len2;
         }
       } while (last === 0);
       used -= s.strm.avail_in;
@@ -1213,10 +1213,10 @@ var require_deflate = __commonJS({
       min_block = have > s.w_size ? s.w_size : have;
       left = s.strstart - s.block_start;
       if (left >= min_block || (left || flush === Z_FINISH) && flush !== Z_NO_FLUSH && s.strm.avail_in === 0 && left <= have) {
-        len = left > have ? have : left;
-        last = flush === Z_FINISH && s.strm.avail_in === 0 && len === left ? 1 : 0;
-        _tr_stored_block(s, s.block_start, len, last);
-        s.block_start += len;
+        len2 = left > have ? have : left;
+        last = flush === Z_FINISH && s.strm.avail_in === 0 && len2 === left ? 1 : 0;
+        _tr_stored_block(s, s.block_start, len2, last);
+        s.block_start += len2;
         flush_pending(s.strm);
       }
       return last ? BS_FINISH_STARTED : BS_NEED_MORE;
@@ -1508,7 +1508,7 @@ var require_deflate = __commonJS({
     ];
     var lm_init = (s) => {
       s.window_size = 2 * s.w_size;
-      zero(s.head);
+      zero2(s.head);
       s.max_lazy_match = configuration_table[s.level].max_lazy;
       s.good_match = configuration_table[s.level].good_length;
       s.nice_match = configuration_table[s.level].nice_length;
@@ -1562,19 +1562,19 @@ var require_deflate = __commonJS({
       this.dyn_ltree = new Uint16Array(HEAP_SIZE * 2);
       this.dyn_dtree = new Uint16Array((2 * D_CODES + 1) * 2);
       this.bl_tree = new Uint16Array((2 * BL_CODES + 1) * 2);
-      zero(this.dyn_ltree);
-      zero(this.dyn_dtree);
-      zero(this.bl_tree);
+      zero2(this.dyn_ltree);
+      zero2(this.dyn_dtree);
+      zero2(this.bl_tree);
       this.l_desc = null;
       this.d_desc = null;
       this.bl_desc = null;
       this.bl_count = new Uint16Array(MAX_BITS + 1);
       this.heap = new Uint16Array(2 * L_CODES + 1);
-      zero(this.heap);
+      zero2(this.heap);
       this.heap_len = 0;
       this.heap_max = 0;
       this.depth = new Uint16Array(2 * L_CODES + 1);
-      zero(this.depth);
+      zero2(this.depth);
       this.sym_buf = 0;
       this.lit_bufsize = 0;
       this.sym_next = 0;
@@ -1785,20 +1785,20 @@ var require_deflate = __commonJS({
           let beg = s.pending;
           let left = (s.gzhead.extra.length & 65535) - s.gzindex;
           while (s.pending + left > s.pending_buf_size) {
-            let copy2 = s.pending_buf_size - s.pending;
-            s.pending_buf.set(s.gzhead.extra.subarray(s.gzindex, s.gzindex + copy2), s.pending);
+            let copy3 = s.pending_buf_size - s.pending;
+            s.pending_buf.set(s.gzhead.extra.subarray(s.gzindex, s.gzindex + copy3), s.pending);
             s.pending = s.pending_buf_size;
             if (s.gzhead.hcrc && s.pending > beg) {
               strm.adler = crc32(strm.adler, s.pending_buf, s.pending - beg, beg);
             }
-            s.gzindex += copy2;
+            s.gzindex += copy3;
             flush_pending(strm);
             if (s.pending !== 0) {
               s.last_flush = -1;
               return Z_OK;
             }
             beg = 0;
-            left -= copy2;
+            left -= copy3;
           }
           let gzhead_extra = new Uint8Array(s.gzhead.extra);
           s.pending_buf.set(gzhead_extra.subarray(s.gzindex, s.gzindex + left), s.pending);
@@ -1906,7 +1906,7 @@ var require_deflate = __commonJS({
           } else if (flush !== Z_BLOCK) {
             _tr_stored_block(s, 0, 0, false);
             if (flush === Z_FULL_FLUSH) {
-              zero(s.head);
+              zero2(s.head);
               if (s.lookahead === 0) {
                 s.strstart = 0;
                 s.block_start = 0;
@@ -1970,7 +1970,7 @@ var require_deflate = __commonJS({
       s.wrap = 0;
       if (dictLength >= s.w_size) {
         if (wrap === 0) {
-          zero(s.head);
+          zero2(s.head);
           s.strstart = 0;
           s.block_start = 0;
           s.insert = 0;
@@ -1988,15 +1988,15 @@ var require_deflate = __commonJS({
       strm.input = dictionary;
       fill_window(s);
       while (s.lookahead >= MIN_MATCH) {
-        let str2 = s.strstart;
+        let str3 = s.strstart;
         let n = s.lookahead - (MIN_MATCH - 1);
         do {
-          s.ins_h = HASH(s, s.ins_h, s.window[str2 + MIN_MATCH - 1]);
-          s.prev[str2 & s.w_mask] = s.head[s.ins_h];
-          s.head[s.ins_h] = str2;
-          str2++;
+          s.ins_h = HASH(s, s.ins_h, s.window[str3 + MIN_MATCH - 1]);
+          s.prev[str3 & s.w_mask] = s.head[s.ins_h];
+          s.head[s.ins_h] = str3;
+          str3++;
         } while (--n);
-        s.strstart = str2;
+        s.strstart = str3;
         s.lookahead = MIN_MATCH - 1;
         fill_window(s);
       }
@@ -2050,11 +2050,11 @@ var require_common = __commonJS({
       return obj;
     };
     module.exports.flattenChunks = (chunks) => {
-      let len = 0;
+      let len2 = 0;
       for (let i = 0, l = chunks.length; i < l; i++) {
-        len += chunks[i].length;
+        len2 += chunks[i].length;
       }
-      const result = new Uint8Array(len);
+      const result = new Uint8Array(len2);
       for (let i = 0, pos = 0, l = chunks.length; i < l; i++) {
         let chunk = chunks[i];
         result.set(chunk, pos);
@@ -2080,15 +2080,15 @@ var require_strings = __commonJS({
       _utf8len[q] = q >= 252 ? 6 : q >= 248 ? 5 : q >= 240 ? 4 : q >= 224 ? 3 : q >= 192 ? 2 : 1;
     }
     _utf8len[254] = _utf8len[254] = 1;
-    module.exports.string2buf = (str2) => {
+    module.exports.string2buf = (str3) => {
       if (typeof TextEncoder === "function" && TextEncoder.prototype.encode) {
-        return new TextEncoder().encode(str2);
+        return new TextEncoder().encode(str3);
       }
-      let buf, c, c2, m_pos, i, str_len = str2.length, buf_len = 0;
+      let buf, c, c2, m_pos, i, str_len = str3.length, buf_len = 0;
       for (m_pos = 0; m_pos < str_len; m_pos++) {
-        c = str2.charCodeAt(m_pos);
+        c = str3.charCodeAt(m_pos);
         if ((c & 64512) === 55296 && m_pos + 1 < str_len) {
-          c2 = str2.charCodeAt(m_pos + 1);
+          c2 = str3.charCodeAt(m_pos + 1);
           if ((c2 & 64512) === 56320) {
             c = 65536 + (c - 55296 << 10) + (c2 - 56320);
             m_pos++;
@@ -2098,9 +2098,9 @@ var require_strings = __commonJS({
       }
       buf = new Uint8Array(buf_len);
       for (i = 0, m_pos = 0; i < buf_len; m_pos++) {
-        c = str2.charCodeAt(m_pos);
+        c = str3.charCodeAt(m_pos);
         if ((c & 64512) === 55296 && m_pos + 1 < str_len) {
-          c2 = str2.charCodeAt(m_pos + 1);
+          c2 = str3.charCodeAt(m_pos + 1);
           if ((c2 & 64512) === 56320) {
             c = 65536 + (c - 55296 << 10) + (c2 - 56320);
             m_pos++;
@@ -2124,26 +2124,26 @@ var require_strings = __commonJS({
       }
       return buf;
     };
-    var buf2binstring = (buf, len) => {
-      if (len < 65534) {
+    var buf2binstring = (buf, len2) => {
+      if (len2 < 65534) {
         if (buf.subarray && STR_APPLY_UIA_OK) {
-          return String.fromCharCode.apply(null, buf.length === len ? buf : buf.subarray(0, len));
+          return String.fromCharCode.apply(null, buf.length === len2 ? buf : buf.subarray(0, len2));
         }
       }
       let result = "";
-      for (let i = 0; i < len; i++) {
+      for (let i = 0; i < len2; i++) {
         result += String.fromCharCode(buf[i]);
       }
       return result;
     };
-    module.exports.buf2string = (buf, max) => {
-      const len = max || buf.length;
+    module.exports.buf2string = (buf, max2) => {
+      const len2 = max2 || buf.length;
       if (typeof TextDecoder === "function" && TextDecoder.prototype.decode) {
-        return new TextDecoder().decode(buf.subarray(0, max));
+        return new TextDecoder().decode(buf.subarray(0, max2));
       }
       let i, out;
-      const utf16buf = new Array(len * 2);
-      for (out = 0, i = 0; i < len; ) {
+      const utf16buf = new Array(len2 * 2);
+      for (out = 0, i = 0; i < len2; ) {
         let c = buf[i++];
         if (c < 128) {
           utf16buf[out++] = c;
@@ -2156,7 +2156,7 @@ var require_strings = __commonJS({
           continue;
         }
         c &= c_len === 2 ? 31 : c_len === 3 ? 15 : 7;
-        while (c_len > 1 && i < len) {
+        while (c_len > 1 && i < len2) {
           c = c << 6 | buf[i++] & 63;
           c_len--;
         }
@@ -2174,22 +2174,22 @@ var require_strings = __commonJS({
       }
       return buf2binstring(utf16buf, out);
     };
-    module.exports.utf8border = (buf, max) => {
-      max = max || buf.length;
-      if (max > buf.length) {
-        max = buf.length;
+    module.exports.utf8border = (buf, max2) => {
+      max2 = max2 || buf.length;
+      if (max2 > buf.length) {
+        max2 = buf.length;
       }
-      let pos = max - 1;
+      let pos = max2 - 1;
       while (pos >= 0 && (buf[pos] & 192) === 128) {
         pos--;
       }
       if (pos < 0) {
-        return max;
+        return max2;
       }
       if (pos === 0) {
-        return max;
+        return max2;
       }
-      return pos + _utf8len[buf[pos]] > max ? pos : max;
+      return pos + _utf8len[buf[pos]] > max2 ? pos : max2;
     };
   }
 });
@@ -2405,8 +2405,8 @@ var require_inffast = __commonJS({
       let dmask;
       let here;
       let op;
-      let len;
-      let dist;
+      let len2;
+      let dist2;
       let from;
       let from_source;
       let input, output;
@@ -2447,14 +2447,14 @@ var require_inffast = __commonJS({
               if (op === 0) {
                 output[_out++] = here & 65535;
               } else if (op & 16) {
-                len = here & 65535;
+                len2 = here & 65535;
                 op &= 15;
                 if (op) {
                   if (bits < op) {
                     hold += input[_in++] << bits;
                     bits += 8;
                   }
-                  len += hold & (1 << op) - 1;
+                  len2 += hold & (1 << op) - 1;
                   hold >>>= op;
                   bits -= op;
                 }
@@ -2472,7 +2472,7 @@ var require_inffast = __commonJS({
                     bits -= op;
                     op = here >>> 16 & 255;
                     if (op & 16) {
-                      dist = here & 65535;
+                      dist2 = here & 65535;
                       op &= 15;
                       if (bits < op) {
                         hold += input[_in++] << bits;
@@ -2482,8 +2482,8 @@ var require_inffast = __commonJS({
                           bits += 8;
                         }
                       }
-                      dist += hold & (1 << op) - 1;
-                      if (dist > dmax) {
+                      dist2 += hold & (1 << op) - 1;
+                      if (dist2 > dmax) {
                         strm.msg = "invalid distance too far back";
                         state.mode = BAD;
                         break top;
@@ -2491,8 +2491,8 @@ var require_inffast = __commonJS({
                       hold >>>= op;
                       bits -= op;
                       op = _out - beg;
-                      if (dist > op) {
-                        op = dist - op;
+                      if (dist2 > op) {
+                        op = dist2 - op;
                         if (op > whave) {
                           if (state.sane) {
                             strm.msg = "invalid distance too far back";
@@ -2504,67 +2504,67 @@ var require_inffast = __commonJS({
                         from_source = s_window;
                         if (wnext === 0) {
                           from += wsize - op;
-                          if (op < len) {
-                            len -= op;
+                          if (op < len2) {
+                            len2 -= op;
                             do {
                               output[_out++] = s_window[from++];
                             } while (--op);
-                            from = _out - dist;
+                            from = _out - dist2;
                             from_source = output;
                           }
                         } else if (wnext < op) {
                           from += wsize + wnext - op;
                           op -= wnext;
-                          if (op < len) {
-                            len -= op;
+                          if (op < len2) {
+                            len2 -= op;
                             do {
                               output[_out++] = s_window[from++];
                             } while (--op);
                             from = 0;
-                            if (wnext < len) {
+                            if (wnext < len2) {
                               op = wnext;
-                              len -= op;
+                              len2 -= op;
                               do {
                                 output[_out++] = s_window[from++];
                               } while (--op);
-                              from = _out - dist;
+                              from = _out - dist2;
                               from_source = output;
                             }
                           }
                         } else {
                           from += wnext - op;
-                          if (op < len) {
-                            len -= op;
+                          if (op < len2) {
+                            len2 -= op;
                             do {
                               output[_out++] = s_window[from++];
                             } while (--op);
-                            from = _out - dist;
+                            from = _out - dist2;
                             from_source = output;
                           }
                         }
-                        while (len > 2) {
+                        while (len2 > 2) {
                           output[_out++] = from_source[from++];
                           output[_out++] = from_source[from++];
                           output[_out++] = from_source[from++];
-                          len -= 3;
+                          len2 -= 3;
                         }
-                        if (len) {
+                        if (len2) {
                           output[_out++] = from_source[from++];
-                          if (len > 1) {
+                          if (len2 > 1) {
                             output[_out++] = from_source[from++];
                           }
                         }
                       } else {
-                        from = _out - dist;
+                        from = _out - dist2;
                         do {
                           output[_out++] = output[from++];
                           output[_out++] = output[from++];
                           output[_out++] = output[from++];
-                          len -= 3;
-                        } while (len > 2);
-                        if (len) {
+                          len2 -= 3;
+                        } while (len2 > 2);
+                        if (len2) {
                           output[_out++] = output[from++];
-                          if (len > 1) {
+                          if (len2 > 1) {
                             output[_out++] = output[from++];
                           }
                         }
@@ -2593,9 +2593,9 @@ var require_inffast = __commonJS({
               break;
             }
         } while (_in < last && _out < end);
-      len = bits >> 3;
-      _in -= len;
-      bits -= len << 3;
+      len2 = bits >> 3;
+      _in -= len2;
+      bits -= len2 << 3;
       hold &= (1 << bits) - 1;
       strm.next_in = _in;
       strm.next_out = _out;
@@ -2758,9 +2758,9 @@ var require_inftrees = __commonJS({
     ]);
     var inflate_table = (type, lens, lens_index, codes, table, table_index, work, opts) => {
       const bits = opts.bits;
-      let len = 0;
+      let len2 = 0;
       let sym = 0;
-      let min = 0, max = 0;
+      let min2 = 0, max2 = 0;
       let root = 0;
       let curr = 0;
       let drop = 0;
@@ -2778,49 +2778,49 @@ var require_inftrees = __commonJS({
       const offs = new Uint16Array(MAXBITS + 1);
       let extra = null;
       let here_bits, here_op, here_val;
-      for (len = 0; len <= MAXBITS; len++) {
-        count[len] = 0;
+      for (len2 = 0; len2 <= MAXBITS; len2++) {
+        count[len2] = 0;
       }
       for (sym = 0; sym < codes; sym++) {
         count[lens[lens_index + sym]]++;
       }
       root = bits;
-      for (max = MAXBITS; max >= 1; max--) {
-        if (count[max] !== 0) {
+      for (max2 = MAXBITS; max2 >= 1; max2--) {
+        if (count[max2] !== 0) {
           break;
         }
       }
-      if (root > max) {
-        root = max;
+      if (root > max2) {
+        root = max2;
       }
-      if (max === 0) {
+      if (max2 === 0) {
         table[table_index++] = 1 << 24 | 64 << 16 | 0;
         table[table_index++] = 1 << 24 | 64 << 16 | 0;
         opts.bits = 1;
         return 0;
       }
-      for (min = 1; min < max; min++) {
-        if (count[min] !== 0) {
+      for (min2 = 1; min2 < max2; min2++) {
+        if (count[min2] !== 0) {
           break;
         }
       }
-      if (root < min) {
-        root = min;
+      if (root < min2) {
+        root = min2;
       }
       left = 1;
-      for (len = 1; len <= MAXBITS; len++) {
+      for (len2 = 1; len2 <= MAXBITS; len2++) {
         left <<= 1;
-        left -= count[len];
+        left -= count[len2];
         if (left < 0) {
           return -1;
         }
       }
-      if (left > 0 && (type === CODES || max !== 1)) {
+      if (left > 0 && (type === CODES || max2 !== 1)) {
         return -1;
       }
       offs[1] = 0;
-      for (len = 1; len < MAXBITS; len++) {
-        offs[len + 1] = offs[len] + count[len];
+      for (len2 = 1; len2 < MAXBITS; len2++) {
+        offs[len2 + 1] = offs[len2] + count[len2];
       }
       for (sym = 0; sym < codes; sym++) {
         if (lens[lens_index + sym] !== 0) {
@@ -2841,7 +2841,7 @@ var require_inftrees = __commonJS({
       }
       huff = 0;
       sym = 0;
-      len = min;
+      len2 = min2;
       next = table_index;
       curr = root;
       drop = 0;
@@ -2852,7 +2852,7 @@ var require_inftrees = __commonJS({
         return 1;
       }
       for (; ; ) {
-        here_bits = len - drop;
+        here_bits = len2 - drop;
         if (work[sym] + 1 < match) {
           here_op = 0;
           here_val = work[sym];
@@ -2863,14 +2863,14 @@ var require_inftrees = __commonJS({
           here_op = 32 + 64;
           here_val = 0;
         }
-        incr = 1 << len - drop;
+        incr = 1 << len2 - drop;
         fill = 1 << curr;
-        min = fill;
+        min2 = fill;
         do {
           fill -= incr;
           table[next + (huff >> drop) + fill] = here_bits << 24 | here_op << 16 | here_val | 0;
         } while (fill !== 0);
-        incr = 1 << len - 1;
+        incr = 1 << len2 - 1;
         while (huff & incr) {
           incr >>= 1;
         }
@@ -2881,20 +2881,20 @@ var require_inftrees = __commonJS({
           huff = 0;
         }
         sym++;
-        if (--count[len] === 0) {
-          if (len === max) {
+        if (--count[len2] === 0) {
+          if (len2 === max2) {
             break;
           }
-          len = lens[lens_index + work[sym]];
+          len2 = lens[lens_index + work[sym]];
         }
-        if (len > root && (huff & mask) !== low) {
+        if (len2 > root && (huff & mask) !== low) {
           if (drop === 0) {
             drop = root;
           }
-          next += min;
-          curr = len - drop;
+          next += min2;
+          curr = len2 - drop;
           left = 1 << curr;
-          while (curr + drop < max) {
+          while (curr + drop < max2) {
             left -= count[curr + drop];
             if (left <= 0) {
               break;
@@ -2911,7 +2911,7 @@ var require_inftrees = __commonJS({
         }
       }
       if (huff !== 0) {
-        table[next + huff] = len - drop << 24 | 64 << 16 | 0;
+        table[next + huff] = len2 - drop << 24 | 64 << 16 | 0;
       }
       opts.bits = root;
       return 0;
@@ -3141,8 +3141,8 @@ var require_inflate = __commonJS({
       state.distcode = distfix;
       state.distbits = 5;
     };
-    var updatewindow = (strm, src, end, copy2) => {
-      let dist;
+    var updatewindow = (strm, src, end, copy3) => {
+      let dist2;
       const state = strm.state;
       if (state.window === null) {
         state.wsize = 1 << state.wbits;
@@ -3150,28 +3150,28 @@ var require_inflate = __commonJS({
         state.whave = 0;
         state.window = new Uint8Array(state.wsize);
       }
-      if (copy2 >= state.wsize) {
+      if (copy3 >= state.wsize) {
         state.window.set(src.subarray(end - state.wsize, end), 0);
         state.wnext = 0;
         state.whave = state.wsize;
       } else {
-        dist = state.wsize - state.wnext;
-        if (dist > copy2) {
-          dist = copy2;
+        dist2 = state.wsize - state.wnext;
+        if (dist2 > copy3) {
+          dist2 = copy3;
         }
-        state.window.set(src.subarray(end - copy2, end - copy2 + dist), state.wnext);
-        copy2 -= dist;
-        if (copy2) {
-          state.window.set(src.subarray(end - copy2, end), 0);
-          state.wnext = copy2;
+        state.window.set(src.subarray(end - copy3, end - copy3 + dist2), state.wnext);
+        copy3 -= dist2;
+        if (copy3) {
+          state.window.set(src.subarray(end - copy3, end), 0);
+          state.wnext = copy3;
           state.whave = state.wsize;
         } else {
-          state.wnext += dist;
+          state.wnext += dist2;
           if (state.wnext === state.wsize) {
             state.wnext = 0;
           }
           if (state.whave < state.wsize) {
-            state.whave += dist;
+            state.whave += dist2;
           }
         }
       }
@@ -3186,13 +3186,13 @@ var require_inflate = __commonJS({
       let hold;
       let bits;
       let _in, _out;
-      let copy2;
+      let copy3;
       let from;
       let from_source;
       let here = 0;
       let here_bits, here_op, here_val;
       let last_bits, last_op, last_val;
-      let len;
+      let len2;
       let ret;
       const hbuf = new Uint8Array(4);
       let opts;
@@ -3264,11 +3264,11 @@ var require_inflate = __commonJS({
               }
               hold >>>= 4;
               bits -= 4;
-              len = (hold & 15) + 8;
+              len2 = (hold & 15) + 8;
               if (state.wbits === 0) {
-                state.wbits = len;
+                state.wbits = len2;
               }
-              if (len > 15 || len > state.wbits) {
+              if (len2 > 15 || len2 > state.wbits) {
                 strm.msg = "invalid window size";
                 state.mode = BAD;
                 break;
@@ -3381,13 +3381,13 @@ var require_inflate = __commonJS({
               state.mode = EXTRA;
             case EXTRA:
               if (state.flags & 1024) {
-                copy2 = state.length;
-                if (copy2 > have) {
-                  copy2 = have;
+                copy3 = state.length;
+                if (copy3 > have) {
+                  copy3 = have;
                 }
-                if (copy2) {
+                if (copy3) {
                   if (state.head) {
-                    len = state.head.extra_len - state.length;
+                    len2 = state.head.extra_len - state.length;
                     if (!state.head.extra) {
                       state.head.extra = new Uint8Array(state.head.extra_len);
                     }
@@ -3396,18 +3396,18 @@ var require_inflate = __commonJS({
                         next,
                         // extra field is limited to 65536 bytes
                         // - no need for additional size check
-                        next + copy2
+                        next + copy3
                       ),
                       /*len + copy > state.head.extra_max - len ? state.head.extra_max : copy,*/
-                      len
+                      len2
                     );
                   }
                   if (state.flags & 512 && state.wrap & 4) {
-                    state.check = crc32(state.check, input, copy2, next);
+                    state.check = crc32(state.check, input, copy3, next);
                   }
-                  have -= copy2;
-                  next += copy2;
-                  state.length -= copy2;
+                  have -= copy3;
+                  next += copy3;
+                  state.length -= copy3;
                 }
                 if (state.length) {
                   break inf_leave;
@@ -3420,19 +3420,19 @@ var require_inflate = __commonJS({
                 if (have === 0) {
                   break inf_leave;
                 }
-                copy2 = 0;
+                copy3 = 0;
                 do {
-                  len = input[next + copy2++];
-                  if (state.head && len && state.length < 65536) {
-                    state.head.name += String.fromCharCode(len);
+                  len2 = input[next + copy3++];
+                  if (state.head && len2 && state.length < 65536) {
+                    state.head.name += String.fromCharCode(len2);
                   }
-                } while (len && copy2 < have);
+                } while (len2 && copy3 < have);
                 if (state.flags & 512 && state.wrap & 4) {
-                  state.check = crc32(state.check, input, copy2, next);
+                  state.check = crc32(state.check, input, copy3, next);
                 }
-                have -= copy2;
-                next += copy2;
-                if (len) {
+                have -= copy3;
+                next += copy3;
+                if (len2) {
                   break inf_leave;
                 }
               } else if (state.head) {
@@ -3445,19 +3445,19 @@ var require_inflate = __commonJS({
                 if (have === 0) {
                   break inf_leave;
                 }
-                copy2 = 0;
+                copy3 = 0;
                 do {
-                  len = input[next + copy2++];
-                  if (state.head && len && state.length < 65536) {
-                    state.head.comment += String.fromCharCode(len);
+                  len2 = input[next + copy3++];
+                  if (state.head && len2 && state.length < 65536) {
+                    state.head.comment += String.fromCharCode(len2);
                   }
-                } while (len && copy2 < have);
+                } while (len2 && copy3 < have);
                 if (state.flags & 512 && state.wrap & 4) {
-                  state.check = crc32(state.check, input, copy2, next);
+                  state.check = crc32(state.check, input, copy3, next);
                 }
-                have -= copy2;
-                next += copy2;
-                if (len) {
+                have -= copy3;
+                next += copy3;
+                if (len2) {
                   break inf_leave;
                 }
               } else if (state.head) {
@@ -3585,23 +3585,23 @@ var require_inflate = __commonJS({
             case COPY_:
               state.mode = COPY;
             case COPY:
-              copy2 = state.length;
-              if (copy2) {
-                if (copy2 > have) {
-                  copy2 = have;
+              copy3 = state.length;
+              if (copy3) {
+                if (copy3 > have) {
+                  copy3 = have;
                 }
-                if (copy2 > left) {
-                  copy2 = left;
+                if (copy3 > left) {
+                  copy3 = left;
                 }
-                if (copy2 === 0) {
+                if (copy3 === 0) {
                   break inf_leave;
                 }
-                output.set(input.subarray(next, next + copy2), put);
-                have -= copy2;
-                next += copy2;
-                left -= copy2;
-                put += copy2;
-                state.length -= copy2;
+                output.set(input.subarray(next, next + copy3), put);
+                have -= copy3;
+                next += copy3;
+                left -= copy3;
+                put += copy3;
+                state.length -= copy3;
                 break;
               }
               state.mode = TYPE;
@@ -3699,8 +3699,8 @@ var require_inflate = __commonJS({
                       state.mode = BAD;
                       break;
                     }
-                    len = state.lens[state.have - 1];
-                    copy2 = 3 + (hold & 3);
+                    len2 = state.lens[state.have - 1];
+                    copy3 = 3 + (hold & 3);
                     hold >>>= 2;
                     bits -= 2;
                   } else if (here_val === 17) {
@@ -3715,8 +3715,8 @@ var require_inflate = __commonJS({
                     }
                     hold >>>= here_bits;
                     bits -= here_bits;
-                    len = 0;
-                    copy2 = 3 + (hold & 7);
+                    len2 = 0;
+                    copy3 = 3 + (hold & 7);
                     hold >>>= 3;
                     bits -= 3;
                   } else {
@@ -3731,18 +3731,18 @@ var require_inflate = __commonJS({
                     }
                     hold >>>= here_bits;
                     bits -= here_bits;
-                    len = 0;
-                    copy2 = 11 + (hold & 127);
+                    len2 = 0;
+                    copy3 = 11 + (hold & 127);
                     hold >>>= 7;
                     bits -= 7;
                   }
-                  if (state.have + copy2 > state.nlen + state.ndist) {
+                  if (state.have + copy3 > state.nlen + state.ndist) {
                     strm.msg = "invalid bit length repeat";
                     state.mode = BAD;
                     break;
                   }
-                  while (copy2--) {
-                    state.lens[state.have++] = len;
+                  while (copy3--) {
+                    state.lens[state.have++] = len2;
                   }
                 }
               }
@@ -3954,39 +3954,39 @@ var require_inflate = __commonJS({
               if (left === 0) {
                 break inf_leave;
               }
-              copy2 = _out - left;
-              if (state.offset > copy2) {
-                copy2 = state.offset - copy2;
-                if (copy2 > state.whave) {
+              copy3 = _out - left;
+              if (state.offset > copy3) {
+                copy3 = state.offset - copy3;
+                if (copy3 > state.whave) {
                   if (state.sane) {
                     strm.msg = "invalid distance too far back";
                     state.mode = BAD;
                     break;
                   }
                 }
-                if (copy2 > state.wnext) {
-                  copy2 -= state.wnext;
-                  from = state.wsize - copy2;
+                if (copy3 > state.wnext) {
+                  copy3 -= state.wnext;
+                  from = state.wsize - copy3;
                 } else {
-                  from = state.wnext - copy2;
+                  from = state.wnext - copy3;
                 }
-                if (copy2 > state.length) {
-                  copy2 = state.length;
+                if (copy3 > state.length) {
+                  copy3 = state.length;
                 }
                 from_source = state.window;
               } else {
                 from_source = output;
                 from = put - state.offset;
-                copy2 = state.length;
+                copy3 = state.length;
               }
-              if (copy2 > left) {
-                copy2 = left;
+              if (copy3 > left) {
+                copy3 = left;
               }
-              left -= copy2;
-              state.length -= copy2;
+              left -= copy3;
+              state.length -= copy3;
               do {
                 output[put++] = from_source[from++];
-              } while (--copy2);
+              } while (--copy3);
               if (state.length === 0) {
                 state.mode = LEN;
               }
@@ -4836,10 +4836,10 @@ var Vector2 = class _Vector2 {
   magnitudeSqr() {
     return this.x * this.x + this.y * this.y;
   }
-  clampMagnitude(max = 1) {
+  clampMagnitude(max2 = 1) {
     if (this.magnitude() === 0)
       return v2(0);
-    return this.scale(1 / this.magnitude() || 1).scale(Math.min(max, this.magnitude()));
+    return this.scale(1 / this.magnitude() || 1).scale(Math.min(max2, this.magnitude()));
   }
   distance(vector) {
     return Math.sqrt(this.distanceSqr(vector));
@@ -4885,8 +4885,8 @@ var Vector2 = class _Vector2 {
     var vector = this.toPrecision(1);
     return "[" + vector.x + "; " + vector.y + "]";
   }
-  clamp(min, max) {
-    return _Vector2.clamp(this, min, max);
+  clamp(min2, max2) {
+    return _Vector2.clamp(this, min2, max2);
   }
   static min(a, b) {
     return new _Vector2(
@@ -4900,8 +4900,8 @@ var Vector2 = class _Vector2 {
       Math.max(a.y, b.y)
     );
   }
-  static clamp(value, min, max) {
-    return _Vector2.max(_Vector2.min(value, min), max);
+  static clamp(value, min2, max2) {
+    return _Vector2.max(_Vector2.min(value, min2), max2);
   }
   clampMagnitute(mag) {
     return _Vector2.clampMagnitute(this, mag);
@@ -5445,7 +5445,7 @@ var shadowVertexShaderSource = "#version 300 es\nprecision highp float;\n\nin ve
 var pbrVertexShader = "#version 300 es\nprecision highp float;\n\n// Attributes\nin vec3 a_position;\nin vec3 a_normal;\nin vec2 a_texCoord;\nin vec3 a_tangent;\nin vec3 a_bitangent;\nin vec3 a_color;\n\n// Uniforms\nuniform mat4 u_modelMatrix;\nuniform mat4 u_viewMatrix;\nuniform mat4 u_projectionMatrix;\nuniform mat3 u_normalMatrix;\n\n// Varyings (output to fragment shader)\nout vec3 v_position;\nout vec3 v_normal;\nout vec2 v_texCoord;\nout vec3 v_worldPos;\nout mat3 v_tbn; // Tangent-Bitangent-Normal matrix for normal mapping\nout vec3 v_color;\n\nvoid main() {\n    // Calculate world position\n    v_worldPos = vec3(u_modelMatrix * vec4(a_position, 1.0));\n    \n    // Transform normals using normal matrix\n    v_normal = normalize(u_normalMatrix * a_normal);\n    \n    // Pass texture coordinates\n    v_texCoord = a_texCoord;\n    \n    // Pass color\n    v_color = a_color;\n    \n    // Calculate TBN matrix for normal mapping when tangents are available\n    if (length(a_tangent) > 0.0) {\n        vec3 T = normalize(u_normalMatrix * a_tangent);\n        vec3 B = normalize(u_normalMatrix * a_bitangent);\n        vec3 N = v_normal;\n        v_tbn = mat3(T, B, N);\n    } else {\n        // Identity TBN when no tangents provided\n        v_tbn = mat3(1.0);\n    }\n    \n    // Calculate clip-space position\n    gl_Position = u_projectionMatrix * u_viewMatrix * vec4(v_worldPos, 1.0);\n}";
 
 // ts/classes/webgl2/shaders/pbrFragmentShader.ts
-var pbrFragmentShader = "#version 300 es\nprecision highp float;\n\n// Constants\n#define PI 3.14159265359\n#define MAX_LIGHTS 10\n\n// Light types\n#define LIGHT_TYPE_INACTIVE -1\n#define LIGHT_TYPE_AMBIENT 0\n#define LIGHT_TYPE_DIRECTIONAL 1\n#define LIGHT_TYPE_POINT 2\n#define LIGHT_TYPE_SPOT 3\n\n// PBR Material uniforms\nstruct PBRMaterial {\n    vec3 baseColor;\n    float roughness;\n    float metallic;\n    float ambientOcclusion;\n    vec3 emissive;\n    \n    sampler2D albedoMap;\n    sampler2D normalMap;\n    sampler2D metallicRoughnessMap;\n    sampler2D aoMap;\n    sampler2D emissiveMap;\n    \n    bool hasAlbedoMap;\n    bool hasNormalMap;\n    bool hasMetallicRoughnessMap;\n    bool hasAoMap;\n    bool hasEmissiveMap;\n};\n\n// Light uniforms\nuniform int u_lightTypes[MAX_LIGHTS];\nuniform vec3 u_lightPositions[MAX_LIGHTS];\nuniform vec3 u_lightDirections[MAX_LIGHTS];\nuniform vec3 u_lightColors[MAX_LIGHTS];\nuniform float u_lightIntensities[MAX_LIGHTS];\nuniform float u_lightConstants[MAX_LIGHTS];\nuniform float u_lightLinears[MAX_LIGHTS];\nuniform float u_lightQuadratics[MAX_LIGHTS];\nuniform float u_lightCutOffs[MAX_LIGHTS];\nuniform float u_lightOuterCutOffs[MAX_LIGHTS];\nuniform int u_numLights;\n\n// Shadow mapping uniforms\nuniform sampler2D u_shadowMap0;\nuniform sampler2D u_shadowMap1;\nuniform sampler2D u_shadowMap2;\nuniform sampler2D u_shadowMap3;\nuniform mat4 u_lightSpaceMatrices[MAX_LIGHTS];\nuniform bool u_castsShadow[MAX_LIGHTS];\n\n// Material uniforms\nuniform PBRMaterial u_material;\nuniform vec3 u_viewPos;\n\n// Varyings from vertex shader\nin vec3 v_normal;\nin vec2 v_texCoord;\nin vec3 v_worldPos;\nin mat3 v_tbn;\nin vec3 v_color;\n\n// Output\nout vec4 fragColor;\n\n// Utility function to get shadowmap value\nfloat getShadowMap(int index, vec2 coords) {\n    // We have to use a switch statement because WebGL2 requires constant array indices for samplers\n    // Note: Explicitly using .r component as we're using DEPTH_COMPONENT textures\n    switch(index) {\n        case 0: return texture(u_shadowMap0, coords).r;\n        case 1: return texture(u_shadowMap1, coords).r;\n        case 2: return texture(u_shadowMap2, coords).r;\n        case 3: return texture(u_shadowMap3, coords).r;\n        default: return 1.0; // No shadow if invalid index\n    }\n}\n\n// Shadow calculation function\nfloat ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir, int shadowMapIndex) {\n    // Ensure we only process shadow maps that exist in the shader\n    if (shadowMapIndex > 3) {\n        return 0.0; // Return no shadow if the index is beyond the available shadow maps\n    }\n    \n    // Perform perspective divide\n    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;\n    \n    // Transform to [0,1] range\n    projCoords = projCoords * 0.5 + 0.5;\n    \n    // Check if fragment is in light's view frustum\n    if (projCoords.x < 0.0 || projCoords.x > 1.0 || \n        projCoords.y < 0.0 || projCoords.y > 1.0 || \n        projCoords.z < 0.0 || projCoords.z > 1.0) {\n        return 0.0; // Not in shadow if outside frustum\n    }\n    \n    // Calculate bias based on surface angle to reduce shadow acne\n    // Use a smaller bias since we've improved shadow map precision\n    float bias = max(0.001 * (1.0 - dot(normal, lightDir)), 0.0005);\n    \n    // Get depth from shadow map\n    float closestDepth = getShadowMap(shadowMapIndex, projCoords.xy);\n    float currentDepth = projCoords.z;\n    \n    // Debug - uncomment to log values\n    // if (gl_FragCoord.x < 1.0 && gl_FragCoord.y < 1.0) {\n    //     float diff = currentDepth - closestDepth;\n    //     if (abs(diff) < 0.1) {\n    //         // Add code to print values if needed\n    //     }\n    // }\n    \n    // Simple shadow check with bias\n    // return (currentDepth - bias) > closestDepth ? 1.0 : 0.0;\n    \n    // PCF (Percentage Closer Filtering) with larger kernel for softer shadows\n    float shadow = 0.0;\n    vec2 texelSize = 1.0 / vec2(textureSize(u_shadowMap0, 0));\n    \n    for(int x = -2; x <= 2; ++x) {\n        for(int y = -2; y <= 2; ++y) {\n            float pcfDepth = getShadowMap(shadowMapIndex, projCoords.xy + vec2(x, y) * texelSize);\n            shadow += (currentDepth - bias) > pcfDepth ? 1.0 : 0.0;\n        }\n    }\n    \n    shadow /= 25.0; // 5x5 kernel\n    \n    // Fade out shadows at the edge of the light's frustum for smoother transitions\n    float fadeStart = 0.9;\n    float distanceFromCenter = length(vec2(0.5, 0.5) - projCoords.xy) * 2.0;\n    if (distanceFromCenter > fadeStart) {\n        float fadeRatio = (distanceFromCenter - fadeStart) / (1.0 - fadeStart);\n        shadow = mix(shadow, 0.0, fadeRatio);\n    }\n    \n    return shadow;\n}\n\n// PBR functions\n\n// Normal Distribution Function (GGX/Trowbridge-Reitz)\nfloat DistributionGGX(vec3 N, vec3 H, float roughness) {\n    float a = roughness * roughness;\n    float a2 = a * a;\n    float NdotH = max(dot(N, H), 0.0);\n    float NdotH2 = NdotH * NdotH;\n    \n    float denom = (NdotH2 * (a2 - 1.0) + 1.0);\n    denom = PI * denom * denom;\n    \n    return a2 / max(denom, 0.0000001);\n}\n\n// Geometry function (Smith model)\nfloat GeometrySchlickGGX(float NdotV, float roughness) {\n    float r = (roughness + 1.0);\n    float k = (r * r) / 8.0;\n    \n    float denom = NdotV * (1.0 - k) + k;\n    return NdotV / max(denom, 0.0000001);\n}\n\n// Combined Geometry function\nfloat GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {\n    float NdotV = max(dot(N, V), 0.0);\n    float NdotL = max(dot(N, L), 0.0);\n    float ggx2 = GeometrySchlickGGX(NdotV, roughness);\n    float ggx1 = GeometrySchlickGGX(NdotL, roughness);\n    \n    return ggx1 * ggx2;\n}\n\n// Fresnel function (Schlick's approximation)\nvec3 FresnelSchlick(float cosTheta, vec3 F0) {\n    return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);\n}\n\n// Calculates radiance for a light source\nvec3 calculateRadiance(vec3 N, vec3 V, vec3 L, vec3 H, vec3 F0, \n                       vec3 albedo, float metallic, float roughness,\n                       vec3 lightColor, float lightIntensity,\n                       float attenuation) {\n    // Calculate light attenuation\n    float attenuatedIntensity = lightIntensity * attenuation;\n    \n    // Ensure roughness is never zero (to prevent divide-by-zero in GGX)\n    roughness = max(roughness, 0.01);\n    \n    // Cook-Torrance BRDF calculation\n    float NDF = DistributionGGX(N, H, roughness);\n    float G = GeometrySmith(N, V, L, roughness);\n    vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);\n    \n    // Calculate specular component\n    vec3 numerator = NDF * G * F;\n    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);\n    vec3 specular = numerator / max(denominator, 0.0000001);\n    \n    // Prevent uncontrolled specular highlights by clamping\n    specular = min(specular, vec3(10.0));\n    \n    // For energy conservation\n    vec3 kS = F;\n    vec3 kD = vec3(1.0) - kS;\n    kD *= 1.0 - metallic; // Metallic materials don't have diffuse\n    \n    // Combine diffuse and specular terms\n    float NdotL = max(dot(N, L), 0.0);\n    return (kD * albedo / PI + specular) * lightColor * attenuatedIntensity * NdotL;\n}\n\nvoid main() {\n    // Get material properties, using textures if available\n    \n    // Base color (albedo)\n    vec3 albedo = u_material.baseColor;\n    if (u_material.hasAlbedoMap) {\n        albedo = texture(u_material.albedoMap, v_texCoord).rgb;\n    } else {\n        // Use vertex color if no albedo map is provided\n        albedo = v_color;\n    }\n    \n    // Metallic and roughness\n    float metallic = u_material.metallic;\n    float roughness = u_material.roughness;\n    if (u_material.hasMetallicRoughnessMap) {\n        // Standard PBR convention: G channel = roughness, B channel = metallic\n        vec3 metallicRoughness = texture(u_material.metallicRoughnessMap, v_texCoord).rgb;\n        roughness = metallicRoughness.g;\n        metallic = metallicRoughness.b;\n    }\n    \n    // Ambient occlusion\n    float ao = u_material.ambientOcclusion;\n    if (u_material.hasAoMap) {\n        ao = texture(u_material.aoMap, v_texCoord).r;\n    }\n    \n    // Normals (with normal mapping if available)\n    vec3 N = normalize(v_normal);\n    if (u_material.hasNormalMap) {\n        vec3 normalMapValue = texture(u_material.normalMap, v_texCoord).rgb * 2.0 - 1.0;\n        N = normalize(v_tbn * normalMapValue);\n    }\n    \n    // Emissive\n    vec3 emissive = u_material.emissive;\n    if (u_material.hasEmissiveMap) {\n        emissive = texture(u_material.emissiveMap, v_texCoord).rgb;\n    }\n    \n    // Calculate view direction\n    vec3 V = normalize(u_viewPos - v_worldPos);\n    \n    // Calculate fresnel reflection at normal incidence (F0)\n    // For most materials, F0 is monochromatic (0.04)\n    // For metals, we use the albedo color \n    vec3 F0 = vec3(0.04);\n    F0 = mix(F0, albedo, metallic);\n    \n    // Initialize result\n    vec3 Lo = vec3(0.0);\n    \n    // Calculate lighting contribution from each light\n    for(int i = 0; i < u_numLights; i++) {\n        if(i >= MAX_LIGHTS || u_lightTypes[i] == LIGHT_TYPE_INACTIVE) \n            continue;\n        \n        // Calculate light direction and intensity\n        vec3 L;\n        float attenuation = 1.0;\n        \n        if (u_lightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            // Directional light\n            L = normalize(-u_lightDirections[i]);\n        } \n        else if (u_lightTypes[i] == LIGHT_TYPE_POINT || u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n            // Point or spot light\n            L = normalize(u_lightPositions[i] - v_worldPos);\n            \n            // Calculate attenuation\n            float distance = length(u_lightPositions[i] - v_worldPos);\n            attenuation = 1.0 / (u_lightConstants[i] + \n                                 u_lightLinears[i] * distance + \n                                 u_lightQuadratics[i] * distance * distance);\n            \n            // For spot lights, calculate spotlight intensity\n            if (u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n                float theta = dot(L, normalize(-u_lightDirections[i]));\n                float epsilon = u_lightCutOffs[i] - u_lightOuterCutOffs[i];\n                float intensity = clamp((theta - u_lightOuterCutOffs[i]) / epsilon, 0.0, 1.0);\n                attenuation *= intensity;\n            }\n        }\n        else if (u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            // Ambient light (applied separately)\n            continue;\n        }\n        \n        // Calculate half vector\n        vec3 H = normalize(V + L);\n        \n        // Calculate shadow\n        float shadow = 0.0;\n        if(u_castsShadow[i]) {\n            vec4 fragPosLightSpace = u_lightSpaceMatrices[i] * vec4(v_worldPos, 1.0);\n            shadow = ShadowCalculation(fragPosLightSpace, N, L, i);\n        }\n        \n        // Add light contribution\n        vec3 radiance = calculateRadiance(N, V, L, H, F0, albedo, metallic, roughness,\n                                         u_lightColors[i], u_lightIntensities[i],\n                                         attenuation);\n        \n        Lo += radiance * (1.0 - shadow);\n    }\n    \n    // Add ambient light contribution (factoring in ambient occlusion)\n    vec3 ambient = vec3(0.0); // Initialize with no ambient\n\n    // Add ambient from any ambient light sources\n    for(int i = 0; i < u_numLights; i++) {\n        if(i < MAX_LIGHTS && u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            ambient += u_lightColors[i] * u_lightIntensities[i] * albedo * ao;\n        }\n    }\n\n    // Add emissive contribution\n    vec3 color = ambient + Lo + emissive;\n\n    // Calculate rim lighting based on lights in the scene\n    vec3 rimColor = vec3(0.0);\n    float rimPower = 3.0; // Controls how sharp the rim effect is\n    float viewFacing = 1.0 - max(dot(N, V), 0.0);\n    \n    // Add rim contribution from each light\n    for(int i = 0; i < u_numLights; i++) {\n        if(i >= MAX_LIGHTS || u_lightTypes[i] == LIGHT_TYPE_INACTIVE || u_lightTypes[i] == LIGHT_TYPE_AMBIENT) \n            continue;\n            \n        vec3 L;\n        float rimStrength = 0.0;\n        \n        if (u_lightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            L = normalize(-u_lightDirections[i]);\n            rimStrength = u_lightIntensities[i] * 0.3; // Scale rim by light intensity\n        } \n        else if (u_lightTypes[i] == LIGHT_TYPE_POINT || u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n            vec3 lightToPos = v_worldPos - u_lightPositions[i];\n            L = normalize(lightToPos);\n            \n            // Rim strength falls off with distance\n            float distance = length(lightToPos);\n            float attenuation = 1.0 / (u_lightConstants[i] + \n                                     u_lightLinears[i] * distance + \n                                     u_lightQuadratics[i] * distance * distance);\n                                     \n            rimStrength = u_lightIntensities[i] * attenuation * 0.3;\n            \n            // For spotlights, consider the cone angle\n            if (u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n                float theta = dot(-L, normalize(u_lightDirections[i]));\n                float epsilon = u_lightCutOffs[i] - u_lightOuterCutOffs[i];\n                rimStrength *= clamp((theta - u_lightOuterCutOffs[i]) / epsilon, 0.0, 1.0);\n            }\n        }\n        \n        // Calculate rim contribution from this light\n        float lightRim = pow(viewFacing * max(dot(L, N), 0.0), rimPower) * rimStrength;\n        rimColor += u_lightColors[i] * lightRim;\n    }\n    \n    // Add rim lighting to final color\n    color += rimColor * albedo;\n\n    // Enhance colored light visibility\n    color = mix(color, color * 1.2, metallic);\n\n    // Prevent oversaturation by clamping extremely bright values\n    float maxLuminance = max(max(color.r, color.g), color.b);\n    if (maxLuminance > 10.0) {\n        color *= 10.0 / maxLuminance;\n    }\n\n    // Apply ACES filmic tone mapping for better dynamic range\n    // Source: https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/\n    vec3 mapped = (color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14);\n    mapped = clamp(mapped, 0.0, 1.0);\n\n    // Gamma correction\n    color = pow(mapped, vec3(1.0/2.2));\n\n    fragColor = vec4(color, 1.0);\n}";
+var pbrFragmentShader = "#version 300 es\nprecision highp float;\n\n// Constants\n#define PI 3.14159265359\n#define MAX_LIGHTS 10\n\n// Light types\n#define LIGHT_TYPE_INACTIVE -1\n#define LIGHT_TYPE_AMBIENT 0\n#define LIGHT_TYPE_DIRECTIONAL 1\n#define LIGHT_TYPE_POINT 2\n#define LIGHT_TYPE_SPOT 3\n\n// PBR Material uniforms\nstruct PBRMaterial {\n    vec3 baseColor;\n    float roughness;\n    float metallic;\n    float ambientOcclusion;\n    vec3 emissive;\n    \n    sampler2D albedoMap;\n    sampler2D normalMap;\n    sampler2D metallicMap;\n    sampler2D roughnessMap;\n    sampler2D aoMap;\n    sampler2D emissiveMap;\n    sampler2D emissiveStrengthMap;\n    \n    bool hasAlbedoMap;\n    bool hasNormalMap;\n    bool hasMetallicMap;\n    bool hasRoughnessMap;\n    bool hasAoMap;\n    bool hasEmissiveMap;\n    bool hasEmissiveStrengthMap;\n};\n\n// Light uniforms\nuniform int u_lightTypes[MAX_LIGHTS];\nuniform vec3 u_lightPositions[MAX_LIGHTS];\nuniform vec3 u_lightDirections[MAX_LIGHTS];\nuniform vec3 u_lightColors[MAX_LIGHTS];\nuniform float u_lightIntensities[MAX_LIGHTS];\nuniform float u_lightConstants[MAX_LIGHTS];\nuniform float u_lightLinears[MAX_LIGHTS];\nuniform float u_lightQuadratics[MAX_LIGHTS];\nuniform float u_lightCutOffs[MAX_LIGHTS];\nuniform float u_lightOuterCutOffs[MAX_LIGHTS];\nuniform int u_numLights;\n\n// Shadow mapping uniforms\nuniform sampler2D u_shadowMap0;\nuniform sampler2D u_shadowMap1;\nuniform sampler2D u_shadowMap2;\nuniform sampler2D u_shadowMap3;\nuniform mat4 u_lightSpaceMatrices[MAX_LIGHTS];\nuniform bool u_castsShadow[MAX_LIGHTS];\n\n// Material uniforms\nuniform PBRMaterial u_material;\nuniform vec3 u_viewPos;\n\n// Varyings from vertex shader\nin vec3 v_normal;\nin vec2 v_texCoord;\nin vec3 v_worldPos;\nin mat3 v_tbn;\nin vec3 v_color;\n\n// Output\nout vec4 fragColor;\n\n// Utility function to get shadowmap value\nfloat getShadowMap(int index, vec2 coords) {\n    // We have to use a switch statement because WebGL2 requires constant array indices for samplers\n    // Note: Explicitly using .r component as we're using DEPTH_COMPONENT textures\n    switch(index) {\n        case 0: return texture(u_shadowMap0, coords).r;\n        case 1: return texture(u_shadowMap1, coords).r;\n        case 2: return texture(u_shadowMap2, coords).r;\n        case 3: return texture(u_shadowMap3, coords).r;\n        default: return 1.0; // No shadow if invalid index\n    }\n}\n\n// Shadow calculation function\nfloat ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir, int shadowMapIndex) {\n    // Ensure we only process shadow maps that exist in the shader\n    if (shadowMapIndex > 3) {\n        return 0.0; // Return no shadow if the index is beyond the available shadow maps\n    }\n    \n    // Perform perspective divide\n    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;\n    \n    // Transform to [0,1] range\n    projCoords = projCoords * 0.5 + 0.5;\n    \n    // Check if fragment is in light's view frustum\n    if (projCoords.x < 0.0 || projCoords.x > 1.0 || \n        projCoords.y < 0.0 || projCoords.y > 1.0 || \n        projCoords.z < 0.0 || projCoords.z > 1.0) {\n        return 0.0; // Not in shadow if outside frustum\n    }\n    \n    // Calculate bias based on surface angle to reduce shadow acne\n    // Use a smaller bias since we've improved shadow map precision\n    float bias = max(0.001 * (1.0 - dot(normal, lightDir)), 0.0005);\n    \n    // Get depth from shadow map\n    float closestDepth = getShadowMap(shadowMapIndex, projCoords.xy);\n    float currentDepth = projCoords.z;\n    \n    // Debug - uncomment to log values\n    // if (gl_FragCoord.x < 1.0 && gl_FragCoord.y < 1.0) {\n    //     float diff = currentDepth - closestDepth;\n    //     if (abs(diff) < 0.1) {\n    //         // Add code to print values if needed\n    //     }\n    // }\n    \n    // Simple shadow check with bias\n    // return (currentDepth - bias) > closestDepth ? 1.0 : 0.0;\n    \n    // PCF (Percentage Closer Filtering) with larger kernel for softer shadows\n    float shadow = 0.0;\n    vec2 texelSize = 1.0 / vec2(textureSize(u_shadowMap0, 0));\n    \n    for(int x = -2; x <= 2; ++x) {\n        for(int y = -2; y <= 2; ++y) {\n            float pcfDepth = getShadowMap(shadowMapIndex, projCoords.xy + vec2(x, y) * texelSize);\n            shadow += (currentDepth - bias) > pcfDepth ? 1.0 : 0.0;\n        }\n    }\n    \n    shadow /= 25.0; // 5x5 kernel\n    \n    // Fade out shadows at the edge of the light's frustum for smoother transitions\n    float fadeStart = 0.9;\n    float distanceFromCenter = length(vec2(0.5, 0.5) - projCoords.xy) * 2.0;\n    if (distanceFromCenter > fadeStart) {\n        float fadeRatio = (distanceFromCenter - fadeStart) / (1.0 - fadeStart);\n        shadow = mix(shadow, 0.0, fadeRatio);\n    }\n    \n    return shadow;\n}\n\n// PBR functions\n\n// Normal Distribution Function (GGX/Trowbridge-Reitz)\nfloat DistributionGGX(vec3 N, vec3 H, float roughness) {\n    float a = roughness * roughness;\n    float a2 = a * a;\n    float NdotH = max(dot(N, H), 0.0);\n    float NdotH2 = NdotH * NdotH;\n    \n    float denom = (NdotH2 * (a2 - 1.0) + 1.0);\n    denom = PI * denom * denom;\n    \n    return a2 / max(denom, 0.0000001);\n}\n\n// Geometry function (Smith model)\nfloat GeometrySchlickGGX(float NdotV, float roughness) {\n    float r = (roughness + 1.0);\n    float k = (r * r) / 8.0;\n    \n    float denom = NdotV * (1.0 - k) + k;\n    return NdotV / max(denom, 0.0000001);\n}\n\n// Combined Geometry function\nfloat GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {\n    float NdotV = max(dot(N, V), 0.0);\n    float NdotL = max(dot(N, L), 0.0);\n    float ggx2 = GeometrySchlickGGX(NdotV, roughness);\n    float ggx1 = GeometrySchlickGGX(NdotL, roughness);\n    \n    return ggx1 * ggx2;\n}\n\n// Fresnel function (Schlick's approximation)\nvec3 FresnelSchlick(float cosTheta, vec3 F0) {\n    return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);\n}\n\n// Calculates radiance for a light source\nvec3 calculateRadiance(vec3 N, vec3 V, vec3 L, vec3 H, vec3 F0, \n                       vec3 albedo, float metallic, float roughness,\n                       vec3 lightColor, float lightIntensity,\n                       float attenuation) {\n    // Calculate light attenuation\n    float attenuatedIntensity = lightIntensity * attenuation;\n    \n    // Ensure roughness is never zero (to prevent divide-by-zero in GGX)\n    roughness = max(roughness, 0.01);\n    \n    // Cook-Torrance BRDF calculation\n    float NDF = DistributionGGX(N, H, roughness);\n    float G = GeometrySmith(N, V, L, roughness);\n    vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);\n    \n    // Calculate specular component\n    vec3 numerator = NDF * G * F;\n    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);\n    vec3 specular = numerator / max(denominator, 0.0000001);\n    \n    // Prevent uncontrolled specular highlights by clamping\n    specular = min(specular, vec3(10.0));\n    \n    // For energy conservation\n    vec3 kS = F;\n    vec3 kD = vec3(1.0) - kS;\n    kD *= 1.0 - metallic; // Metallic materials don't have diffuse\n    \n    // Combine diffuse and specular terms\n    float NdotL = max(dot(N, L), 0.0);\n    return (kD * albedo / PI + specular) * lightColor * attenuatedIntensity * NdotL;\n}\n\nvoid main() {\n    // Get material properties, using textures if available\n    \n    // Base color (albedo)\n    vec3 albedo = u_material.baseColor;\n    if (u_material.hasAlbedoMap) {\n        albedo = texture(u_material.albedoMap, v_texCoord).rgb;\n    } else {\n        // Use vertex color if no albedo map is provided\n        albedo = v_color;\n    }\n    \n    // Metallic and roughness\n    float metallic = u_material.metallic;\n    float roughness = u_material.roughness;\n    \n    // Sample metallic map if available\n    if (u_material.hasMetallicMap) {\n        metallic = texture(u_material.metallicMap, v_texCoord).r;\n    }\n    \n    // Sample roughness map if available\n    if (u_material.hasRoughnessMap) {\n        roughness = texture(u_material.roughnessMap, v_texCoord).r;\n    }\n    \n    // Ambient occlusion\n    float ao = u_material.ambientOcclusion;\n    if (u_material.hasAoMap) {\n        ao = texture(u_material.aoMap, v_texCoord).r;\n    }\n    \n    // Normals (with normal mapping if available)\n    vec3 N = normalize(v_normal);\n    if (u_material.hasNormalMap) {\n        // Sample and decode normal map\n        vec3 normalMapValue = texture(u_material.normalMap, v_texCoord).rgb;\n        \n        // Convert from [0,1] to [-1,1] range and handle OpenGL coordinate system\n        normalMapValue = normalMapValue * 2.0 - 1.0;\n        normalMapValue.y = -normalMapValue.y;  // Flip Y component for OpenGL\n        \n        // Transform normal from tangent to world space\n        N = normalize(v_tbn * normalMapValue);\n    }\n    \n    // Emissive\n    vec3 emissive = u_material.emissive;\n    if (u_material.hasEmissiveMap) {\n        emissive = texture(u_material.emissiveMap, v_texCoord).rgb;\n    }\n    if (u_material.hasEmissiveStrengthMap) {\n        float emissiveStrength = texture(u_material.emissiveStrengthMap, v_texCoord).r;\n        emissive *= emissiveStrength;\n    }\n    \n    // Calculate view direction\n    vec3 V = normalize(u_viewPos - v_worldPos);\n    \n    // Calculate fresnel reflection at normal incidence (F0)\n    // For most materials, F0 is monochromatic (0.04)\n    // For metals, we use the albedo color \n    vec3 F0 = vec3(0.04);\n    F0 = mix(F0, albedo, metallic);\n    \n    // Initialize result\n    vec3 Lo = vec3(0.0);\n    \n    // Calculate lighting contribution from each light\n    for(int i = 0; i < u_numLights; i++) {\n        if(i >= MAX_LIGHTS || u_lightTypes[i] == LIGHT_TYPE_INACTIVE) \n            continue;\n        \n        // Calculate light direction and intensity\n        vec3 L;\n        float attenuation = 1.0;\n        \n        if (u_lightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            // Directional light\n            L = normalize(-u_lightDirections[i]);\n        } \n        else if (u_lightTypes[i] == LIGHT_TYPE_POINT || u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n            // Point or spot light\n            L = normalize(u_lightPositions[i] - v_worldPos);\n            \n            // Calculate attenuation\n            float distance = length(u_lightPositions[i] - v_worldPos);\n            attenuation = 1.0 / (u_lightConstants[i] + \n                                 u_lightLinears[i] * distance + \n                                 u_lightQuadratics[i] * distance * distance);\n            \n            // For spot lights, calculate spotlight intensity\n            if (u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n                float theta = dot(L, normalize(-u_lightDirections[i]));\n                float epsilon = u_lightCutOffs[i] - u_lightOuterCutOffs[i];\n                float intensity = clamp((theta - u_lightOuterCutOffs[i]) / epsilon, 0.0, 1.0);\n                attenuation *= intensity;\n            }\n        }\n        else if (u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            // Ambient light (applied separately)\n            continue;\n        }\n        \n        // Calculate half vector\n        vec3 H = normalize(V + L);\n        \n        // Calculate shadow\n        float shadow = 0.0;\n        if(u_castsShadow[i]) {\n            vec4 fragPosLightSpace = u_lightSpaceMatrices[i] * vec4(v_worldPos, 1.0);\n            shadow = ShadowCalculation(fragPosLightSpace, N, L, i);\n        }\n        \n        // Add light contribution\n        vec3 radiance = calculateRadiance(N, V, L, H, F0, albedo, metallic, roughness,\n                                         u_lightColors[i], u_lightIntensities[i],\n                                         attenuation);\n        \n        Lo += radiance * (1.0 - shadow);\n    }\n    \n    // Add ambient light contribution (factoring in ambient occlusion)\n    vec3 ambient = vec3(0.0); // Initialize with no ambient\n\n    // Add ambient from any ambient light sources\n    for(int i = 0; i < u_numLights; i++) {\n        if(i < MAX_LIGHTS && u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {\n            ambient += u_lightColors[i] * u_lightIntensities[i] * albedo * ao;\n        }\n    }\n\n    // Add emissive contribution\n    vec3 color = ambient + Lo + emissive;\n\n    // Calculate rim lighting based on lights in the scene\n    vec3 rimColor = vec3(0.0);\n    float rimPower = 3.0; // Controls how sharp the rim effect is\n    float viewFacing = 1.0 - max(dot(N, V), 0.0);\n    \n    // Add rim contribution from each light\n    for(int i = 0; i < u_numLights; i++) {\n        if(i >= MAX_LIGHTS || u_lightTypes[i] == LIGHT_TYPE_INACTIVE || u_lightTypes[i] == LIGHT_TYPE_AMBIENT) \n            continue;\n            \n        vec3 L;\n        float rimStrength = 0.0;\n        \n        if (u_lightTypes[i] == LIGHT_TYPE_DIRECTIONAL) {\n            L = normalize(-u_lightDirections[i]);\n            rimStrength = u_lightIntensities[i] * 0.3; // Scale rim by light intensity\n        } \n        else if (u_lightTypes[i] == LIGHT_TYPE_POINT || u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n            vec3 lightToPos = v_worldPos - u_lightPositions[i];\n            L = normalize(lightToPos);\n            \n            // Rim strength falls off with distance\n            float distance = length(lightToPos);\n            float attenuation = 1.0 / (u_lightConstants[i] + \n                                     u_lightLinears[i] * distance + \n                                     u_lightQuadratics[i] * distance * distance);\n                                     \n            rimStrength = u_lightIntensities[i] * attenuation * 0.3;\n            \n            // For spotlights, consider the cone angle\n            if (u_lightTypes[i] == LIGHT_TYPE_SPOT) {\n                float theta = dot(-L, normalize(u_lightDirections[i]));\n                float epsilon = u_lightCutOffs[i] - u_lightOuterCutOffs[i];\n                rimStrength *= clamp((theta - u_lightOuterCutOffs[i]) / epsilon, 0.0, 1.0);\n            }\n        }\n        \n        // Calculate rim contribution from this light\n        float lightRim = pow(viewFacing * max(dot(L, N), 0.0), rimPower) * rimStrength;\n        rimColor += u_lightColors[i] * lightRim;\n    }\n    \n    // Add rim lighting to final color\n    color += rimColor * albedo;\n\n    // Enhance colored light visibility\n    color = mix(color, color * 1.2, metallic);\n\n    // Prevent oversaturation by clamping extremely bright values\n    float maxLuminance = max(max(color.r, color.g), color.b);\n    if (maxLuminance > 10.0) {\n        color *= 10.0 / maxLuminance;\n    }\n\n    // Apply ACES filmic tone mapping for better dynamic range\n    // Source: https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/\n    vec3 mapped = (color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14);\n    mapped = clamp(mapped, 0.0, 1.0);\n\n    // Gamma correction\n    color = pow(mapped, vec3(1.0/2.2));\n\n    fragColor = vec4(color, 1.0);\n}";
 
 // ts/classes/webgl2/shaders/debugDepthShader.ts
 var debugDepthVertexShader = "#version 300 es\nprecision highp float;\n\nin vec2 a_position;\nin vec2 a_texCoord;\n\nout vec2 v_texCoord;\n\nvoid main() {\n    v_texCoord = a_texCoord;\n    gl_Position = vec4(a_position, 0.0, 1.0);\n}\n";
@@ -5505,7 +5505,8 @@ var WebGL2Initializer = class {
     this.shaderManager.setUniform("u_material.emissive", new Float32Array([0, 0, 0]));
     this.shaderManager.setUniform("u_material.hasAlbedoMap", 0);
     this.shaderManager.setUniform("u_material.hasNormalMap", 0);
-    this.shaderManager.setUniform("u_material.hasMetallicRoughnessMap", 0);
+    this.shaderManager.setUniform("u_material.hasMetallicMap", 0);
+    this.shaderManager.setUniform("u_material.hasRoughnessMap", 0);
     this.shaderManager.setUniform("u_material.hasAoMap", 0);
     this.shaderManager.setUniform("u_material.hasEmissiveMap", 0);
     this.shaderManager.setUniform("u_viewPos", new Float32Array([0, 1, 6]));
@@ -5738,8 +5739,8 @@ var InputDevices = class {
 
 // ts/classes/util/utils.ts
 var Util = class {
-  static clamp(value, min, max) {
-    return Math.max(Math.min(value, max), min);
+  static clamp(value, min2, max2) {
+    return Math.max(Math.min(value, max2), min2);
   }
   static to0(value, tolerance = 0.1) {
     return Math.abs(value) < tolerance ? 0 : value;
@@ -5760,8 +5761,8 @@ var Util = class {
     });
     return output;
   }
-  static padArray(ar, b, len) {
-    return ar.concat(Array.from(Array(len).fill(b))).slice(0, len);
+  static padArray(ar, b, len2) {
+    return ar.concat(Array.from(Array(len2).fill(b))).slice(0, len2);
   }
   static addArrays(ar, br) {
     return ar.map((a, i) => a + br[i]);
@@ -6058,29 +6059,29 @@ var Vector3 = class _Vector3 {
   magnitudeSqr() {
     return this.x * this.x + this.y * this.y + this.z * this.z;
   }
-  mod(max) {
+  mod(max2) {
     return new _Vector3(
-      this.x % max.x,
-      this.y % max.y,
-      this.z % max.z
+      this.x % max2.x,
+      this.y % max2.y,
+      this.z % max2.z
     );
   }
-  clamp(min, max) {
+  clamp(min2, max2) {
     return new _Vector3(
-      Util.clamp(this.x, min.x, max.x),
-      Util.clamp(this.y, min.y, max.y),
-      Util.clamp(this.z, min.z, max.z)
+      Util.clamp(this.x, min2.x, max2.x),
+      Util.clamp(this.y, min2.y, max2.y),
+      Util.clamp(this.z, min2.z, max2.z)
     );
   }
   normalize() {
-    let len = this.x * this.x + this.y * this.y + this.z * this.z;
-    if (len > 0) {
-      len = 1 / Math.sqrt(len);
+    let len2 = this.x * this.x + this.y * this.y + this.z * this.z;
+    if (len2 > 0) {
+      len2 = 1 / Math.sqrt(len2);
     }
     return v3(
-      this.x * len,
-      this.y * len,
-      this.z * len
+      this.x * len2,
+      this.y * len2,
+      this.z * len2
     );
   }
   applyQuaternion(q) {
@@ -6151,6 +6152,7 @@ var Vector3 = class _Vector3 {
 // node_modules/gl-matrix/esm/common.js
 var EPSILON = 1e-6;
 var ARRAY_TYPE = typeof Float32Array !== "undefined" ? Float32Array : Array;
+var RANDOM = Math.random;
 var degree = Math.PI / 180;
 if (!Math.hypot)
   Math.hypot = function() {
@@ -6554,7 +6556,7 @@ function scale(out, a, v) {
 }
 function rotate(out, a, rad, axis) {
   var x = axis[0], y = axis[1], z = axis[2];
-  var len = Math.hypot(x, y, z);
+  var len2 = Math.hypot(x, y, z);
   var s, c, t;
   var a00, a01, a02, a03;
   var a10, a11, a12, a13;
@@ -6562,13 +6564,13 @@ function rotate(out, a, rad, axis) {
   var b00, b01, b02;
   var b10, b11, b12;
   var b20, b21, b22;
-  if (len < EPSILON) {
+  if (len2 < EPSILON) {
     return null;
   }
-  len = 1 / len;
-  x *= len;
-  y *= len;
-  z *= len;
+  len2 = 1 / len2;
+  x *= len2;
+  y *= len2;
+  z *= len2;
   s = Math.sin(rad);
   c = Math.cos(rad);
   t = 1 - c;
@@ -6746,15 +6748,15 @@ function fromScaling(out, v) {
 }
 function fromRotation(out, rad, axis) {
   var x = axis[0], y = axis[1], z = axis[2];
-  var len = Math.hypot(x, y, z);
+  var len2 = Math.hypot(x, y, z);
   var s, c, t;
-  if (len < EPSILON) {
+  if (len2 < EPSILON) {
     return null;
   }
-  len = 1 / len;
-  x *= len;
-  y *= len;
-  z *= len;
+  len2 = 1 / len2;
+  x *= len2;
+  y *= len2;
+  z *= len2;
   s = Math.sin(rad);
   c = Math.cos(rad);
   t = 1 - c;
@@ -7212,7 +7214,7 @@ function orthoZO(out, left, right, bottom, top, near, far) {
   return out;
 }
 function lookAt(out, eye, center, up) {
-  var x0, x1, x2, y0, y1, y2, z0, z1, z2, len;
+  var x0, x1, x2, y0, y1, y2, z0, z1, z2, len2;
   var eyex = eye[0];
   var eyey = eye[1];
   var eyez = eye[2];
@@ -7228,37 +7230,37 @@ function lookAt(out, eye, center, up) {
   z0 = eyex - centerx;
   z1 = eyey - centery;
   z2 = eyez - centerz;
-  len = 1 / Math.hypot(z0, z1, z2);
-  z0 *= len;
-  z1 *= len;
-  z2 *= len;
+  len2 = 1 / Math.hypot(z0, z1, z2);
+  z0 *= len2;
+  z1 *= len2;
+  z2 *= len2;
   x0 = upy * z2 - upz * z1;
   x1 = upz * z0 - upx * z2;
   x2 = upx * z1 - upy * z0;
-  len = Math.hypot(x0, x1, x2);
-  if (!len) {
+  len2 = Math.hypot(x0, x1, x2);
+  if (!len2) {
     x0 = 0;
     x1 = 0;
     x2 = 0;
   } else {
-    len = 1 / len;
-    x0 *= len;
-    x1 *= len;
-    x2 *= len;
+    len2 = 1 / len2;
+    x0 *= len2;
+    x1 *= len2;
+    x2 *= len2;
   }
   y0 = z1 * x2 - z2 * x1;
   y1 = z2 * x0 - z0 * x2;
   y2 = z0 * x1 - z1 * x0;
-  len = Math.hypot(y0, y1, y2);
-  if (!len) {
+  len2 = Math.hypot(y0, y1, y2);
+  if (!len2) {
     y0 = 0;
     y1 = 0;
     y2 = 0;
   } else {
-    len = 1 / len;
-    y0 *= len;
-    y1 *= len;
-    y2 *= len;
+    len2 = 1 / len2;
+    y0 *= len2;
+    y1 *= len2;
+    y2 *= len2;
   }
   out[0] = x0;
   out[1] = y0;
@@ -7281,20 +7283,20 @@ function lookAt(out, eye, center, up) {
 function targetTo(out, eye, target, up) {
   var eyex = eye[0], eyey = eye[1], eyez = eye[2], upx = up[0], upy = up[1], upz = up[2];
   var z0 = eyex - target[0], z1 = eyey - target[1], z2 = eyez - target[2];
-  var len = z0 * z0 + z1 * z1 + z2 * z2;
-  if (len > 0) {
-    len = 1 / Math.sqrt(len);
-    z0 *= len;
-    z1 *= len;
-    z2 *= len;
+  var len2 = z0 * z0 + z1 * z1 + z2 * z2;
+  if (len2 > 0) {
+    len2 = 1 / Math.sqrt(len2);
+    z0 *= len2;
+    z1 *= len2;
+    z2 *= len2;
   }
   var x0 = upy * z2 - upz * z1, x1 = upz * z0 - upx * z2, x2 = upx * z1 - upy * z0;
-  len = x0 * x0 + x1 * x1 + x2 * x2;
-  if (len > 0) {
-    len = 1 / Math.sqrt(len);
-    x0 *= len;
-    x1 *= len;
-    x2 *= len;
+  len2 = x0 * x0 + x1 * x1 + x2 * x2;
+  if (len2 > 0) {
+    len2 = 1 / Math.sqrt(len2);
+    x0 *= len2;
+    x1 *= len2;
+    x2 *= len2;
   }
   out[0] = x0;
   out[1] = x1;
@@ -7377,23 +7379,23 @@ function multiplyScalar(out, a, b) {
   out[15] = a[15] * b;
   return out;
 }
-function multiplyScalarAndAdd(out, a, b, scale2) {
-  out[0] = a[0] + b[0] * scale2;
-  out[1] = a[1] + b[1] * scale2;
-  out[2] = a[2] + b[2] * scale2;
-  out[3] = a[3] + b[3] * scale2;
-  out[4] = a[4] + b[4] * scale2;
-  out[5] = a[5] + b[5] * scale2;
-  out[6] = a[6] + b[6] * scale2;
-  out[7] = a[7] + b[7] * scale2;
-  out[8] = a[8] + b[8] * scale2;
-  out[9] = a[9] + b[9] * scale2;
-  out[10] = a[10] + b[10] * scale2;
-  out[11] = a[11] + b[11] * scale2;
-  out[12] = a[12] + b[12] * scale2;
-  out[13] = a[13] + b[13] * scale2;
-  out[14] = a[14] + b[14] * scale2;
-  out[15] = a[15] + b[15] * scale2;
+function multiplyScalarAndAdd(out, a, b, scale3) {
+  out[0] = a[0] + b[0] * scale3;
+  out[1] = a[1] + b[1] * scale3;
+  out[2] = a[2] + b[2] * scale3;
+  out[3] = a[3] + b[3] * scale3;
+  out[4] = a[4] + b[4] * scale3;
+  out[5] = a[5] + b[5] * scale3;
+  out[6] = a[6] + b[6] * scale3;
+  out[7] = a[7] + b[7] * scale3;
+  out[8] = a[8] + b[8] * scale3;
+  out[9] = a[9] + b[9] * scale3;
+  out[10] = a[10] + b[10] * scale3;
+  out[11] = a[11] + b[11] * scale3;
+  out[12] = a[12] + b[12] * scale3;
+  out[13] = a[13] + b[13] * scale3;
+  out[14] = a[14] + b[14] * scale3;
+  out[15] = a[15] + b[15] * scale3;
   return out;
 }
 function exactEquals(a, b) {
@@ -7412,6 +7414,390 @@ function equals(a, b) {
 }
 var mul = multiply;
 var sub = subtract;
+
+// node_modules/gl-matrix/esm/vec3.js
+var vec3_exports = {};
+__export(vec3_exports, {
+  add: () => add2,
+  angle: () => angle,
+  bezier: () => bezier,
+  ceil: () => ceil,
+  clone: () => clone2,
+  copy: () => copy2,
+  create: () => create2,
+  cross: () => cross,
+  dist: () => dist,
+  distance: () => distance,
+  div: () => div,
+  divide: () => divide,
+  dot: () => dot,
+  equals: () => equals2,
+  exactEquals: () => exactEquals2,
+  floor: () => floor,
+  forEach: () => forEach,
+  fromValues: () => fromValues2,
+  hermite: () => hermite,
+  inverse: () => inverse,
+  len: () => len,
+  length: () => length,
+  lerp: () => lerp,
+  max: () => max,
+  min: () => min,
+  mul: () => mul2,
+  multiply: () => multiply2,
+  negate: () => negate,
+  normalize: () => normalize,
+  random: () => random,
+  rotateX: () => rotateX2,
+  rotateY: () => rotateY2,
+  rotateZ: () => rotateZ2,
+  round: () => round,
+  scale: () => scale2,
+  scaleAndAdd: () => scaleAndAdd,
+  set: () => set2,
+  sqrDist: () => sqrDist,
+  sqrLen: () => sqrLen,
+  squaredDistance: () => squaredDistance,
+  squaredLength: () => squaredLength,
+  str: () => str2,
+  sub: () => sub2,
+  subtract: () => subtract2,
+  transformMat3: () => transformMat3,
+  transformMat4: () => transformMat4,
+  transformQuat: () => transformQuat,
+  zero: () => zero
+});
+function create2() {
+  var out = new ARRAY_TYPE(3);
+  if (ARRAY_TYPE != Float32Array) {
+    out[0] = 0;
+    out[1] = 0;
+    out[2] = 0;
+  }
+  return out;
+}
+function clone2(a) {
+  var out = new ARRAY_TYPE(3);
+  out[0] = a[0];
+  out[1] = a[1];
+  out[2] = a[2];
+  return out;
+}
+function length(a) {
+  var x = a[0];
+  var y = a[1];
+  var z = a[2];
+  return Math.hypot(x, y, z);
+}
+function fromValues2(x, y, z) {
+  var out = new ARRAY_TYPE(3);
+  out[0] = x;
+  out[1] = y;
+  out[2] = z;
+  return out;
+}
+function copy2(out, a) {
+  out[0] = a[0];
+  out[1] = a[1];
+  out[2] = a[2];
+  return out;
+}
+function set2(out, x, y, z) {
+  out[0] = x;
+  out[1] = y;
+  out[2] = z;
+  return out;
+}
+function add2(out, a, b) {
+  out[0] = a[0] + b[0];
+  out[1] = a[1] + b[1];
+  out[2] = a[2] + b[2];
+  return out;
+}
+function subtract2(out, a, b) {
+  out[0] = a[0] - b[0];
+  out[1] = a[1] - b[1];
+  out[2] = a[2] - b[2];
+  return out;
+}
+function multiply2(out, a, b) {
+  out[0] = a[0] * b[0];
+  out[1] = a[1] * b[1];
+  out[2] = a[2] * b[2];
+  return out;
+}
+function divide(out, a, b) {
+  out[0] = a[0] / b[0];
+  out[1] = a[1] / b[1];
+  out[2] = a[2] / b[2];
+  return out;
+}
+function ceil(out, a) {
+  out[0] = Math.ceil(a[0]);
+  out[1] = Math.ceil(a[1]);
+  out[2] = Math.ceil(a[2]);
+  return out;
+}
+function floor(out, a) {
+  out[0] = Math.floor(a[0]);
+  out[1] = Math.floor(a[1]);
+  out[2] = Math.floor(a[2]);
+  return out;
+}
+function min(out, a, b) {
+  out[0] = Math.min(a[0], b[0]);
+  out[1] = Math.min(a[1], b[1]);
+  out[2] = Math.min(a[2], b[2]);
+  return out;
+}
+function max(out, a, b) {
+  out[0] = Math.max(a[0], b[0]);
+  out[1] = Math.max(a[1], b[1]);
+  out[2] = Math.max(a[2], b[2]);
+  return out;
+}
+function round(out, a) {
+  out[0] = Math.round(a[0]);
+  out[1] = Math.round(a[1]);
+  out[2] = Math.round(a[2]);
+  return out;
+}
+function scale2(out, a, b) {
+  out[0] = a[0] * b;
+  out[1] = a[1] * b;
+  out[2] = a[2] * b;
+  return out;
+}
+function scaleAndAdd(out, a, b, scale3) {
+  out[0] = a[0] + b[0] * scale3;
+  out[1] = a[1] + b[1] * scale3;
+  out[2] = a[2] + b[2] * scale3;
+  return out;
+}
+function distance(a, b) {
+  var x = b[0] - a[0];
+  var y = b[1] - a[1];
+  var z = b[2] - a[2];
+  return Math.hypot(x, y, z);
+}
+function squaredDistance(a, b) {
+  var x = b[0] - a[0];
+  var y = b[1] - a[1];
+  var z = b[2] - a[2];
+  return x * x + y * y + z * z;
+}
+function squaredLength(a) {
+  var x = a[0];
+  var y = a[1];
+  var z = a[2];
+  return x * x + y * y + z * z;
+}
+function negate(out, a) {
+  out[0] = -a[0];
+  out[1] = -a[1];
+  out[2] = -a[2];
+  return out;
+}
+function inverse(out, a) {
+  out[0] = 1 / a[0];
+  out[1] = 1 / a[1];
+  out[2] = 1 / a[2];
+  return out;
+}
+function normalize(out, a) {
+  var x = a[0];
+  var y = a[1];
+  var z = a[2];
+  var len2 = x * x + y * y + z * z;
+  if (len2 > 0) {
+    len2 = 1 / Math.sqrt(len2);
+  }
+  out[0] = a[0] * len2;
+  out[1] = a[1] * len2;
+  out[2] = a[2] * len2;
+  return out;
+}
+function dot(a, b) {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+function cross(out, a, b) {
+  var ax = a[0], ay = a[1], az = a[2];
+  var bx = b[0], by = b[1], bz = b[2];
+  out[0] = ay * bz - az * by;
+  out[1] = az * bx - ax * bz;
+  out[2] = ax * by - ay * bx;
+  return out;
+}
+function lerp(out, a, b, t) {
+  var ax = a[0];
+  var ay = a[1];
+  var az = a[2];
+  out[0] = ax + t * (b[0] - ax);
+  out[1] = ay + t * (b[1] - ay);
+  out[2] = az + t * (b[2] - az);
+  return out;
+}
+function hermite(out, a, b, c, d, t) {
+  var factorTimes2 = t * t;
+  var factor1 = factorTimes2 * (2 * t - 3) + 1;
+  var factor2 = factorTimes2 * (t - 2) + t;
+  var factor3 = factorTimes2 * (t - 1);
+  var factor4 = factorTimes2 * (3 - 2 * t);
+  out[0] = a[0] * factor1 + b[0] * factor2 + c[0] * factor3 + d[0] * factor4;
+  out[1] = a[1] * factor1 + b[1] * factor2 + c[1] * factor3 + d[1] * factor4;
+  out[2] = a[2] * factor1 + b[2] * factor2 + c[2] * factor3 + d[2] * factor4;
+  return out;
+}
+function bezier(out, a, b, c, d, t) {
+  var inverseFactor = 1 - t;
+  var inverseFactorTimesTwo = inverseFactor * inverseFactor;
+  var factorTimes2 = t * t;
+  var factor1 = inverseFactorTimesTwo * inverseFactor;
+  var factor2 = 3 * t * inverseFactorTimesTwo;
+  var factor3 = 3 * factorTimes2 * inverseFactor;
+  var factor4 = factorTimes2 * t;
+  out[0] = a[0] * factor1 + b[0] * factor2 + c[0] * factor3 + d[0] * factor4;
+  out[1] = a[1] * factor1 + b[1] * factor2 + c[1] * factor3 + d[1] * factor4;
+  out[2] = a[2] * factor1 + b[2] * factor2 + c[2] * factor3 + d[2] * factor4;
+  return out;
+}
+function random(out, scale3) {
+  scale3 = scale3 || 1;
+  var r = RANDOM() * 2 * Math.PI;
+  var z = RANDOM() * 2 - 1;
+  var zScale = Math.sqrt(1 - z * z) * scale3;
+  out[0] = Math.cos(r) * zScale;
+  out[1] = Math.sin(r) * zScale;
+  out[2] = z * scale3;
+  return out;
+}
+function transformMat4(out, a, m) {
+  var x = a[0], y = a[1], z = a[2];
+  var w = m[3] * x + m[7] * y + m[11] * z + m[15];
+  w = w || 1;
+  out[0] = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w;
+  out[1] = (m[1] * x + m[5] * y + m[9] * z + m[13]) / w;
+  out[2] = (m[2] * x + m[6] * y + m[10] * z + m[14]) / w;
+  return out;
+}
+function transformMat3(out, a, m) {
+  var x = a[0], y = a[1], z = a[2];
+  out[0] = x * m[0] + y * m[3] + z * m[6];
+  out[1] = x * m[1] + y * m[4] + z * m[7];
+  out[2] = x * m[2] + y * m[5] + z * m[8];
+  return out;
+}
+function transformQuat(out, a, q) {
+  var qx = q[0], qy = q[1], qz = q[2], qw = q[3];
+  var x = a[0], y = a[1], z = a[2];
+  var uvx = qy * z - qz * y, uvy = qz * x - qx * z, uvz = qx * y - qy * x;
+  var uuvx = qy * uvz - qz * uvy, uuvy = qz * uvx - qx * uvz, uuvz = qx * uvy - qy * uvx;
+  var w2 = qw * 2;
+  uvx *= w2;
+  uvy *= w2;
+  uvz *= w2;
+  uuvx *= 2;
+  uuvy *= 2;
+  uuvz *= 2;
+  out[0] = x + uvx + uuvx;
+  out[1] = y + uvy + uuvy;
+  out[2] = z + uvz + uuvz;
+  return out;
+}
+function rotateX2(out, a, b, rad) {
+  var p = [], r = [];
+  p[0] = a[0] - b[0];
+  p[1] = a[1] - b[1];
+  p[2] = a[2] - b[2];
+  r[0] = p[0];
+  r[1] = p[1] * Math.cos(rad) - p[2] * Math.sin(rad);
+  r[2] = p[1] * Math.sin(rad) + p[2] * Math.cos(rad);
+  out[0] = r[0] + b[0];
+  out[1] = r[1] + b[1];
+  out[2] = r[2] + b[2];
+  return out;
+}
+function rotateY2(out, a, b, rad) {
+  var p = [], r = [];
+  p[0] = a[0] - b[0];
+  p[1] = a[1] - b[1];
+  p[2] = a[2] - b[2];
+  r[0] = p[2] * Math.sin(rad) + p[0] * Math.cos(rad);
+  r[1] = p[1];
+  r[2] = p[2] * Math.cos(rad) - p[0] * Math.sin(rad);
+  out[0] = r[0] + b[0];
+  out[1] = r[1] + b[1];
+  out[2] = r[2] + b[2];
+  return out;
+}
+function rotateZ2(out, a, b, rad) {
+  var p = [], r = [];
+  p[0] = a[0] - b[0];
+  p[1] = a[1] - b[1];
+  p[2] = a[2] - b[2];
+  r[0] = p[0] * Math.cos(rad) - p[1] * Math.sin(rad);
+  r[1] = p[0] * Math.sin(rad) + p[1] * Math.cos(rad);
+  r[2] = p[2];
+  out[0] = r[0] + b[0];
+  out[1] = r[1] + b[1];
+  out[2] = r[2] + b[2];
+  return out;
+}
+function angle(a, b) {
+  var ax = a[0], ay = a[1], az = a[2], bx = b[0], by = b[1], bz = b[2], mag1 = Math.sqrt(ax * ax + ay * ay + az * az), mag2 = Math.sqrt(bx * bx + by * by + bz * bz), mag = mag1 * mag2, cosine = mag && dot(a, b) / mag;
+  return Math.acos(Math.min(Math.max(cosine, -1), 1));
+}
+function zero(out) {
+  out[0] = 0;
+  out[1] = 0;
+  out[2] = 0;
+  return out;
+}
+function str2(a) {
+  return "vec3(" + a[0] + ", " + a[1] + ", " + a[2] + ")";
+}
+function exactEquals2(a, b) {
+  return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+}
+function equals2(a, b) {
+  var a0 = a[0], a1 = a[1], a2 = a[2];
+  var b0 = b[0], b1 = b[1], b2 = b[2];
+  return Math.abs(a0 - b0) <= EPSILON * Math.max(1, Math.abs(a0), Math.abs(b0)) && Math.abs(a1 - b1) <= EPSILON * Math.max(1, Math.abs(a1), Math.abs(b1)) && Math.abs(a2 - b2) <= EPSILON * Math.max(1, Math.abs(a2), Math.abs(b2));
+}
+var sub2 = subtract2;
+var mul2 = multiply2;
+var div = divide;
+var dist = distance;
+var sqrDist = squaredDistance;
+var len = length;
+var sqrLen = squaredLength;
+var forEach = function() {
+  var vec = create2();
+  return function(a, stride, offset, count, fn, arg) {
+    var i, l;
+    if (!stride) {
+      stride = 3;
+    }
+    if (!offset) {
+      offset = 0;
+    }
+    if (count) {
+      l = Math.min(count * stride + offset, a.length);
+    } else {
+      l = a.length;
+    }
+    for (i = offset; i < l; i += stride) {
+      vec[0] = a[i];
+      vec[1] = a[i + 1];
+      vec[2] = a[i + 2];
+      fn(vec, vec, arg);
+      a[i] = vec[0];
+      a[i + 1] = vec[1];
+      a[i + 2] = vec[2];
+    }
+    return a;
+  };
+}();
 
 // ts/classes/util/math/matrix4.ts
 function m4() {
@@ -7479,11 +7865,11 @@ var Matrix4 = class _Matrix4 {
     );
     return this;
   }
-  rotateAxis(angle, axis) {
+  rotateAxis(angle2, axis) {
     mat4_exports.rotate(
       this.mat4,
       this.mat4,
-      angle,
+      angle2,
       [[1, 0, 0], [0, 1, 0], [0, 0, 1]][axis]
     );
     return this;
@@ -7601,8 +7987,8 @@ var Quaternion = class _Quaternion {
   static f(x, y = x, z = x, w = 1) {
     return new _Quaternion(x, y, z, w);
   }
-  setAxisAngle(axis, angle) {
-    const halfAngle = angle * 0.5;
+  setAxisAngle(axis, angle2) {
+    const halfAngle = angle2 * 0.5;
     const s = Math.sin(halfAngle);
     this.x = axis.x * s;
     this.y = axis.y * s;
@@ -7654,8 +8040,8 @@ var Transform = class {
     return Quaternion.fromMatrix(this.getWorldMatrix());
   }
   // Scale methods
-  setScale(scale2) {
-    this._localScale = scale2;
+  setScale(scale3) {
+    this._localScale = scale3;
     this._isDirty = true;
   }
   // Anchor point methods
@@ -7831,9 +8217,11 @@ var SceneObject = class {
       this.shaderManager.setUniform("u_material.emissive", new Float32Array(this.material.emissive.vec));
       this.shaderManager.setUniform("u_material.hasAlbedoMap", this.material.albedoMap ? 1 : 0);
       this.shaderManager.setUniform("u_material.hasNormalMap", this.material.normalMap ? 1 : 0);
-      this.shaderManager.setUniform("u_material.hasMetallicRoughnessMap", this.material.metallicRoughnessMap ? 1 : 0);
+      this.shaderManager.setUniform("u_material.hasMetallicMap", this.material.metallicMap ? 1 : 0);
+      this.shaderManager.setUniform("u_material.hasRoughnessMap", this.material.roughnessMap ? 1 : 0);
       this.shaderManager.setUniform("u_material.hasAoMap", this.material.aoMap ? 1 : 0);
       this.shaderManager.setUniform("u_material.hasEmissiveMap", this.material.emissiveMap ? 1 : 0);
+      this.shaderManager.setUniform("u_material.hasEmissiveStrengthMap", this.material.emissiveStrengthMap ? 1 : 0);
       if (this.material.albedoMap) {
         glob.ctx.activeTexture(glob.ctx.TEXTURE0);
         glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.albedoMap);
@@ -7844,20 +8232,30 @@ var SceneObject = class {
         glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.normalMap);
         this.shaderManager.setUniform("u_material.normalMap", 1);
       }
-      if (this.material.metallicRoughnessMap) {
+      if (this.material.metallicMap) {
         glob.ctx.activeTexture(glob.ctx.TEXTURE2);
-        glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.metallicRoughnessMap);
-        this.shaderManager.setUniform("u_material.metallicRoughnessMap", 2);
+        glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.metallicMap);
+        this.shaderManager.setUniform("u_material.metallicMap", 2);
+      }
+      if (this.material.roughnessMap) {
+        glob.ctx.activeTexture(glob.ctx.TEXTURE3);
+        glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.roughnessMap);
+        this.shaderManager.setUniform("u_material.roughnessMap", 3);
       }
       if (this.material.aoMap) {
-        glob.ctx.activeTexture(glob.ctx.TEXTURE3);
+        glob.ctx.activeTexture(glob.ctx.TEXTURE4);
         glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.aoMap);
-        this.shaderManager.setUniform("u_material.aoMap", 3);
+        this.shaderManager.setUniform("u_material.aoMap", 4);
       }
       if (this.material.emissiveMap) {
-        glob.ctx.activeTexture(glob.ctx.TEXTURE4);
+        glob.ctx.activeTexture(glob.ctx.TEXTURE5);
         glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.emissiveMap);
-        this.shaderManager.setUniform("u_material.emissiveMap", 4);
+        this.shaderManager.setUniform("u_material.emissiveMap", 5);
+      }
+      if (this.material.emissiveStrengthMap) {
+        glob.ctx.activeTexture(glob.ctx.TEXTURE6);
+        glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.emissiveStrengthMap);
+        this.shaderManager.setUniform("u_material.emissiveStrengthMap", 6);
       }
     }
     this.vao.bind();
@@ -8019,9 +8417,11 @@ var _Material = class _Material {
     emissive = v3(0, 0, 0),
     albedoMap,
     normalMap,
-    metallicRoughnessMap,
+    metallicMap,
+    roughnessMap,
     aoMap,
-    emissiveMap
+    emissiveMap,
+    emissiveStrengthMap
   } = {}) {
     this.baseColor = baseColor;
     this.roughness = roughness;
@@ -8030,9 +8430,11 @@ var _Material = class _Material {
     this.emissive = emissive;
     this.albedoMap = albedoMap;
     this.normalMap = normalMap;
-    this.metallicRoughnessMap = metallicRoughnessMap;
+    this.metallicMap = metallicMap;
+    this.roughnessMap = roughnessMap;
     this.aoMap = aoMap;
     this.emissiveMap = emissiveMap;
+    this.emissiveStrengthMap = emissiveStrengthMap;
   }
   static library(name, color) {
     const material = new _Material(this._materials[name]);
@@ -8065,11 +8467,558 @@ _Material._materials = {
 };
 var Material = _Material;
 
+// ts/classes/webgl2/meshes/cone.ts
+var Cone = class extends BaseMesh {
+  static generateMeshData(sides = 32, smoothShading = true, colors) {
+    const vertices = [];
+    const indices = [];
+    const normals = [];
+    const generatedColors = [];
+    const texCoords = [];
+    const defaultColors = [
+      [0.8, 0.2, 0.2],
+      // sides
+      [0.2, 0.2, 0.8]
+      // bottom
+    ];
+    let [sideColor, bottomColor] = defaultColors;
+    if (colors) {
+      if (Array.isArray(colors[0])) {
+        [sideColor, bottomColor] = colors;
+      } else {
+        sideColor = bottomColor = colors;
+      }
+    }
+    if (smoothShading) {
+      vertices.push(0, 0.5, 0);
+      normals.push(0, 1, 0);
+      generatedColors.push(...sideColor);
+      texCoords.push(0.5, 1);
+      for (let i = 0; i <= sides; i++) {
+        const angle2 = i * Math.PI * 2 / sides;
+        const x = Math.cos(angle2);
+        const z = Math.sin(angle2);
+        vertices.push(x * 0.5, -0.5, z * 0.5);
+        const dx = x * 0.5;
+        const dy = -0.5;
+        const dz = z * 0.5;
+        const length2 = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        normals.push(dx / length2, dy / length2, dz / length2);
+        generatedColors.push(...sideColor);
+        texCoords.push(i / sides, 0);
+      }
+      for (let i = 0; i < sides; i++) {
+        indices.push(
+          0,
+          // apex
+          i + 2,
+          // next base vertex
+          i + 1
+          // current base vertex
+        );
+      }
+    } else {
+      for (let i = 0; i < sides; i++) {
+        const angle1 = i * Math.PI * 2 / sides;
+        const angle2 = (i + 1) * Math.PI * 2 / sides;
+        const x1 = Math.cos(angle1) * 0.5;
+        const z1 = Math.sin(angle1) * 0.5;
+        const x2 = Math.cos(angle2) * 0.5;
+        const z2 = Math.sin(angle2) * 0.5;
+        vertices.push(
+          0,
+          0.5,
+          0,
+          // apex
+          x1,
+          -0.5,
+          z1,
+          // base point 1
+          x2,
+          -0.5,
+          z2
+          // base point 2
+        );
+        const v1x = x1;
+        const v1y = -1;
+        const v1z = z1;
+        const v2x = x2;
+        const v2y = -1;
+        const v2z = z2;
+        const nx = v2y * v1z - v2z * v1y;
+        const ny = v2z * v1x - v2x * v1z;
+        const nz = v2x * v1y - v2y * v1x;
+        const length2 = Math.sqrt(nx * nx + ny * ny + nz * nz);
+        const normalX = nx / length2;
+        const normalY = ny / length2;
+        const normalZ = nz / length2;
+        for (let j = 0; j < 3; j++) {
+          normals.push(normalX, normalY, normalZ);
+          generatedColors.push(...sideColor);
+        }
+        texCoords.push(
+          0.5,
+          1,
+          i / sides,
+          0,
+          (i + 1) / sides,
+          0
+        );
+        const baseIndex = i * 3;
+        indices.push(baseIndex, baseIndex + 2, baseIndex + 1);
+      }
+    }
+    const baseVertexCount = vertices.length / 3;
+    vertices.push(0, -0.5, 0);
+    normals.push(0, -1, 0);
+    generatedColors.push(...bottomColor);
+    texCoords.push(0.5, 0.5);
+    for (let i = 0; i < sides; i++) {
+      const angle1 = i * Math.PI * 2 / sides;
+      const angle2 = (i + 1) * Math.PI * 2 / sides;
+      const x1 = Math.cos(angle1) * 0.5;
+      const z1 = Math.sin(angle1) * 0.5;
+      const x2 = Math.cos(angle2) * 0.5;
+      const z2 = Math.sin(angle2) * 0.5;
+      vertices.push(
+        x1,
+        -0.5,
+        z1,
+        x2,
+        -0.5,
+        z2
+      );
+      normals.push(0, -1, 0, 0, -1, 0);
+      generatedColors.push(...bottomColor, ...bottomColor);
+      texCoords.push(
+        x1 + 0.5,
+        z1 + 0.5,
+        x2 + 0.5,
+        z2 + 0.5
+      );
+      const offset = baseVertexCount + 1 + i * 2;
+      indices.push(
+        baseVertexCount,
+        // center
+        offset,
+        // current point
+        offset + 1
+        // next point
+      );
+    }
+    return {
+      vertices: new Float32Array(vertices),
+      indices: new Uint16Array(indices),
+      normals: new Float32Array(normals),
+      colors: new Float32Array(generatedColors),
+      texCoords: new Float32Array(texCoords)
+    };
+  }
+  static create(props = {}) {
+    var _a;
+    if (!props.material && props.colors) {
+      let baseColor;
+      if (Array.isArray(props.colors) && Array.isArray(props.colors[0])) {
+        const firstColor = props.colors[0];
+        baseColor = v3(firstColor[0], firstColor[1], firstColor[2]);
+      } else {
+        const singleColor = props.colors;
+        baseColor = v3(singleColor[0], singleColor[1], singleColor[2]);
+      }
+      props = __spreadProps(__spreadValues({}, props), {
+        material: new Material({
+          baseColor,
+          roughness: 0.5,
+          metallic: 0,
+          ambientOcclusion: 1,
+          emissive: v3(0, 0, 0)
+        })
+      });
+    }
+    const meshData = this.generateMeshData(
+      props.sides || 32,
+      (_a = props.smoothShading) != null ? _a : true,
+      props.colors
+    );
+    return this.createSceneObject(meshData, props);
+  }
+};
+
+// ts/classes/webgl2/meshes/cylinder.ts
+var Cylinder = class extends BaseMesh {
+  static generateMeshData(sides = 32, smoothShading = true, colors) {
+    const vertices = [];
+    const indices = [];
+    const normals = [];
+    const generatedColors = [];
+    const texCoords = [];
+    const defaultColors = [
+      [0.8, 0.2, 0.2],
+      // sides
+      [0.2, 0.2, 0.8],
+      // top
+      [0.8, 0.8, 0.2]
+      // bottom
+    ];
+    let [sideColor, topColor, bottomColor] = defaultColors;
+    if (colors) {
+      if (Array.isArray(colors[0])) {
+        [sideColor, topColor, bottomColor] = colors;
+      } else {
+        sideColor = topColor = bottomColor = colors;
+      }
+    }
+    if (smoothShading) {
+      for (let i = 0; i <= sides; i++) {
+        const angle2 = i * Math.PI * 2 / sides;
+        const x = Math.cos(angle2);
+        const z = Math.sin(angle2);
+        vertices.push(x * 0.5, 0.5, z * 0.5);
+        vertices.push(x * 0.5, -0.5, z * 0.5);
+        normals.push(x, 0, z);
+        normals.push(x, 0, z);
+        generatedColors.push(...sideColor);
+        generatedColors.push(...sideColor);
+        texCoords.push(i / sides, 1);
+        texCoords.push(i / sides, 0);
+      }
+      for (let i = 0; i < sides; i++) {
+        const topFirst = i * 2;
+        const bottomFirst = topFirst + 1;
+        const topSecond = (i + 1) * 2;
+        const bottomSecond = topSecond + 1;
+        indices.push(topFirst, topSecond, bottomFirst);
+        indices.push(bottomFirst, topSecond, bottomSecond);
+      }
+      const sideVertexCount = vertices.length / 3;
+      vertices.push(0, 0.5, 0);
+      vertices.push(0, -0.5, 0);
+      normals.push(0, 1, 0);
+      normals.push(0, -1, 0);
+      generatedColors.push(...topColor, ...bottomColor);
+      texCoords.push(0.5, 0.5, 0.5, 0.5);
+      const topCenterIndex = sideVertexCount;
+      const bottomCenterIndex = sideVertexCount + 1;
+      for (let i = 0; i < sides; i++) {
+        const angle1 = i * Math.PI * 2 / sides;
+        const angle2 = (i + 1) * Math.PI * 2 / sides;
+        const x1 = Math.cos(angle1) * 0.5;
+        const z1 = Math.sin(angle1) * 0.5;
+        const x2 = Math.cos(angle2) * 0.5;
+        const z2 = Math.sin(angle2) * 0.5;
+        vertices.push(
+          x1,
+          0.5,
+          z1,
+          // Top cap point 1
+          x2,
+          0.5,
+          z2,
+          // Top cap point 2
+          x1,
+          -0.5,
+          z1,
+          // Bottom cap point 1
+          x2,
+          -0.5,
+          z2
+          // Bottom cap point 2
+        );
+        normals.push(
+          0,
+          1,
+          0,
+          // Top cap normal
+          0,
+          1,
+          0,
+          // Top cap normal
+          0,
+          -1,
+          0,
+          // Bottom cap normal
+          0,
+          -1,
+          0
+          // Bottom cap normal
+        );
+        generatedColors.push(
+          ...topColor,
+          ...topColor,
+          ...bottomColor,
+          ...bottomColor
+          // Bottom cap colors
+        );
+        texCoords.push(
+          x1 + 0.5,
+          z1 + 0.5,
+          // Top cap first point
+          x2 + 0.5,
+          z2 + 0.5,
+          // Top cap second point
+          x1 + 0.5,
+          z1 + 0.5,
+          // Bottom cap first point
+          x2 + 0.5,
+          z2 + 0.5
+          // Bottom cap second point
+        );
+        const topSegmentStart = sideVertexCount + 2 + i * 4;
+        const bottomSegmentStart = topSegmentStart + 2;
+        indices.push(
+          topCenterIndex,
+          // Top center
+          topSegmentStart,
+          // Top current point
+          topSegmentStart + 1,
+          // Top next point
+          bottomCenterIndex,
+          // Bottom center
+          bottomSegmentStart,
+          // Bottom current point
+          bottomSegmentStart + 1
+          // Bottom next point
+        );
+      }
+    } else {
+      for (let i = 0; i < sides; i++) {
+        const angle1 = i * Math.PI * 2 / sides;
+        const angle2 = (i + 1) * Math.PI * 2 / sides;
+        const x1 = Math.cos(angle1);
+        const z1 = Math.sin(angle1);
+        const x2 = Math.cos(angle2);
+        const z2 = Math.sin(angle2);
+        vertices.push(
+          x1 * 0.5,
+          0.5,
+          z1 * 0.5,
+          // top-left
+          x2 * 0.5,
+          0.5,
+          z2 * 0.5,
+          // top-right
+          x1 * 0.5,
+          -0.5,
+          z1 * 0.5,
+          // bottom-left
+          x1 * 0.5,
+          -0.5,
+          z1 * 0.5,
+          // bottom-left
+          x2 * 0.5,
+          0.5,
+          z2 * 0.5,
+          // top-right
+          x2 * 0.5,
+          -0.5,
+          z2 * 0.5
+          // bottom-right
+        );
+        const nx = (x1 + x2) / 2;
+        const nz = (z1 + z2) / 2;
+        const length2 = Math.sqrt(nx * nx + nz * nz);
+        const normalX = nx / length2;
+        const normalZ = nz / length2;
+        for (let j = 0; j < 6; j++) {
+          normals.push(normalX, 0, normalZ);
+          generatedColors.push(...sideColor);
+        }
+        texCoords.push(
+          i / sides,
+          1,
+          (i + 1) / sides,
+          1,
+          i / sides,
+          0,
+          i / sides,
+          0,
+          (i + 1) / sides,
+          1,
+          (i + 1) / sides,
+          0
+        );
+        const baseIndex = i * 6;
+        indices.push(
+          baseIndex,
+          baseIndex + 1,
+          baseIndex + 2,
+          baseIndex + 3,
+          baseIndex + 4,
+          baseIndex + 5
+        );
+      }
+      const sideVertexCount = vertices.length / 3;
+      vertices.push(0, 0.5, 0);
+      vertices.push(0, -0.5, 0);
+      normals.push(0, 1, 0);
+      normals.push(0, -1, 0);
+      generatedColors.push(...topColor, ...bottomColor);
+      texCoords.push(0.5, 0.5, 0.5, 0.5);
+      const topCenterIndex = sideVertexCount;
+      const bottomCenterIndex = sideVertexCount + 1;
+      for (let i = 0; i < sides; i++) {
+        const angle1 = i * Math.PI * 2 / sides;
+        const angle2 = (i + 1) * Math.PI * 2 / sides;
+        const x1 = Math.cos(angle1) * 0.5;
+        const z1 = Math.sin(angle1) * 0.5;
+        const x2 = Math.cos(angle2) * 0.5;
+        const z2 = Math.sin(angle2) * 0.5;
+        vertices.push(
+          x1,
+          0.5,
+          z1,
+          x2,
+          0.5,
+          z2
+        );
+        normals.push(0, 1, 0, 0, 1, 0);
+        generatedColors.push(...topColor, ...topColor);
+        texCoords.push(
+          x1 + 0.5,
+          z1 + 0.5,
+          x2 + 0.5,
+          z2 + 0.5
+        );
+        const topOffset = sideVertexCount + 2 + i * 4;
+        indices.push(
+          topCenterIndex,
+          // center
+          topOffset + 1,
+          // next point
+          topOffset
+          // current point
+        );
+        vertices.push(
+          x1,
+          -0.5,
+          z1,
+          x2,
+          -0.5,
+          z2
+        );
+        normals.push(0, -1, 0, 0, -1, 0);
+        generatedColors.push(...bottomColor, ...bottomColor);
+        texCoords.push(
+          x1 + 0.5,
+          z1 + 0.5,
+          x2 + 0.5,
+          z2 + 0.5
+        );
+        const bottomOffset = topOffset + 2;
+        indices.push(
+          bottomCenterIndex,
+          // center
+          bottomOffset,
+          // current point
+          bottomOffset + 1
+          // next point
+        );
+      }
+    }
+    return {
+      vertices: new Float32Array(vertices),
+      indices: new Uint16Array(indices),
+      normals: new Float32Array(normals),
+      colors: new Float32Array(generatedColors),
+      texCoords: new Float32Array(texCoords)
+    };
+  }
+  static create(props = {}) {
+    var _a;
+    if (!props.material && props.colors) {
+      let baseColor;
+      if (Array.isArray(props.colors) && Array.isArray(props.colors[0])) {
+        const firstColor = props.colors[0];
+        baseColor = v3(firstColor[0], firstColor[1], firstColor[2]);
+      } else {
+        const singleColor = props.colors;
+        baseColor = v3(singleColor[0], singleColor[1], singleColor[2]);
+      }
+      props = __spreadProps(__spreadValues({}, props), {
+        material: new Material({
+          baseColor,
+          roughness: 0.5,
+          metallic: 0,
+          ambientOcclusion: 1,
+          emissive: v3(0, 0, 0)
+        })
+      });
+    }
+    const meshData = this.generateMeshData(props.sides || 32, (_a = props.smoothShading) != null ? _a : true, props.colors);
+    return this.createSceneObject(meshData, props);
+  }
+};
+
+// ts/classes/webgl2/meshes/arrow.ts
+var Arrow = class extends ContainerObject {
+  constructor(scene, props = {}) {
+    super(props);
+    this.props = __spreadValues({
+      position: v3(0, 0, 0),
+      shaftRadius: 0.5,
+      headLength: 0.5,
+      headRadius: 2,
+      sides: 4,
+      smoothShading: false,
+      shaftColor: [1, 1, 1],
+      headColor: [1, 1, 1]
+    }, props);
+    if (props.parent) {
+      this.transform.setParent(props.parent.transform);
+    }
+    const shaftLength = this.props.length - this.props.headLength;
+    scene.add(this.shaft = Cylinder.create({
+      position: v3(0, shaftLength / 2, 0),
+      scale: v3(this.props.shaftRadius, shaftLength, this.props.shaftRadius),
+      colors: this.props.shaftColor,
+      sides: this.props.sides,
+      smoothShading: this.props.smoothShading,
+      parent: this,
+      ignoreLighting: this.props.ignoreLighting,
+      pickColor: this.props.pickColor
+    }));
+    scene.add(this.head = Cone.create({
+      position: v3(0, shaftLength + this.props.headLength / 2, 0),
+      scale: v3(this.props.headRadius, this.props.headLength, this.props.headRadius),
+      colors: this.props.headColor,
+      smoothShading: this.props.smoothShading,
+      sides: this.props.sides,
+      parent: this,
+      ignoreLighting: this.props.ignoreLighting,
+      pickColor: this.props.pickColor
+    }));
+    this.setLength(this.props.length);
+    if (this.props.lookAt) {
+      this.lookAt(this.props.lookAt);
+    }
+  }
+  setLength(length2) {
+    let shaftLength = length2 - this.props.headLength;
+    let headLength = this.props.headLength;
+    if (shaftLength < 0) {
+      headLength = length2;
+      shaftLength = 0;
+    }
+    this.shaft.transform.setPosition(v3(0, shaftLength / 2, 0));
+    this.shaft.transform.setScale(v3(this.props.shaftRadius, shaftLength, this.props.shaftRadius));
+    this.head.transform.setPosition(v3(0, shaftLength + headLength / 2, 0));
+    this.head.transform.setScale(v3(this.props.headRadius, headLength, this.props.headRadius));
+  }
+  lookAt(target) {
+    const position = this.transform.getWorldPosition();
+    const direction = target.subtract(position).normalize();
+    const defaultDir = v3(0, 1, 0);
+    const rotationAxis = defaultDir.cross(direction).scale(-1).normalize();
+    const angle2 = Math.acos(defaultDir.y * direction.y + defaultDir.x * direction.x + defaultDir.z * direction.z);
+    this.transform.setRotation(new Quaternion().setAxisAngle(rotationAxis, angle2));
+  }
+};
+
 // ts/classes/webgl2/meshes/icoSphere.ts
 var _IcoSphere = class _IcoSphere extends BaseMesh {
   static normalize(v) {
-    const length = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-    return [v[0] / length, v[1] / length, v[2] / length];
+    const length2 = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    return [v[0] / length2, v[1] / length2, v[2] / length2];
   }
   static midpoint(v1, v22) {
     return this.normalize([
@@ -8418,6 +9367,60 @@ var AmbientLight = class extends Light {
     this.type = 0 /* AMBIENT */;
   }
 };
+var DirectionalLight = class extends Light {
+  constructor({
+    direction = v3(0, -1, 0),
+    color = v3(1, 1, 1),
+    intensity = 1,
+    enabled = true
+  } = {}) {
+    super({ color, intensity, enabled });
+    this.direction = direction.normalize();
+    this.type = 1 /* DIRECTIONAL */;
+    this.shadowMap = new ShadowMap(glob.ctx, 4096);
+    this.lightProjection = new Matrix4().ortho(
+      -20,
+      20,
+      // left, right
+      -20,
+      20,
+      // bottom, top
+      0.1,
+      200
+      // near, far
+    );
+  }
+  getData() {
+    return __spreadProps(__spreadValues({}, super.getData()), {
+      direction: this.direction
+    });
+  }
+  getDirection() {
+    return this.direction;
+  }
+  setDirection(direction) {
+    this.direction = direction.normalize();
+  }
+  getLightSpaceMatrix() {
+    const lightView = Matrix4.lookAt(
+      this.direction.scale(-10),
+      // Position light far enough away in opposite direction
+      v3(0, 0, 0)
+      // Look at scene center
+    );
+    return this.lightProjection.multiply(lightView);
+  }
+  getShadowMap() {
+    return this.shadowMap;
+  }
+  lookAt(from, target) {
+    const direction = target.subtract(from).normalize();
+    const defaultDir = v3(0, -1, 0);
+    const rotationAxis = defaultDir.cross(direction).normalize();
+    const angle2 = Math.acos(defaultDir.y * direction.y + defaultDir.x * direction.x + defaultDir.z * direction.z);
+    this.direction = new Quaternion().setAxisAngle(rotationAxis, angle2).toEuler();
+  }
+};
 var PointLight = class extends Light {
   constructor({
     position = v3(0, 0, 0),
@@ -8502,6 +9505,99 @@ var PointLight = class extends Light {
   }
   getShadowMap() {
     return this.shadowMap;
+  }
+};
+var SpotLight = class extends PointLight {
+  constructor({
+    position = v3(0, 0, 0),
+    direction = v3(0, -1, 0),
+    color = v3(1, 1, 1),
+    intensity = 8,
+    // Increased intensity for PBR
+    cutOff = Math.cos(Math.PI / 6),
+    // 30 degrees
+    outerCutOff = Math.cos(Math.PI / 4),
+    // 45 degrees
+    meshContainer,
+    enabled = true,
+    lookAt: lookAt2
+  } = {}) {
+    super({
+      position,
+      color,
+      intensity,
+      attenuation: {
+        constant: 1,
+        linear: 0.22,
+        quadratic: 0.2
+      },
+      meshContainer,
+      enabled
+    });
+    this.rotation = new Quaternion();
+    this.cutOff = cutOff;
+    this.outerCutOff = outerCutOff;
+    this.type = 3 /* SPOT */;
+    if (this.mesh) {
+      this.arrow = new Arrow(meshContainer, {
+        shaftColor: [color.x * 0.8, color.y * 0.8, color.z * 0.8],
+        headColor: [color.x, color.y, color.z],
+        length: 0.5,
+        shaftRadius: 0.05,
+        headLength: 0.15,
+        headRadius: 0.12,
+        sides: 8,
+        position: this.position,
+        rotation: this.rotation,
+        lookAt: v3(0, 0, 0),
+        ignoreLighting: true,
+        pickColor: -1
+      });
+    }
+    if (direction && !lookAt2) {
+      this.lookAt(position.add(direction));
+    }
+    if (lookAt2) {
+      this.lookAt(lookAt2);
+    }
+  }
+  getData() {
+    const defaultDir = v3(0, -1, 0);
+    const direction = defaultDir.applyQuaternion(this.rotation);
+    return __spreadProps(__spreadValues({}, super.getData()), {
+      direction,
+      cutOff: this.cutOff,
+      outerCutOff: this.outerCutOff
+    });
+  }
+  lookAt(target) {
+    const direction = target.subtract(this.position).normalize();
+    const defaultDir = v3(0, -1, 0);
+    const rotationAxis = defaultDir.cross(direction).normalize();
+    const angle2 = Math.acos(defaultDir.y * direction.y + defaultDir.x * direction.x + defaultDir.z * direction.z);
+    this.rotation = new Quaternion().setAxisAngle(rotationAxis, angle2);
+    if (this.arrow) {
+      this.arrow.lookAt(target);
+    }
+  }
+  setPosition(x, y, z) {
+    if (typeof x === "number") {
+      super.setPosition(v3(x, y, z));
+    } else {
+      super.setPosition(x);
+    }
+    if (this.arrow) {
+      this.arrow.transform.setPosition(super.getPosition());
+    }
+  }
+  getPosition() {
+    return this.position;
+  }
+  getRotation() {
+    return this.rotation.clone();
+  }
+  setRotation(rotation) {
+    this.rotation = rotation;
   }
 };
 
@@ -8946,12 +10042,15 @@ var FBXLoader = class extends BaseMesh {
     const uvIndexNode = layerElementUV == null ? void 0 : layerElementUV.nodes.find((n) => n.name === "UVIndex");
     const uvs = (uvsNode == null ? void 0 : uvsNode.props[0]) || [];
     const uvIndices = (uvIndexNode == null ? void 0 : uvIndexNode.props[0]) || indices;
-    const uvPairs = Util.duplicate(Util.chunk(uvs, 2), 1);
+    const uvPairs = Util.duplicate(
+      Util.chunk(uvs, 2).map(([u, v]) => [u, 1 - v]),
+      1
+    );
     const normalizeVector = (x, y, z) => {
-      const length = Math.sqrt(x * x + y * y + z * z);
-      if (length === 0)
+      const length2 = Math.sqrt(x * x + y * y + z * z);
+      if (length2 === 0)
         return [0, 1, 0];
-      return [x / length, y / length, z / length];
+      return [x / length2, y / length2, z / length2];
     };
     const transformVertex = (x, y, z) => {
       return [x, z, -y];
@@ -8960,6 +10059,8 @@ var FBXLoader = class extends BaseMesh {
     const flatNormals = [];
     const flatIndices = [];
     const flatTexCoords = [];
+    const flatTangents = [];
+    const flatBitangents = [];
     for (let i = 0; i < indices.length; i += 3) {
       const v1Index = indices[i] * 3;
       const v2Index = indices[i + 1] * 3;
@@ -8979,33 +10080,44 @@ var FBXLoader = class extends BaseMesh {
         vertices[v3Index + 1],
         vertices[v3Index + 2]
       );
-      const ax = v22[0] - v1[0];
-      const ay = v22[1] - v1[1];
-      const az = v22[2] - v1[2];
-      const bx = v32[0] - v1[0];
-      const by = v32[1] - v1[1];
-      const bz = v32[2] - v1[2];
+      const uv1 = uvPairs[uvIndices[i]];
+      const uv2 = uvPairs[uvIndices[i + 1]];
+      const uv3 = uvPairs[uvIndices[i + 2]];
+      const edge1 = [v22[0] - v1[0], v22[1] - v1[1], v22[2] - v1[2]];
+      const edge2 = [v32[0] - v1[0], v32[1] - v1[1], v32[2] - v1[2]];
       const normal = normalizeVector(
-        ay * bz - az * by,
-        az * bx - ax * bz,
-        ax * by - ay * bx
+        edge1[1] * edge2[2] - edge1[2] * edge2[1],
+        edge1[2] * edge2[0] - edge1[0] * edge2[2],
+        edge1[0] * edge2[1] - edge1[1] * edge2[0]
+      );
+      const deltaUV1 = [uv2[0] - uv1[0], uv2[1] - uv1[1]];
+      const deltaUV2 = [uv3[0] - uv1[0], uv3[1] - uv1[1]];
+      const f = 1 / (deltaUV1[0] * deltaUV2[1] - deltaUV2[0] * deltaUV1[1]);
+      const tangent = normalizeVector(
+        f * (deltaUV2[1] * edge1[0] - deltaUV1[1] * edge2[0]),
+        f * (deltaUV2[1] * edge1[1] - deltaUV1[1] * edge2[1]),
+        f * (deltaUV2[1] * edge1[2] - deltaUV1[1] * edge2[2])
+      );
+      const bitangent = normalizeVector(
+        f * (-deltaUV2[0] * edge1[0] + deltaUV1[0] * edge2[0]),
+        f * (-deltaUV2[0] * edge1[1] + deltaUV1[0] * edge2[1]),
+        f * (-deltaUV2[0] * edge1[2] + deltaUV1[0] * edge2[2])
       );
       const vertexCount = Math.floor(flatVertices.length / 3);
       flatVertices.push(...v1, ...v22, ...v32);
-      flatTexCoords.push(
-        ...uvPairs[uvIndices[i + 0]],
-        ...uvPairs[uvIndices[i + 1]],
-        ...uvPairs[uvIndices[i + 2]]
-      );
+      flatTexCoords.push(...uv1, ...uv2, ...uv3);
       flatNormals.push(...normal, ...normal, ...normal);
+      flatTangents.push(...tangent, ...tangent, ...tangent);
+      flatBitangents.push(...bitangent, ...bitangent, ...bitangent);
       flatIndices.push(vertexCount, vertexCount + 1, vertexCount + 2);
     }
     return {
       vertices: new Float32Array(flatVertices),
       indices: new Uint16Array(flatIndices),
       normals: new Float32Array(flatNormals),
-      texCoords: new Float32Array(flatTexCoords.map((v, i) => i % 2 !== 0 ? 1 - v : v))
-      // flip v 
+      texCoords: new Float32Array(flatTexCoords),
+      tangents: new Float32Array(flatTangents),
+      bitangents: new Float32Array(flatBitangents)
     };
   }
   static async parseMaterial(fbxMaterial, fbxData) {
@@ -9017,6 +10129,11 @@ var FBXLoader = class extends BaseMesh {
     let ambientOcclusion = 1;
     let emissive = v3(0, 0, 0);
     let albedoMap;
+    let metallicMap;
+    let roughnessMap;
+    let normalMap;
+    let emissiveMap;
+    let emissiveStrengthMap;
     const objectsNode = fbxData.find((node) => node.name === "Objects");
     const connectionsNode = fbxData.find((node) => node.name === "Connections");
     const textures = objectsNode.nodes.filter((n) => n.name === "Texture");
@@ -9044,6 +10161,21 @@ var FBXLoader = class extends BaseMesh {
             if ((textureName == null ? void 0 : textureName.toLowerCase().includes("diffuse")) || (textureName == null ? void 0 : textureName.toLowerCase().includes("base_color"))) {
               albedoMap = texture;
               baseColor = v3(1, 1, 1);
+            } else if ((textureName == null ? void 0 : textureName.toLowerCase().includes("metallic")) || (textureName == null ? void 0 : textureName.toLowerCase().includes("metalness"))) {
+              metallicMap = texture;
+              metallic = 1;
+            } else if (textureName == null ? void 0 : textureName.toLowerCase().includes("roughness")) {
+              roughnessMap = texture;
+              roughness = 1;
+            } else if ((textureName == null ? void 0 : textureName.toLowerCase().includes("normal")) || (textureName == null ? void 0 : textureName.toLowerCase().includes("bump"))) {
+              normalMap = texture;
+            } else if ((textureName == null ? void 0 : textureName.toLowerCase().includes("emission")) || (textureName == null ? void 0 : textureName.toLowerCase().includes("emissive"))) {
+              if (textureName == null ? void 0 : textureName.toLowerCase().includes("strength")) {
+                emissiveStrengthMap = texture;
+              } else {
+                emissiveMap = texture;
+                emissive = v3(1, 1, 1);
+              }
             }
           } catch (error) {
             console.error("Failed to load texture:", error);
@@ -9111,7 +10243,12 @@ var FBXLoader = class extends BaseMesh {
       metallic,
       ambientOcclusion,
       emissive,
-      albedoMap
+      albedoMap,
+      metallicMap,
+      roughnessMap,
+      normalMap,
+      emissiveMap,
+      emissiveStrengthMap
     });
   }
   // Helper function to create a texture from a file
@@ -9217,32 +10354,208 @@ var FBXLoader = class extends BaseMesh {
   }
 };
 
+// ts/classes/webgl2/meshes/plane.ts
+var Plane = class extends BaseMesh {
+  static generateIndices(flipNormal) {
+    return new Uint16Array(
+      flipNormal ? [0, 1, 2, 2, 3, 0] : [0, 2, 1, 0, 3, 2]
+      // counter-clockwise winding for top visibility
+    );
+  }
+  static generateNormals(flipNormal) {
+    const normalY = flipNormal ? -1 : 1;
+    return new Float32Array([
+      0,
+      normalY,
+      0,
+      0,
+      normalY,
+      0,
+      0,
+      normalY,
+      0,
+      0,
+      normalY,
+      0
+    ]);
+  }
+  // Generate tangents for normal mapping
+  static generateTangents() {
+    return new Float32Array([
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0
+    ]);
+  }
+  // Generate bitangents for normal mapping
+  static generateBitangents(flipNormal) {
+    const bitangentZ = flipNormal ? -1 : 1;
+    return new Float32Array([
+      0,
+      0,
+      bitangentZ,
+      0,
+      0,
+      bitangentZ,
+      0,
+      0,
+      bitangentZ,
+      0,
+      0,
+      bitangentZ
+    ]);
+  }
+  static generateColors(material) {
+    const defaultColor = vec3_exports.fromValues(0.8, 0.8, 0.8);
+    const color = material ? material.baseColor.vec : defaultColor;
+    return new Float32Array([
+      color[0],
+      color[1],
+      color[2],
+      color[0],
+      color[1],
+      color[2],
+      color[0],
+      color[1],
+      color[2],
+      color[0],
+      color[1],
+      color[2]
+    ]);
+  }
+  static createMeshData(props = {}) {
+    const flipNormal = props.flipNormal || false;
+    return {
+      vertices: this.vertices,
+      indices: this.generateIndices(flipNormal),
+      normals: this.generateNormals(flipNormal),
+      texCoords: this.texCoords,
+      colors: this.generateColors(props.material),
+      tangents: this.generateTangents(),
+      bitangents: this.generateBitangents(flipNormal)
+    };
+  }
+  static create(props = {}) {
+    var _a, _b, _c, _d;
+    if (!props.material && !props.texture) {
+      props.material = new Material();
+    }
+    const meshData = this.createMeshData(props);
+    const sceneObject = this.createSceneObject(meshData, __spreadProps(__spreadValues({}, props), { scale: v3((_b = (_a = props.scale) == null ? void 0 : _a.x) != null ? _b : 1, 1, (_d = (_c = props.scale) == null ? void 0 : _c.y) != null ? _d : 1) }));
+    return sceneObject;
+  }
+};
+Plane.vertices = new Float32Array([
+  // Single face (square)
+  -0.5,
+  0,
+  -0.5,
+  // bottom-left
+  0.5,
+  0,
+  -0.5,
+  // bottom-right
+  0.5,
+  0,
+  0.5,
+  // top-right
+  -0.5,
+  0,
+  0.5
+  // top-left
+]);
+Plane.texCoords = new Float32Array([
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  0,
+  1
+]);
+
 // ts/classes/testLevel.ts
 var TestLevel = class extends Scene {
   constructor() {
     super(new Camera({ position: v3(0, 1, 6), target: v3(0, 0, 0), fov: 50 }), {
       ambientLightColor: v3(1, 1, 1),
-      ambientLightIntensity: 10
+      ambientLightIntensity: 0
     });
     this.clearColor = [0.01, 0.01, 0.01, 1];
     const rotation = new Quaternion();
     rotation.setAxisAngle(v3(1, 0, 0), 0);
+    this.add(Plane.create({
+      position: v3(0, -1, 0),
+      scale: v2(10, 10)
+    }));
+    this.addLight(new DirectionalLight({
+      //key
+      direction: v3(0.5, -3, -1).normalize(),
+      color: v3(1, 1, 1),
+      intensity: 5,
+      enabled: false
+    }));
+    this.addLight(new DirectionalLight({
+      //fill
+      direction: v3(0.5, -3, -1).normalize(),
+      color: v3(1, 1, 1),
+      intensity: 0.1,
+      enabled: true
+    }));
+    this.addLight(new DirectionalLight({
+      //back
+      direction: v3(-0.9, -0, 0.7).normalize(),
+      color: v3(1, 1, 1),
+      intensity: 6,
+      enabled: true
+    }));
+    this.addLight(new DirectionalLight({
+      //back
+      direction: v3(0.9, -0, 0.7).normalize(),
+      color: v3(1, 1, 1),
+      intensity: 1,
+      enabled: true
+    }));
+    this.addLight(this.spotLight = new SpotLight({
+      color: v3(1, 1, 1),
+      lookAt: v3(0, 2, 0),
+      intensity: 1,
+      cutOff: 0.94,
+      outerCutOff: 0.91,
+      enabled: true,
+      position: v3(0, 5, 2)
+    }));
     this.build();
-    this.camera.setPosition(v3(-1, 6, 1));
-    this.camera.setTarget(v3(-1, 0, 0));
+    this.camera.setPosition(v3(0, 1.3, 3));
+    this.camera.setTarget(v3(0, 1, 0));
+    this.click(v2(0, 0));
   }
   async build() {
     this.add(await FBXLoader.loadFromUrl("/fbx/cube.fbx", {
-      position: v3(0, 2, 0)
+      position: v3(0, 0, 0),
+      rotation: Quaternion.fromEuler(0, 0.7, 0)
     }));
   }
   click(vector2) {
+    super.click(vector2);
+    const pos2 = Vector3.screenToWorldPlane(vector2, this.camera, v3(0, 0, 1), 4);
+    if (pos2) {
+      this.spotLight.setPosition(pos2);
+      this.spotLight.lookAt(v3(0, 1.3, 0));
+    }
   }
   tick(obj) {
     super.tick(obj);
-    const v = v3(6, 5, 0).rotateXY(obj.total * 1e-3 % (Math.PI * 2));
-    this.camera.setPosition(v.add(v3(-0.7, 0, 0)));
-    this.camera.setTarget(v3(-0.7, 1, 0));
   }
 };
 

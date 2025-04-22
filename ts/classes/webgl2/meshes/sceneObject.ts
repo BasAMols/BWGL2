@@ -115,9 +115,11 @@ export class SceneObject implements SceneObjectData {
             // Set texture flags
             this.shaderManager.setUniform('u_material.hasAlbedoMap', this.material.albedoMap ? 1 : 0);
             this.shaderManager.setUniform('u_material.hasNormalMap', this.material.normalMap ? 1 : 0);
-            this.shaderManager.setUniform('u_material.hasMetallicRoughnessMap', this.material.metallicRoughnessMap ? 1 : 0);
+            this.shaderManager.setUniform('u_material.hasMetallicMap', this.material.metallicMap ? 1 : 0);
+            this.shaderManager.setUniform('u_material.hasRoughnessMap', this.material.roughnessMap ? 1 : 0);
             this.shaderManager.setUniform('u_material.hasAoMap', this.material.aoMap ? 1 : 0);
             this.shaderManager.setUniform('u_material.hasEmissiveMap', this.material.emissiveMap ? 1 : 0);
+            this.shaderManager.setUniform('u_material.hasEmissiveStrengthMap', this.material.emissiveStrengthMap ? 1 : 0);
 
             // Bind textures if available
             if (this.material.albedoMap) {
@@ -132,22 +134,34 @@ export class SceneObject implements SceneObjectData {
                 this.shaderManager.setUniform('u_material.normalMap', 1);
             }
             
-            if (this.material.metallicRoughnessMap) {
+            if (this.material.metallicMap) {
                 glob.ctx.activeTexture(glob.ctx.TEXTURE2);
-                glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.metallicRoughnessMap);
-                this.shaderManager.setUniform('u_material.metallicRoughnessMap', 2);
+                glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.metallicMap);
+                this.shaderManager.setUniform('u_material.metallicMap', 2);
+            }
+            
+            if (this.material.roughnessMap) {
+                glob.ctx.activeTexture(glob.ctx.TEXTURE3);
+                glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.roughnessMap);
+                this.shaderManager.setUniform('u_material.roughnessMap', 3);
             }
             
             if (this.material.aoMap) {
-                glob.ctx.activeTexture(glob.ctx.TEXTURE3);
+                glob.ctx.activeTexture(glob.ctx.TEXTURE4);
                 glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.aoMap);
-                this.shaderManager.setUniform('u_material.aoMap', 3);
+                this.shaderManager.setUniform('u_material.aoMap', 4);
             }
             
             if (this.material.emissiveMap) {
-                glob.ctx.activeTexture(glob.ctx.TEXTURE4);
+                glob.ctx.activeTexture(glob.ctx.TEXTURE5);
                 glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.emissiveMap);
-                this.shaderManager.setUniform('u_material.emissiveMap', 4);
+                this.shaderManager.setUniform('u_material.emissiveMap', 5);
+            }
+            
+            if (this.material.emissiveStrengthMap) {
+                glob.ctx.activeTexture(glob.ctx.TEXTURE6);
+                glob.ctx.bindTexture(glob.ctx.TEXTURE_2D, this.material.emissiveStrengthMap);
+                this.shaderManager.setUniform('u_material.emissiveStrengthMap', 6);
             }
         }
 

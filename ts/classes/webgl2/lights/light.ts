@@ -290,7 +290,8 @@ export class SpotLight extends PointLight {
             cutOff = Math.cos(Math.PI / 6), // 30 degrees
             outerCutOff = Math.cos(Math.PI / 4), // 45 degrees
             meshContainer,
-            enabled = true
+            enabled = true,
+            lookAt
         }: {
             position?: Vector3;
             direction?: Vector3;
@@ -300,6 +301,7 @@ export class SpotLight extends PointLight {
             outerCutOff?: number;
             meshContainer?: Scene;
             enabled?: boolean;
+            lookAt?: Vector3;
         } = {}) {
 
         // Update attenuation for better PBR values
@@ -339,8 +341,12 @@ export class SpotLight extends PointLight {
             });
         }
 
-        if (direction) {
+        if (direction && !lookAt) {
             this.lookAt(position.add(direction));
+        }
+
+        if (lookAt) {
+            this.lookAt(lookAt);
         }
     }
 

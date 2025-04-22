@@ -22,15 +22,19 @@ struct PBRMaterial {
     
     sampler2D albedoMap;
     sampler2D normalMap;
-    sampler2D metallicRoughnessMap;
+    sampler2D metallicMap;
+    sampler2D roughnessMap;
     sampler2D aoMap;
     sampler2D emissiveMap;
+    sampler2D emissiveStrengthMap;
     
     bool hasAlbedoMap;
     bool hasNormalMap;
-    bool hasMetallicRoughnessMap;
+    bool hasMetallicMap;
+    bool hasRoughnessMap;
     bool hasAoMap;
     bool hasEmissiveMap;
+    bool hasEmissiveStrengthMap;
 };
 
 // Light uniforms
@@ -232,11 +236,15 @@ void main() {
     // Metallic and roughness
     float metallic = u_material.metallic;
     float roughness = u_material.roughness;
-    if (u_material.hasMetallicRoughnessMap) {
-        // Standard PBR convention: G channel = roughness, B channel = metallic
-        vec3 metallicRoughness = texture(u_material.metallicRoughnessMap, v_texCoord).rgb;
-        roughness = metallicRoughness.g;
-        metallic = metallicRoughness.b;
+    
+    // Sample metallic map if available
+    if (u_material.hasMetallicMap) {
+        metallic = texture(u_material.metallicMap, v_texCoord).r;
+    }
+    
+    // Sample roughness map if available
+    if (u_material.hasRoughnessMap) {
+        roughness = texture(u_material.roughnessMap, v_texCoord).r;
     }
     
     // Ambient occlusion
@@ -248,7 +256,14 @@ void main() {
     // Normals (with normal mapping if available)
     vec3 N = normalize(v_normal);
     if (u_material.hasNormalMap) {
-        vec3 normalMapValue = texture(u_material.normalMap, v_texCoord).rgb * 2.0 - 1.0;
+        // Sample and decode normal map
+        vec3 normalMapValue = texture(u_material.normalMap, v_texCoord).rgb;
+        
+        // Convert from [0,1] to [-1,1] range and handle OpenGL coordinate system
+        normalMapValue = normalMapValue * 2.0 - 1.0;
+        normalMapValue.y = -normalMapValue.y;  // Flip Y component for OpenGL
+        
+        // Transform normal from tangent to world space
         N = normalize(v_tbn * normalMapValue);
     }
     
@@ -256,6 +271,10 @@ void main() {
     vec3 emissive = u_material.emissive;
     if (u_material.hasEmissiveMap) {
         emissive = texture(u_material.emissiveMap, v_texCoord).rgb;
+    }
+    if (u_material.hasEmissiveStrengthMap) {
+        float emissiveStrength = texture(u_material.emissiveStrengthMap, v_texCoord).r;
+        emissive *= emissiveStrength;
     }
     
     // Calculate view direction

@@ -22,9 +22,11 @@ export class Material {
     // Texture maps
     public albedoMap?: WebGLTexture;
     public normalMap?: WebGLTexture;
-    public metallicRoughnessMap?: WebGLTexture;
+    public metallicMap?: WebGLTexture;
+    public roughnessMap?: WebGLTexture;
     public aoMap?: WebGLTexture;
     public emissiveMap?: WebGLTexture;
+    public emissiveStrengthMap?: WebGLTexture;
 
     constructor({
         baseColor = v3(0.8, 0.8, 0.8),
@@ -34,9 +36,11 @@ export class Material {
         emissive = v3(0.0, 0.0, 0.0),
         albedoMap,
         normalMap,
-        metallicRoughnessMap,
+        metallicMap,
+        roughnessMap,
         aoMap,
-        emissiveMap
+        emissiveMap,
+        emissiveStrengthMap
     }: {
         baseColor?: Vector3;
         roughness?: number;
@@ -45,9 +49,11 @@ export class Material {
         emissive?: Vector3;
         albedoMap?: WebGLTexture;
         normalMap?: WebGLTexture;
-        metallicRoughnessMap?: WebGLTexture;
+        metallicMap?: WebGLTexture;
+        roughnessMap?: WebGLTexture;
         aoMap?: WebGLTexture;
         emissiveMap?: WebGLTexture;
+        emissiveStrengthMap?: WebGLTexture;
     } = {}) {
         this.baseColor = baseColor;
         this.roughness = roughness;
@@ -56,9 +62,11 @@ export class Material {
         this.emissive = emissive;
         this.albedoMap = albedoMap;
         this.normalMap = normalMap;
-        this.metallicRoughnessMap = metallicRoughnessMap;
+        this.metallicMap = metallicMap;
+        this.roughnessMap = roughnessMap;
         this.aoMap = aoMap;
         this.emissiveMap = emissiveMap;
+        this.emissiveStrengthMap = emissiveStrengthMap;
     }
 
     private static _materials: {
@@ -86,7 +94,6 @@ export class Material {
             emissive: v3(0.0, 0.0, 0.0)
         }
     }
-
 
     public static library(name: 'plastic' | 'metal' | 'rough', color: Vector3): Material {
         const material = new Material(this._materials[name]);
