@@ -643,14 +643,17 @@ export class FBXLoader extends BaseMesh {
         try {
             // Resolve the URL using UrlUtils
             const fullUrl = UrlUtils.resolveUrl(url);
+            console.log(`Loading FBX model from: ${fullUrl}`);
+            
             const response = await fetch(fullUrl);
             if (!response.ok) {
-                throw new Error(`Failed to fetch FBX file: ${response.statusText}`);
+                console.error(`Failed to fetch FBX file: ${response.statusText} (${response.status}) from ${fullUrl}`);
+                throw new Error(`Failed to fetch FBX file: ${response.statusText} (${response.status})`);
             }
             const buffer = await response.arrayBuffer();
             return this.loadFromBuffer(buffer, props);
         } catch (error) {
-            console.error('Error loading FBX from URL:', error);
+            console.error(`Error loading FBX from URL: ${url}`, error);
             throw error;
         }
     }

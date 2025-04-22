@@ -10315,14 +10315,16 @@ var _FBXLoader = class _FBXLoader extends BaseMesh {
   static async loadFromUrl(url, props = {}) {
     try {
       const fullUrl = UrlUtils.resolveUrl(url);
+      console.log("Loading FBX model from: ".concat(fullUrl));
       const response = await fetch(fullUrl);
       if (!response.ok) {
-        throw new Error("Failed to fetch FBX file: ".concat(response.statusText));
+        console.error("Failed to fetch FBX file: ".concat(response.statusText, " (").concat(response.status, ") from ").concat(fullUrl));
+        throw new Error("Failed to fetch FBX file: ".concat(response.statusText, " (").concat(response.status, ")"));
       }
       const buffer = await response.arrayBuffer();
       return this.loadFromBuffer(buffer, props);
     } catch (error) {
-      console.error("Error loading FBX from URL:", error);
+      console.error("Error loading FBX from URL: ".concat(url), error);
       throw error;
     }
   }
@@ -10369,16 +10371,16 @@ var TestLevel = class extends Scene {
     this.baseRotation = 0;
   }
   async build() {
-    this.setEnvironmentMap(await EnvironmentMapLoader.loadFromDirectory("/textures/envmap/sky"));
-    this.add(await FBXLoader.loadFromUrl("/fbx/island1.fbx", {
+    this.setEnvironmentMap(await EnvironmentMapLoader.loadFromDirectory("textures/envmap/sky"));
+    this.add(await FBXLoader.loadFromUrl("fbx/island1.fbx", {
       position: v3(0, 0, 0),
       rotation: Quaternion.fromEuler(0, 0, 0)
     }));
-    this.add(await FBXLoader.loadFromUrl("/fbx/island2.fbx", {
+    this.add(await FBXLoader.loadFromUrl("fbx/island2.fbx", {
       position: v3(0, 0, 0),
       rotation: Quaternion.fromEuler(0, 0, 0)
     }));
-    this.add(await FBXLoader.loadFromUrl("/fbx/island3.fbx", {
+    this.add(await FBXLoader.loadFromUrl("fbx/island3.fbx", {
       position: v3(0, 0, 0),
       rotation: Quaternion.fromEuler(0, 0, 0)
     }));

@@ -50,17 +50,17 @@ export class TestLevel extends Scene {
 
     async build() {
         // Load environment map using the EnvironmentMapLoader
-        this.setEnvironmentMap(await EnvironmentMapLoader.loadFromDirectory('/textures/envmap/sky'));
+        this.setEnvironmentMap(await EnvironmentMapLoader.loadFromDirectory('textures/envmap/sky'));
 
-        this.add(await FBXLoader.loadFromUrl('/fbx/island1.fbx', {
+        this.add(await FBXLoader.loadFromUrl('fbx/island1.fbx', {
             position: v3(0, 0, 0),
             rotation: Quaternion.fromEuler(0, 0, 0),
         }));
-        this.add(await FBXLoader.loadFromUrl('/fbx/island2.fbx', {
+        this.add(await FBXLoader.loadFromUrl('fbx/island2.fbx', {
             position: v3(0, 0, 0),
             rotation: Quaternion.fromEuler(0, 0, 0),
         }));
-        this.add(await FBXLoader.loadFromUrl('/fbx/island3.fbx', {
+        this.add(await FBXLoader.loadFromUrl('fbx/island3.fbx', {
             position: v3(0, 0, 0),
             rotation: Quaternion.fromEuler(0, 0, 0),
         }));
