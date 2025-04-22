@@ -13,7 +13,7 @@ export class Camera {
     private far: number;
 
     constructor(
-        { position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 45, near = 0.1, far = 1000 }: { position?: Vector3; target?: Vector3; fov?: number; near?: number; far?: number; } = {}) {
+        { position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 30, near = 2000, far = 17000 }: { position?: Vector3; target?: Vector3; fov?: number; near?: number; far?: number; } = {}) {
         this.position = position;
         this.target = target;
 

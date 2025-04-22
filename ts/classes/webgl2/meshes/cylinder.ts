@@ -266,7 +266,6 @@ export class Cylinder extends BaseMesh {
 
         return {
             vertices: new Float32Array(vertices),
-            indices: new Uint16Array(indices),
             normals: new Float32Array(normals),
             colors: new Float32Array(generatedColors),
             texCoords: new Float32Array(texCoords)

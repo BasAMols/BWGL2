@@ -4,7 +4,6 @@ import { Material } from '../material';
 import { SceneObject } from './sceneObject';
 import { BaseMesh, BaseMeshProps } from './baseMesh';
 import { v3 } from '../../util/math/vector3';
-import { ContainerObject } from './containerObject';
 import { glob } from '../../../game';
 import { Util } from '../../util/utils';
 
@@ -90,15 +89,202 @@ export interface FBXLoaderProps extends BaseMeshProps {
     gl?: WebGL2RenderingContext;
 }
 
+// Private namespace for FBXLoader types
+namespace FBXLoaderTypes {
+    export interface ProcessedFBXData {
+        geometries: FBXGeometryNode[];
+        materials: Map<string | number, Material>;
+        geometryMaterialMap: Map<string | number, Material>;
+    }
+}
+
 export class FBXLoader extends BaseMesh {
-    private static parseMesh(fbxMesh: FBXGeometryNode, smoothShading: boolean = true): MeshData {
+    private static CHUNK_SIZE = 65536; // Maximum vertices per chunk
+
+    private static async processFBXData(fbxData: FBXNode[]): Promise<FBXLoaderTypes.ProcessedFBXData> {
+        const objectsNode = fbxData.find(node => node.name === 'Objects') as FBXObjectsNode;
+        const connectionsNode = fbxData.find(node => node.name === 'Connections') as FBXConnectionNode;
+
+        if (!objectsNode) throw new Error('No Objects node found in FBX file');
+        if (!connectionsNode) throw new Error('No Connections node found in FBX file');
+
+        // Get all geometries and materials
+        const geometries = objectsNode.nodes.filter((node): node is FBXGeometryNode => node.name === 'Geometry');
+        const materialNodes = objectsNode.nodes.filter((node): node is FBXMaterialNode => node.name === 'Material');
+
+        // First, parse all materials
+        const materials = new Map<string | number, Material>();
+        for (const matNode of materialNodes) {
+            const matId = matNode.props[0] as string | number;
+            const material = await this.parseMaterial(matNode, fbxData);
+            materials.set(matId, material);
+        }
+
+        // Then process all connections to create geometry->material mapping
+        const geometryMaterialMap = new Map<string | number, Material>();
+        
+        // First, create a map of type -> [connected IDs]
+        const typeConnections = new Map<number, Set<string | number>>();
+        for (const conn of connectionsNode.nodes) {
+            const props = (conn as FBXConnectionValueNode).props;
+            const sourceId = props[0] as string | number;
+            const destId = props[1] as string | number;
+            const type = props[2] as number;
+
+            if (type) {
+                if (!typeConnections.has(type)) {
+                    typeConnections.set(type, new Set());
+                }
+                typeConnections.get(type)?.add(destId);
+            }
+        }
+
+        // Then find materials and geometries that share the same type
+        for (const [type, connectedIds] of typeConnections) {
+            // Find if this type connects to any materials
+            const materialId = Array.from(connectedIds).find(id => materials.has(id));
+            if (materialId) {
+                const material = materials.get(materialId);
+                if (material) {
+                    // Find geometries connected to this same type
+                    const geometryIds = Array.from(connectedIds).filter(id => 
+                        geometries.some(g => g.props[0] === id)
+                    );
+                    
+                    for (const geometryId of geometryIds) {
+                        geometryMaterialMap.set(geometryId, material);
+                    }
+                }
+            }
+        }
+
+        return {
+            geometries,
+            materials,
+            geometryMaterialMap
+        };
+    }
+
+    private static chunkMesh(vertices: number[], indices: number[], normals: number[], texCoords: number[], tangents: number[], bitangents: number[]): MeshData[] {
+        const chunks: MeshData[] = [];
+        const vertexCount = vertices.length / 3;
+        
+        // If under limit, return as single chunk
+        if (vertexCount <= FBXLoader.CHUNK_SIZE) {
+            return [{
+                vertices: new Float32Array(vertices),
+                indices: new Uint16Array(indices),
+                normals: new Float32Array(normals),
+                texCoords: new Float32Array(texCoords),
+                tangents: new Float32Array(tangents),
+                bitangents: new Float32Array(bitangents)
+            }];
+        }
+
+        // Split into chunks
+        let currentChunkVertices: number[] = [];
+        let currentChunkIndices: number[] = [];
+        let currentChunkNormals: number[] = [];
+        let currentChunkTexCoords: number[] = [];
+        let currentChunkTangents: number[] = [];
+        let currentChunkBitangents: number[] = [];
+        let vertexIndexMap = new Map<number, number>();
+        let nextIndex = 0;
+
+        for (let i = 0; i < indices.length; i += 3) {
+            const faceIndices = [indices[i], indices[i + 1], indices[i + 2]];
+            const faceVertCount = currentChunkVertices.length / 3;
+
+            // If this face would exceed chunk size, start new chunk
+            if (faceVertCount + 3 > FBXLoader.CHUNK_SIZE) {
+                // Add current chunk to chunks array
+                chunks.push({
+                    vertices: new Float32Array(currentChunkVertices),
+                    indices: new Uint16Array(currentChunkIndices),
+                    normals: new Float32Array(currentChunkNormals),
+                    texCoords: new Float32Array(currentChunkTexCoords),
+                    tangents: new Float32Array(currentChunkTangents),
+                    bitangents: new Float32Array(currentChunkBitangents)
+                });
+
+                // Reset for next chunk
+                currentChunkVertices = [];
+                currentChunkIndices = [];
+                currentChunkNormals = [];
+                currentChunkTexCoords = [];
+                currentChunkTangents = [];
+                currentChunkBitangents = [];
+                vertexIndexMap.clear();
+                nextIndex = 0;
+            }
+
+            // Add face to current chunk
+            for (const oldIndex of faceIndices) {
+                let newIndex = vertexIndexMap.get(oldIndex);
+                if (newIndex === undefined) {
+                    newIndex = nextIndex++;
+                    vertexIndexMap.set(oldIndex, newIndex);
+
+                    // Add vertex data
+                    const vIdx = oldIndex * 3;
+                    currentChunkVertices.push(vertices[vIdx], vertices[vIdx + 1], vertices[vIdx + 2]);
+                    currentChunkNormals.push(normals[vIdx], normals[vIdx + 1], normals[vIdx + 2]);
+                    
+                    const tIdx = oldIndex * 2;
+                    currentChunkTexCoords.push(texCoords[tIdx], texCoords[tIdx + 1]);
+                    
+                    const tanIdx = oldIndex * 3;
+                    currentChunkTangents.push(tangents[tanIdx], tangents[tanIdx + 1], tangents[tanIdx + 2]);
+                    currentChunkBitangents.push(bitangents[tanIdx], bitangents[tanIdx + 1], bitangents[tanIdx + 2]);
+                }
+                currentChunkIndices.push(newIndex);
+            }
+        }
+
+        // Add final chunk if not empty
+        if (currentChunkVertices.length > 0) {
+            chunks.push({
+                vertices: new Float32Array(currentChunkVertices),
+                indices: new Uint16Array(currentChunkIndices),
+                normals: new Float32Array(currentChunkNormals),
+                texCoords: new Float32Array(currentChunkTexCoords),
+                tangents: new Float32Array(currentChunkTangents),
+                bitangents: new Float32Array(currentChunkBitangents)
+            });
+        }
+
+        return chunks;
+    }
+
+    private static parseMesh(fbxMesh: FBXGeometryNode, smoothShading: boolean = true): MeshData[] {
         // Get vertices and indices
         const verticesNode = fbxMesh.nodes.find(n => n.name === 'Vertices');
         const vertices = verticesNode?.props[0] as number[] || [];
         const indicesNode = fbxMesh.nodes.find(n => n.name === 'PolygonVertexIndex');
-        const indices = (indicesNode?.props[0] as number[] || []).map(index =>
-            index < 0 ? (-index - 1) : index
-        );
+        const rawIndices = indicesNode?.props[0] as number[] || [];
+        
+        // Convert polygon indices to triangle indices
+        const indices: number[] = [];
+        let currentPolygon: number[] = [];
+        
+        // Process each index
+        rawIndices.forEach((index) => {
+            // If negative, it's the last vertex of the polygon
+            const actualIndex = index < 0 ? (-index - 1) : index;
+            currentPolygon.push(actualIndex);
+            
+            if (index < 0) {
+                // End of polygon - triangulate
+                for (let i = 1; i < currentPolygon.length - 1; i++) {
+                    indices.push(
+                        currentPolygon[0],
+                        currentPolygon[i],
+                        currentPolygon[i + 1]
+                    );
+                }
+                currentPolygon = [];
+            }
+        });
 
         // Get UV coordinates (for texture mapping)
         const layerElementUV = fbxMesh.nodes.find(n => n.name === 'LayerElementUV');
@@ -111,7 +297,6 @@ export class FBXLoader extends BaseMesh {
             Util.chunk(uvs, 2).map(([u, v]: [number, number]) => [u, 1.0 - v]) as [number, number][],
             1
         ) as [number, number][];
-
 
         // Helper function to normalize a vector
         const normalizeVector = (x: number, y: number, z: number) => {
@@ -139,12 +324,10 @@ export class FBXLoader extends BaseMesh {
 
         // Process all triangles in the mesh
         for (let i = 0; i < indices.length; i += 3) {
-            // Get vertex indices for this triangle
             const v1Index = indices[i] * 3;
             const v2Index = indices[i + 1] * 3;
             const v3Index = indices[i + 2] * 3;
 
-            // Get vertices and transform them
             const v1 = transformVertex(
                 vertices[v1Index],
                 vertices[v1Index + 1],
@@ -161,12 +344,10 @@ export class FBXLoader extends BaseMesh {
                 vertices[v3Index + 2]
             );
 
-            // Get texture coordinates
-            const uv1 = uvPairs[uvIndices[i]];
-            const uv2 = uvPairs[uvIndices[i + 1]];
-            const uv3 = uvPairs[uvIndices[i + 2]];
+            const uv1 = uvPairs[uvIndices[i]] || [0, 0];
+            const uv2 = uvPairs[uvIndices[i + 1]] || [0, 0];
+            const uv3 = uvPairs[uvIndices[i + 2]] || [0, 0];
 
-            // Calculate face normal
             const edge1 = [v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]];
             const edge2 = [v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]];
             const normal = normalizeVector(
@@ -175,11 +356,10 @@ export class FBXLoader extends BaseMesh {
                 edge1[0] * edge2[1] - edge1[1] * edge2[0]
             );
 
-            // Calculate tangent and bitangent
             const deltaUV1 = [uv2[0] - uv1[0], uv2[1] - uv1[1]];
             const deltaUV2 = [uv3[0] - uv1[0], uv3[1] - uv1[1]];
 
-            const f = 1.0 / (deltaUV1[0] * deltaUV2[1] - deltaUV2[0] * deltaUV1[1]);
+            const f = 1.0 / (deltaUV1[0] * deltaUV2[1] - deltaUV2[0] * deltaUV1[1] || 1.0);
 
             const tangent = normalizeVector(
                 f * (deltaUV2[1] * edge1[0] - deltaUV1[1] * edge2[0]),
@@ -195,7 +375,6 @@ export class FBXLoader extends BaseMesh {
 
             const vertexCount = Math.floor(flatVertices.length / 3);
 
-            // Add triangle vertices
             flatVertices.push(...v1, ...v2, ...v3);
             flatTexCoords.push(...uv1, ...uv2, ...uv3);
             flatNormals.push(...normal, ...normal, ...normal);
@@ -204,14 +383,15 @@ export class FBXLoader extends BaseMesh {
             flatIndices.push(vertexCount, vertexCount + 1, vertexCount + 2);
         }
 
-        return {
-            vertices: new Float32Array(flatVertices),
-            indices: new Uint16Array(flatIndices),
-            normals: new Float32Array(flatNormals),
-            texCoords: new Float32Array(flatTexCoords),
-            tangents: new Float32Array(flatTangents),
-            bitangents: new Float32Array(flatBitangents)
-        };
+        // Instead of returning a single MeshData, we return chunks
+        return FBXLoader.chunkMesh(
+            flatVertices,
+            flatIndices,
+            flatNormals,
+            flatTexCoords,
+            flatTangents,
+            flatBitangents
+        );
     }
 
     private static async parseMaterial(fbxMaterial: FBXMaterialNode, fbxData: FBXNode[]): Promise<Material> {
@@ -422,74 +602,34 @@ export class FBXLoader extends BaseMesh {
         return texturePromise;
     }
 
-    public static async loadFromBuffer(buffer: ArrayBuffer, props: FBXLoaderProps = {}): Promise<SceneObject> {
+    public static async loadFromBuffer(buffer: ArrayBuffer, props: FBXLoaderProps = {}): Promise<SceneObject[]> {
         try {
             const fbxData = FBXParser.parseBinary(new Uint8Array(buffer)) as FBXNode[];
-            const container = new ContainerObject();
-            const objectsNode = fbxData.find(node => node.name === 'Objects') as FBXObjectsNode;
+            const processedData = await this.processFBXData(fbxData);
+            const objects: SceneObject[] = [];
 
-            if (!objectsNode) {
-                throw new Error('No Objects node found in FBX file');
+            // Now we can simply create chunks with the pre-processed data
+            for (const geometry of processedData.geometries) {
+                const geometryId = geometry.props[0] as string | number;
+                const material = processedData.geometryMaterialMap.get(geometryId);
+                const meshDataChunks = this.parseMesh(geometry);
+                for (const meshData of meshDataChunks) {
+                    const sceneObject = this.createSceneObject(meshData, {
+                        ...props,
+                        material
+                    });
+                    objects.push(sceneObject);
+                }
             }
 
-            // Type guard functions
-            const isGeometryNode = (node: FBXNode): node is FBXGeometryNode =>
-                node.name === 'Geometry';
-            const isMaterialNode = (node: FBXNode): node is FBXMaterialNode =>
-                node.name === 'Material';
-
-            const geometries = objectsNode.nodes.filter(isGeometryNode);
-            const materials = objectsNode.nodes.filter(isMaterialNode);
-
-            for (const geometry of geometries) {
-                const meshData = this.parseMesh(geometry);
-
-                // Find associated material if any
-                const connectionsNode = fbxData.find(node => node.name === 'Connections') as FBXConnectionNode | undefined;
-                const connections = connectionsNode?.nodes || [];
-
-                const materialConnection = connections
-                    .find(c => {
-                        const geomValue = (geometry.nodes[0]?.nodes[0] as FBXGeometryValueNode)?.value;
-                        const matValue = materials.some((m: FBXMaterialNode) =>
-                            (m.nodes[0]?.nodes[0] as FBXMaterialValueNode)?.value === (c as FBXConnectionValueNode).value
-                        );
-                        return (c as FBXConnectionValueNode).value === geomValue && matValue;
-                    });
-
-                let material: Material | undefined;
-                if (materialConnection) {
-                    const materialNode = materials.find((m: FBXMaterialNode) =>
-                        (m.nodes[0]?.nodes[0] as FBXMaterialValueNode)?.value === (materialConnection as FBXConnectionValueNode).value
-                    );
-                    if (materialNode) {
-                        material = await this.parseMaterial(materialNode, fbxData);
-                    }
-                }
-
-                // If no material found in FBX, use default gray
-                if (!material) {
-                    material = new Material({
-                        baseColor: v3(0.8, 0.8, 0.8),
-                        roughness: 0.5,
-                        metallic: 0.0,
-                        ambientOcclusion: 1.0,
-                        emissive: v3(0, 0, 0)
-                    });
-                }
-
-                const sceneObject = this.createSceneObject(meshData, { ...props, material });
-                container.addChild(sceneObject);
-            }
-
-            return container;
+            return objects;
         } catch (error) {
             console.error('Error loading FBX:', error);
             throw error;
         }
     }
 
-    public static async loadFromUrl(url: string, props: FBXLoaderProps = {}): Promise<SceneObject> {
+    public static async loadFromUrl(url: string, props: FBXLoaderProps = {}): Promise<SceneObject[]> {
         try {
             const response = await fetch(url);
             if (!response.ok) {

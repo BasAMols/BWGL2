@@ -5,19 +5,19 @@ import { Vector3, v3 } from '../util/math/vector3';
  */
 export class Material {
     // Base color (albedo) of the material
-    public baseColor: Vector3;
+    public baseColor?: Vector3;
     
     // Controls how rough/smooth the material is (0 = smooth, 1 = rough)
-    public roughness: number;
+    public roughness?: number;
     
     // Controls how metallic the material is (0 = dielectric, 1 = metal)
-    public metallic: number;
+    public metallic?: number;
     
     // Controls ambient occlusion effect (1 = no occlusion, 0 = fully occluded)
-    public ambientOcclusion: number;
+    public ambientOcclusion?: number;
     
     // Controls the emission color of the material
-    public emissive: Vector3;
+    public emissive?: Vector3;
     
     // Texture maps
     public albedoMap?: WebGLTexture;

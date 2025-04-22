@@ -57,9 +57,14 @@ export class Scene {
 
     }
 
-    public add(object: SceneObject): SceneObject {
-        this.objects.push(object);
-        return object;
+    public add(object: SceneObject|SceneObject[]): SceneObject {
+        if (Array.isArray(object)) {
+            this.objects.push(...object);
+            return object[0];
+        } else {
+            this.objects.push(object);
+            return object;
+        }
     }
 
     public remove(object: SceneObject): void {

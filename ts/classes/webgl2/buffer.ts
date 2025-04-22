@@ -96,7 +96,7 @@ export class IndexBuffer extends Buffer {
 
     public setData(data: BufferSource): void {
         super.setData(data);
-        this.count = data.byteLength / 2; // Assuming 16-bit indices
+        this.count = data.byteLength / 2; // Using 16-bit (2 byte) indices
     }
 
     public getCount(): number {

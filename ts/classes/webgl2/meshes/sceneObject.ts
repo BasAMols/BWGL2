@@ -174,7 +174,7 @@ export class SceneObject implements SceneObjectData {
             glob.ctx.drawElements(
                 this.drawMode,
                 this.drawCount,
-                this.drawType || glob.ctx.UNSIGNED_SHORT,
+                this.drawType || glob.ctx.UNSIGNED_INT,
                 0
             );
         } else {
