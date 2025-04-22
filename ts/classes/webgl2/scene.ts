@@ -8,10 +8,13 @@ import { v3, Vector3 } from '../util/math/vector3';
 import { Vector2 } from '../util/math/vector2';
 import { colorPickingVertexShader, colorPickingFragmentShader } from './shaders/colorPickingShader';
 import { VertexArray } from './buffer';
+import { EnvironmentMap } from './environmentMap';
+import { Skybox } from './skybox';
 
 export interface SceneOptions {
     ambientLightColor?: Vector3;
     ambientLightIntensity?: number;
+    environmentMap?: EnvironmentMap;
 }
 
 export class Scene {
@@ -38,6 +41,8 @@ export class Scene {
     protected debugShadowMap: boolean = false;
     protected debugLightIndex: number = 0;
     protected fullScreenQuadVAO: VertexArray | null = null;
+    protected environmentMap?: EnvironmentMap;
+    protected skybox: Skybox;
 
     public click(vector2: Vector2) {
         this.lastClick = vector2;
@@ -49,12 +54,18 @@ export class Scene {
 
         // Set up ambient light with default or provided values
         this.ambientLight = new AmbientLight({ color: options.ambientLightColor || v3(1, 1, 1), intensity: options.ambientLightIntensity ?? 0.1 });
+        this.environmentMap = options.environmentMap;
+
+        // Initialize skybox
+        this.skybox = new Skybox();
+        if (this.environmentMap) {
+            this.skybox.setEnvironmentMap(this.environmentMap);
+        }
 
         // Load color picking shader
         glob.shaderManager.loadShaderProgram('picking', colorPickingVertexShader, colorPickingFragmentShader);
 
         glob.events.resize.subscribe('level', this.resize.bind(this));
-
     }
 
     public add(object: SceneObject|SceneObject[]): SceneObject {
@@ -167,17 +178,22 @@ export class Scene {
         }
 
         // Third render pass: regular scene rendering with shadows
-        glob.ctx.bindFramebuffer(glob.ctx.FRAMEBUFFER, null);
-        glob.ctx.viewport(0, 0, glob.ctx.canvas.width, glob.ctx.canvas.height);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
-        glob.ctx.clearColor(...this.clearColor);
-        glob.ctx.clear(glob.ctx.COLOR_BUFFER_BIT | glob.ctx.DEPTH_BUFFER_BIT);
+        gl.clearColor(...this.clearColor);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         // Reset depth test and blend functions
-        glob.ctx.enable(glob.ctx.DEPTH_TEST);
-        glob.ctx.depthFunc(glob.ctx.LESS);
-        glob.ctx.enable(glob.ctx.BLEND);
-        glob.ctx.blendFunc(glob.ctx.SRC_ALPHA, glob.ctx.ONE_MINUS_SRC_ALPHA);
+        gl.enable(gl.DEPTH_TEST);
+        gl.depthFunc(gl.LESS);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+        // Render skybox first (before regular objects but after clearing the screen)
+        if (this.environmentMap) {
+            this.skybox.render(viewMatrix.mat4 as Float32Array, projectionMatrix.mat4 as Float32Array);
+        }
 
         // Use PBR shader program for rendering
         glob.shaderManager.useProgram('pbr');
@@ -216,6 +232,22 @@ export class Scene {
         glob.shaderManager.setUniform('u_lightSpaceMatrices', lightSpaceMatrices);
         glob.shaderManager.setUniform('u_castsShadow', castsShadow);
 
+        // Bind environment map if available
+        if (this.environmentMap) {
+            this.environmentMap.bind(11); // Use texture units 11-14 for environment mapping
+            glob.shaderManager.setUniform('u_environmentMap', 11);
+            glob.shaderManager.setUniform('u_irradianceMap', 12);
+            glob.shaderManager.setUniform('u_prefilterMap', 13);
+            glob.shaderManager.setUniform('u_brdfLUT', 14);
+            glob.shaderManager.setUniform('u_useEnvironmentMap', 1);
+        } else {
+            glob.shaderManager.setUniform('u_useEnvironmentMap', 0);
+        }
+
+        // Update the camera position for reflections and lighting calculations
+        const cameraPosition = this.camera.getPosition();
+        glob.shaderManager.setUniform('u_viewPos', new Float32Array([cameraPosition.x, cameraPosition.y, cameraPosition.z]));
+
         // For each object in the scene
         for (const object of this.objects) {
             object.render(viewMatrix, projectionMatrix);
@@ -229,6 +261,8 @@ export class Scene {
             object.vao.dispose();
             object.indexBuffer?.dispose();
         }
+        // Dispose skybox resources
+        this.skybox.dispose();
         this.objects = [];
     }
 
@@ -325,5 +359,11 @@ export class Scene {
     // Add method to toggle color picking visualization
     public toggleColorPicking(): void {
         this.showColorPicking = !this.showColorPicking;
+    }
+
+    public setEnvironmentMap(envMap: EnvironmentMap) {
+        this.environmentMap = envMap;
+        // Also update the skybox with the new environment map
+        this.skybox.setEnvironmentMap(envMap);
     }
 } 

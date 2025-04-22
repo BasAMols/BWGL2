@@ -101,6 +101,13 @@ export class WebGL2Initializer {
         this.shaderManager.setUniform('u_material.hasAoMap', 0);
         this.shaderManager.setUniform('u_material.hasEmissiveMap', 0);
 
+        // Initialize environment mapping uniforms
+        this.shaderManager.setUniform('u_useEnvironmentMap', 0);
+        this.shaderManager.setUniform('u_environmentMap', 11);
+        this.shaderManager.setUniform('u_irradianceMap', 12);
+        this.shaderManager.setUniform('u_prefilterMap', 13);
+        this.shaderManager.setUniform('u_brdfLUT', 14);
+
         // Set default camera position for better lighting
         this.shaderManager.setUniform('u_viewPos', new Float32Array([0.0, 1.0, 6.0]));
 

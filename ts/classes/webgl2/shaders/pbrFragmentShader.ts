@@ -4,6 +4,7 @@ precision highp float;
 // Constants
 #define PI 3.14159265359
 #define MAX_LIGHTS 10
+#define MAX_REFLECTION_LOD 4.0
 
 // Light types
 #define LIGHT_TYPE_INACTIVE -1
@@ -58,9 +59,17 @@ uniform sampler2D u_shadowMap3;
 uniform mat4 u_lightSpaceMatrices[MAX_LIGHTS];
 uniform bool u_castsShadow[MAX_LIGHTS];
 
+// Environment mapping uniforms
+uniform samplerCube u_environmentMap;
+uniform samplerCube u_irradianceMap;
+uniform samplerCube u_prefilterMap;
+uniform sampler2D u_brdfLUT;
+uniform bool u_useEnvironmentMap;
+
 // Material uniforms
 uniform PBRMaterial u_material;
 uniform vec3 u_viewPos;
+uniform mat4 u_viewMatrix;
 
 // Varyings from vertex shader
 in vec3 v_normal;
@@ -187,6 +196,11 @@ vec3 FresnelSchlick(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
 }
 
+// Add roughness-aware Fresnel-Schlick
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness) {
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
 // Calculates radiance for a light source
 vec3 calculateRadiance(vec3 N, vec3 V, vec3 L, vec3 H, vec3 F0, 
                        vec3 albedo, float metallic, float roughness,
@@ -277,13 +291,13 @@ void main() {
         emissive *= emissiveStrength;
     }
     
-    // Calculate view direction
+    // Calculate view direction and reflection vector
     vec3 V = normalize(u_viewPos - v_worldPos);
+    vec3 R = reflect(-V, normalize(v_normal));
     
-    // Calculate fresnel reflection at normal incidence (F0)
-    // For most materials, F0 is monochromatic (0.04)
-    // For metals, we use the albedo color 
-    vec3 F0 = vec3(0.04);
+    
+    // Calculate F0 (surface reflection at zero incidence)
+    vec3 F0 = vec3(0.04); 
     F0 = mix(F0, albedo, metallic);
     
     // Initialize result
@@ -343,17 +357,61 @@ void main() {
         Lo += radiance * (1.0 - shadow);
     }
     
-    // Add ambient light contribution (factoring in ambient occlusion)
-    vec3 ambient = vec3(0.0); // Initialize with no ambient
-
-    // Add ambient from any ambient light sources
+    // Calculate ambient lighting with environment mapping
+    vec3 ambient = vec3(0.03) * albedo; // Default ambient if no environment map
+    
+    // Apply ambient light from light sources
+    vec3 ambientContribution = vec3(0.0);
     for(int i = 0; i < u_numLights; i++) {
-        if(i < MAX_LIGHTS && u_lightTypes[i] == LIGHT_TYPE_AMBIENT) {
-            ambient += u_lightColors[i] * u_lightIntensities[i] * albedo * ao;
+        if(i >= MAX_LIGHTS || u_lightTypes[i] != LIGHT_TYPE_AMBIENT) 
+            continue;
+        
+        // Add ambient light contribution with light color and intensity
+        // Scale down the intensity significantly (divide by 3) to make it much more subtle
+        // This means a value of 1.0 is now only 33% as bright as before
+        ambientContribution += u_lightColors[i] * (min(u_lightIntensities[i], 1.0) / 3.0) * albedo;
+    }
+    
+    if (u_useEnvironmentMap) {
+        // Sample both the prefilter map and the BRDF lut and combine them together
+        vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
+        
+        vec3 kS = F;
+        vec3 kD = 1.0 - kS;
+        kD *= 1.0 - metallic;
+        
+        // Sample irradiance map for diffuse IBL
+        vec3 irradiance = texture(u_irradianceMap, N).rgb;
+        vec3 diffuse = irradiance * albedo;
+        
+        // Sample environment map with roughness-based LOD for specular IBL
+        vec3 prefilteredColor = textureLod(u_prefilterMap, R, roughness * MAX_REFLECTION_LOD).rgb;
+        vec2 brdf = texture(u_brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
+        vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
+
+        // Add perfect reflection from environment map when roughness is very low
+        float perfectReflectionWeight = (1.0 - roughness) * (1.0 - roughness) * (1.0 - roughness) * (1.0 - roughness); // Stronger falloff
+        if (perfectReflectionWeight > 0.001) {
+            vec3 perfectReflection = texture(u_environmentMap, R).rgb;
+            specular = mix(specular, perfectReflection, perfectReflectionWeight * metallic);
         }
+
+        // Apply environment map for ambient
+        ambient = (kD * diffuse + specular) * ao;
+        
+        // Add extremely subtle ambient contribution that preserves reflections
+        if (length(ambientContribution) > 0.0) {
+            // Use a very light mix that strongly favors environment mapping
+            // Non-metallic surfaces get slightly more ambient
+            float mixFactor = 0.85 + (metallic * 0.1); // 0.85-0.95 range based on metallic
+            ambient = mix(ambientContribution, ambient, mixFactor);
+        }
+    } else {
+        // If no environment map, use only ambient contribution (already scaled down)
+        ambient = ambientContribution;
     }
 
-    // Add emissive contribution
+    // Combine all lighting contributions
     vec3 color = ambient + Lo + emissive;
 
     // Calculate rim lighting based on lights in the scene

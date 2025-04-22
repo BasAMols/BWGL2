@@ -99,6 +99,7 @@ export class ShaderManager {
 
         // Get active uniforms
         const numUniforms = this.gl.getProgramParameter(program, this.gl.ACTIVE_UNIFORMS);
+        
         const uniformMap = this.uniforms.get(name)!;
 
         for (let i = 0; i < numUniforms; i++) {
@@ -106,13 +107,18 @@ export class ShaderManager {
             if (!info) continue;
 
             const location = this.gl.getUniformLocation(program, info.name);
-            if (!location) continue;
+            if (!location) {
+                console.warn(`Could not get location for uniform '${info.name}' in shader '${name}'`);
+                continue;
+            }
 
             // For array uniforms, store with the base name (without array index)
             const baseName = info.name.replace(/\[\d+\].*$/, '');
+            const typeName = this.getUniformTypeName(info.type);
+            
             
             uniformMap.set(baseName, {
-                type: this.getUniformTypeName(info.type),
+                type: typeName,
                 value: this.getDefaultValueForType(info.type),
                 location,
                 isArray: info.size > 1,
@@ -150,21 +156,29 @@ export class ShaderManager {
 
     public setUniform(name: string, value: number | number[] | Float32Array | Int32Array): void {
         if (!this.currentProgram) {
-            throw new Error('No shader program is currently in use');
+            console.error('No shader program is currently in use');
+            return;
         }
 
         const uniformMap = this.uniforms.get(this.currentProgram);
         if (!uniformMap) {
-            throw new Error(`Uniform map not found for program '${this.currentProgram}'`);
+            console.error(`Uniform map not found for program '${this.currentProgram}'`);
+            return;
         }
 
         const uniform = uniformMap.get(name);
         if (!uniform || !uniform.location) {
-            throw new Error(`Uniform '${name}' not found in program '${this.currentProgram}'. Make sure to use the u_camelCase naming convention for uniforms, v_camelCase for varyings, and a_camelCase for attributes.`);
+            console.error(`Uniform '${name}' not found in program '${this.currentProgram}'. Available uniforms:`, 
+                Array.from(uniformMap.keys()).join(', '));
+            return;
         }
 
-        this.setUniformValue(uniform.type, uniform.location, value);
-        uniform.value = value;
+        try {
+            this.setUniformValue(uniform.type, uniform.location, value);
+            uniform.value = value;
+        } catch (error) {
+            console.error(`Error setting uniform '${name}' in program '${this.currentProgram}':`, error);
+        }
     }
 
     private setUniformValue(
@@ -219,6 +233,7 @@ export class ShaderManager {
                 break;
             case 'sampler2D':
             case 'sampler2D[]':
+            case 'samplerCube':
                 if (Array.isArray(value) || value instanceof Int32Array) {
                     this.gl.uniform1iv(location, value);
                 } else {
@@ -271,6 +286,8 @@ export class ShaderManager {
                 return 'sampler2D';
             case this.gl.SAMPLER_2D | 0x20: // Array flag
                 return 'sampler2D[]';
+            case this.gl.SAMPLER_CUBE:
+                return 'samplerCube';
             case 0x8B52: // GL_STRUCT
                 return 'Light'; // Handle Light struct type
             default:

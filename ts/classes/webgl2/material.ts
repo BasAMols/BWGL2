@@ -14,7 +14,7 @@ export class Material {
     public metallic?: number;
     
     // Controls ambient occlusion effect (1 = no occlusion, 0 = fully occluded)
-    public ambientOcclusion?: number;
+    public ambientOcclusion: number;
     
     // Controls the emission color of the material
     public emissive?: Vector3;
