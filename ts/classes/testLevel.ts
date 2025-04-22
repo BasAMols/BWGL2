@@ -28,7 +28,7 @@ export class TestLevel extends Scene {
             material: {
                 baseColor: v3(0.4, 0.5, 0.7),  // Deep blue-green tint for ocean
                 roughness: 0.4,  // Smoother surface for calm water, but not perfectly reflective
-                metallic: 0.5,    // Good reflection without being too mirror-like
+                metallic: 0.9,    // Good reflection without being too mirror-like
                 ambientOcclusion: 1,
                 emissive: v3(0.01, 0.03, 0.05)  // Subtle glow for depth
             },

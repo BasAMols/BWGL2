@@ -9693,6 +9693,29 @@ Plane.texCoords = new Float32Array([
   1
 ]);
 
+// ts/classes/util/urlUtils.ts
+var UrlUtils = class {
+  /**
+   * Gets the base URL for the application, considering base tags and current location
+   */
+  static getBaseUrl() {
+    const baseTag = document.querySelector("base");
+    if (baseTag && baseTag.href) {
+      return baseTag.href;
+    }
+    const location2 = window.location;
+    return "".concat(location2.protocol, "//").concat(location2.host).concat(location2.pathname.replace(/\/[^/]*$/, "/"));
+  }
+  /**
+   * Resolve a relative URL against the application's base URL
+   * @param url The URL to resolve
+   * @returns The fully resolved URL
+   */
+  static resolveUrl(url) {
+    return new URL(url, this.getBaseUrl()).href;
+  }
+};
+
 // ts/classes/webgl2/environmentMap.ts
 var EnvironmentMap = class {
   constructor() {
@@ -9802,24 +9825,25 @@ var EnvironmentMapLoader = class {
   static async loadFromUrls(urls) {
     const envMap = new EnvironmentMap();
     const urlArray = [
-      urls.positiveX,
-      urls.negativeX,
-      urls.positiveY,
-      urls.negativeY,
-      urls.positiveZ,
-      urls.negativeZ
+      UrlUtils.resolveUrl(urls.positiveX),
+      UrlUtils.resolveUrl(urls.negativeX),
+      UrlUtils.resolveUrl(urls.positiveY),
+      UrlUtils.resolveUrl(urls.negativeY),
+      UrlUtils.resolveUrl(urls.positiveZ),
+      UrlUtils.resolveUrl(urls.negativeZ)
     ];
     await envMap.loadFromUrls(urlArray);
     return envMap;
   }
   static async loadFromDirectory(baseUrl, format = "png") {
+    const fullBaseUrl = UrlUtils.resolveUrl(baseUrl);
     return this.loadFromUrls({
-      positiveX: "".concat(baseUrl, "/px.").concat(format),
-      negativeX: "".concat(baseUrl, "/nx.").concat(format),
-      positiveY: "".concat(baseUrl, "/py.").concat(format),
-      negativeY: "".concat(baseUrl, "/ny.").concat(format),
-      positiveZ: "".concat(baseUrl, "/pz.").concat(format),
-      negativeZ: "".concat(baseUrl, "/nz.").concat(format)
+      positiveX: "".concat(fullBaseUrl, "/px.").concat(format),
+      negativeX: "".concat(fullBaseUrl, "/nx.").concat(format),
+      positiveY: "".concat(fullBaseUrl, "/py.").concat(format),
+      negativeY: "".concat(fullBaseUrl, "/ny.").concat(format),
+      positiveZ: "".concat(fullBaseUrl, "/pz.").concat(format),
+      negativeZ: "".concat(fullBaseUrl, "/nz.").concat(format)
     });
   }
 };
@@ -10212,7 +10236,7 @@ var _FBXLoader = class _FBXLoader extends BaseMesh {
       };
       image.onerror = () => reject(new Error("Failed to load texture: ".concat(filename)));
     });
-    image.src = "/fbx/".concat(filename);
+    image.src = UrlUtils.resolveUrl("fbx/".concat(filename));
     return texturePromise;
   }
   static async loadFromBuffer(buffer, props = {}) {
@@ -10239,7 +10263,8 @@ var _FBXLoader = class _FBXLoader extends BaseMesh {
   }
   static async loadFromUrl(url, props = {}) {
     try {
-      const response = await fetch(url);
+      const fullUrl = UrlUtils.resolveUrl(url);
+      const response = await fetch(fullUrl);
       if (!response.ok) {
         throw new Error("Failed to fetch FBX file: ".concat(response.statusText));
       }
@@ -10271,7 +10296,7 @@ var TestLevel = class extends Scene {
         // Deep blue-green tint for ocean
         roughness: 0.4,
         // Smoother surface for calm water, but not perfectly reflective
-        metallic: 0.5,
+        metallic: 0.9,
         // Good reflection without being too mirror-like
         ambientOcclusion: 1,
         emissive: v3(0.01, 0.03, 0.05)

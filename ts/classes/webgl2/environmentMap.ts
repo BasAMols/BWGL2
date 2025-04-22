@@ -1,4 +1,5 @@
 import { glob } from '../../game';
+import { UrlUtils } from '../util/urlUtils';
 
 export class EnvironmentMap {
     private cubemapTexture: WebGLTexture;
@@ -161,13 +162,14 @@ export class EnvironmentMapLoader {
         const envMap = new EnvironmentMap();
         
         // Convert the URLs object to an array in the correct order
+        // and resolve relative URLs using UrlUtils
         const urlArray = [
-            urls.positiveX,
-            urls.negativeX,
-            urls.positiveY,
-            urls.negativeY,
-            urls.positiveZ,
-            urls.negativeZ
+            UrlUtils.resolveUrl(urls.positiveX),
+            UrlUtils.resolveUrl(urls.negativeX),
+            UrlUtils.resolveUrl(urls.positiveY),
+            UrlUtils.resolveUrl(urls.negativeY),
+            UrlUtils.resolveUrl(urls.positiveZ),
+            UrlUtils.resolveUrl(urls.negativeZ)
         ];
 
         await envMap.loadFromUrls(urlArray);
@@ -175,13 +177,16 @@ export class EnvironmentMapLoader {
     }
 
     public static async loadFromDirectory(baseUrl: string, format: string = 'png'): Promise<EnvironmentMap> {
+        // Resolve the baseUrl using UrlUtils
+        const fullBaseUrl = UrlUtils.resolveUrl(baseUrl);
+        
         return this.loadFromUrls({
-            positiveX: `${baseUrl}/px.${format}`,
-            negativeX: `${baseUrl}/nx.${format}`,
-            positiveY: `${baseUrl}/py.${format}`,
-            negativeY: `${baseUrl}/ny.${format}`,
-            positiveZ: `${baseUrl}/pz.${format}`,
-            negativeZ: `${baseUrl}/nz.${format}`
+            positiveX: `${fullBaseUrl}/px.${format}`,
+            negativeX: `${fullBaseUrl}/nx.${format}`,
+            positiveY: `${fullBaseUrl}/py.${format}`,
+            negativeY: `${fullBaseUrl}/ny.${format}`,
+            positiveZ: `${fullBaseUrl}/pz.${format}`,
+            negativeZ: `${fullBaseUrl}/nz.${format}`
         });
     }
 }

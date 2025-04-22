@@ -6,6 +6,7 @@ import { BaseMesh, BaseMeshProps } from './baseMesh';
 import { v3 } from '../../util/math/vector3';
 import { glob } from '../../../game';
 import { Util } from '../../util/utils';
+import { UrlUtils } from '../../util/urlUtils';
 
 // Base FBX node types
 interface FBXNodeBase {
@@ -596,8 +597,9 @@ export class FBXLoader extends BaseMesh {
 
             image.onerror = () => reject(new Error(`Failed to load texture: ${filename}`));
         });
-        // Set the image source to start loading - use the same directory as the FBX
-        image.src = `/fbx/${filename}`;
+        
+        // Construct the full URL using UrlUtils
+        image.src = UrlUtils.resolveUrl(`fbx/${filename}`);
 
         return texturePromise;
     }
@@ -631,7 +633,9 @@ export class FBXLoader extends BaseMesh {
 
     public static async loadFromUrl(url: string, props: FBXLoaderProps = {}): Promise<SceneObject[]> {
         try {
-            const response = await fetch(url);
+            // Resolve the URL using UrlUtils
+            const fullUrl = UrlUtils.resolveUrl(url);
+            const response = await fetch(fullUrl);
             if (!response.ok) {
                 throw new Error(`Failed to fetch FBX file: ${response.statusText}`);
             }
