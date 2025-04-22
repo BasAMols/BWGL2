@@ -51,14 +51,10 @@ export abstract class Util {
         return d * Math.PI / 180;
     }
 
-    public static closestVectorMagniture(vectors: Vector3[], target: number): Vector3 {
+    public static closestVectorMagnitude(vectors: Vector3[], target: number): Vector3 {
         let current: Vector3;
         vectors.forEach((v) => {
             if (current === undefined || Math.abs(v.magnitude()) < Math.abs(current.magnitude())) current = v;
-            else {
-                // console.log(current.magnitude(), v.magnitude());
-            }
-
         });
         return current;
     }

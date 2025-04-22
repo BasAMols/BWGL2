@@ -120,7 +120,6 @@ export class EnvironmentMap {
                     resolve(canvas as unknown as HTMLImageElement);
                 };
                 img.src = url;
-                console.log(`Loading cubemap image: ${url}`);
             });
         });
 
@@ -201,14 +200,6 @@ export class EnvironmentMapLoader {
             UrlUtils.resolveUrl(urls.negativeZ)
         ];
 
-        console.log('Loading environment maps from URLs:', {
-            positiveX: urlArray[0],
-            negativeX: urlArray[1],
-            positiveY: urlArray[2],
-            negativeY: urlArray[3],
-            positiveZ: urlArray[4],
-            negativeZ: urlArray[5]
-        });
 
         await envMap.loadFromUrls(urlArray);
         return envMap;
@@ -221,7 +212,6 @@ export class EnvironmentMapLoader {
         // Resolve the baseUrl using UrlUtils
         const fullBaseUrl = UrlUtils.resolveUrl(texturePath);
         
-        console.log(`Loading environment maps from: ${fullBaseUrl}`);
         
         return this.loadFromUrls({
             positiveX: `${fullBaseUrl}/px.${format}`,

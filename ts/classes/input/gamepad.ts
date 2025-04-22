@@ -5,8 +5,6 @@ export class Pad {
     }
 
     tick() {
-        this.recentPad = navigator.getGamepads().find((g)=>g.id === this.gamepad.id);
-        // console.log(this.recentPad.buttons[7]);
-        
+        this.recentPad = navigator.getGamepads().find((g)=>g.id === this.gamepad.id);        
     }
 }

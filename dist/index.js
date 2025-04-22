@@ -5803,13 +5803,11 @@ var Util = class {
   static degToRad(d) {
     return d * Math.PI / 180;
   }
-  static closestVectorMagniture(vectors, target) {
+  static closestVectorMagnitude(vectors, target) {
     let current;
     vectors.forEach((v) => {
       if (current === void 0 || Math.abs(v.magnitude()) < Math.abs(current.magnitude()))
         current = v;
-      else {
-      }
     });
     return current;
   }
@@ -5954,10 +5952,6 @@ var Vector3 = class _Vector3 {
   }
   get str() {
     return this.vec.toString();
-  }
-  get log() {
-    console.log(this.str);
-    return this.str;
   }
   constructor(x = 0, y = 0, z = 0) {
     this.vec = [x, y, z];
@@ -9821,7 +9815,6 @@ var EnvironmentMap = class {
           resolve(canvas);
         };
         img.src = url;
-        console.log("Loading cubemap image: ".concat(url));
       });
     });
     try {
@@ -9868,21 +9861,12 @@ var EnvironmentMapLoader = class {
       UrlUtils.resolveUrl(urls.positiveZ),
       UrlUtils.resolveUrl(urls.negativeZ)
     ];
-    console.log("Loading environment maps from URLs:", {
-      positiveX: urlArray[0],
-      negativeX: urlArray[1],
-      positiveY: urlArray[2],
-      negativeY: urlArray[3],
-      positiveZ: urlArray[4],
-      negativeZ: urlArray[5]
-    });
     await envMap.loadFromUrls(urlArray);
     return envMap;
   }
   static async loadFromDirectory(baseUrl, format = "png") {
     const texturePath = baseUrl.replace(/^\//, "");
     const fullBaseUrl = UrlUtils.resolveUrl(texturePath);
-    console.log("Loading environment maps from: ".concat(fullBaseUrl));
     return this.loadFromUrls({
       positiveX: "".concat(fullBaseUrl, "/px.").concat(format),
       negativeX: "".concat(fullBaseUrl, "/nx.").concat(format),
@@ -10287,7 +10271,6 @@ var _FBXLoader = class _FBXLoader extends BaseMesh {
     });
     const texturePath = "fbx/".concat(filename).replace(/^\//, "");
     image.src = UrlUtils.resolveUrl(texturePath);
-    console.log("Loading texture from: ".concat(image.src));
     return texturePromise;
   }
   static async loadFromBuffer(buffer, props = {}) {
@@ -10315,7 +10298,6 @@ var _FBXLoader = class _FBXLoader extends BaseMesh {
   static async loadFromUrl(url, props = {}) {
     try {
       const fullUrl = UrlUtils.resolveUrl(url);
-      console.log("Loading FBX model from: ".concat(fullUrl));
       const response = await fetch(fullUrl);
       if (!response.ok) {
         console.error("Failed to fetch FBX file: ".concat(response.statusText, " (").concat(response.status, ") from ").concat(fullUrl));
@@ -10336,8 +10318,8 @@ var FBXLoader = _FBXLoader;
 var TestLevel = class extends Scene {
   constructor() {
     super(new Camera({ position: v3(0, 100, 200), target: v3(0, 0, 0), fov: 40 }), {
-      ambientLightColor: v3(1, 1, 1),
-      ambientLightIntensity: 0.3
+      ambientLightColor: v3(0.4, 0.8, 0.9),
+      ambientLightIntensity: 0.7
       // Very subtle ambient lighting
     });
     this.clearColor = [0.2, 0.3, 0.5, 1];
@@ -10345,13 +10327,13 @@ var TestLevel = class extends Scene {
       position: v3(0, 10, 0),
       // Lower position for better sky reflections - world position affects reflection quality
       material: {
-        baseColor: v3(0.4, 0.5, 0.7),
+        baseColor: v3(0.4, 0.8, 0.9),
         // Deep blue-green tint for ocean
         roughness: 0.4,
         // Smoother surface for calm water, but not perfectly reflective
-        metallic: 0.9,
+        metallic: 0.8,
         // Good reflection without being too mirror-like
-        ambientOcclusion: 1,
+        ambientOcclusion: 0.8,
         emissive: v3(0.01, 0.03, 0.05)
         // Subtle glow for depth
       },
@@ -10363,7 +10345,7 @@ var TestLevel = class extends Scene {
       // Match sun position in skybox
       color: v3(1, 0.98, 0.95),
       // Slightly warm sunlight
-      intensity: 3,
+      intensity: 2,
       // Increased intensity
       enabled: true
     }));
@@ -10387,21 +10369,21 @@ var TestLevel = class extends Scene {
   }
   tick(obj) {
     super.tick(obj);
-    const radius = 6e3;
-    const height = 1300;
+    const radius = 4e3 + Math.sin(obj.total * 5e-4) * 2e3;
+    const height = 2e3;
     const v = v3(
       radius,
       height,
       0
-    ).rotateXY(this.baseRotation - obj.total * 1e-4);
-    this.camera.setPosition(v.add(v3(0, 0, 0)));
-    this.camera.setTarget(v3(0, -1e3, 0));
+    ).rotateXY(obj.total * 1e-4 % Math.PI * 2);
+    this.camera.setPosition(v.add(v3(0, Math.sin(obj.total * 5e-4) * 1e3, 0)));
+    this.camera.setTarget(v3(Math.sin(obj.total * 5e-4) * 1e3, -1e3, Math.sin(obj.total * 7e-4) * 1e3));
     const sunRadius = 3;
     const v22 = v3(
       sunRadius,
       -1,
       0
-    ).normalize().rotateXY(this.baseRotation - obj.total * -1e-4);
+    ).normalize().rotateXY((obj.total * -1e-4 + Math.PI / 0.75) % Math.PI * 2);
     this.sun.setDirection(v22);
     this.waterPlane.transform.setPosition(v3(0, Math.sin(obj.total * 1e-3) * 15 + 10, 0));
   }

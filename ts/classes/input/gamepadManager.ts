@@ -12,9 +12,7 @@ export class PadManager {
     disconnect(e: GamepadEvent) {
         delete this.pads[e.gamepad.id];
     }
-    tick() {
-        // console.log(this.pads);
-        
+    tick() {        
         Object.values(this.pads).forEach((pad)=>{
             pad.tick();
         });

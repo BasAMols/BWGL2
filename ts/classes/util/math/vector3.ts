@@ -78,10 +78,6 @@ export class Vector3 {
 		return this.vec.toString();
 	}
 
-	public get log() {
-		console.log(this.str);
-		return this.str;
-	}
 
 	public vec: vec3;
 

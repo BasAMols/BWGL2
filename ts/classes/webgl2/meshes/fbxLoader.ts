@@ -607,7 +607,6 @@ export class FBXLoader extends BaseMesh {
         // Construct the full URL using UrlUtils
         image.src = UrlUtils.resolveUrl(texturePath);
         
-        console.log(`Loading texture from: ${image.src}`);
 
         return texturePromise;
     }
@@ -643,7 +642,6 @@ export class FBXLoader extends BaseMesh {
         try {
             // Resolve the URL using UrlUtils
             const fullUrl = UrlUtils.resolveUrl(url);
-            console.log(`Loading FBX model from: ${fullUrl}`);
             
             const response = await fetch(fullUrl);
             if (!response.ok) {

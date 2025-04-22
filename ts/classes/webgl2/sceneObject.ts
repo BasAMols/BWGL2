@@ -10,13 +10,6 @@ export class SceneObject {
 
         // Set material properties
         if (this.material) {
-            console.log('Setting material properties:', {
-                baseColor: this.material.baseColor,
-                roughness: this.material.roughness,
-                metallic: this.material.metallic,
-                emissive: this.material.emissive
-            });
-
             glob.shaderManager.setUniform('u_material.baseColor', this.material.baseColor);
             glob.shaderManager.setUniform('u_material.roughness', this.material.roughness);
             glob.shaderManager.setUniform('u_material.metallic', this.material.metallic);
