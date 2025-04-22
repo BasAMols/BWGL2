@@ -5115,9 +5115,9 @@ var VertexArray = class {
   unbind() {
     this.gl.bindVertexArray(null);
   }
-  setAttributePointer(location, size, type, normalized = false, stride = 0, offset = 0) {
-    this.gl.vertexAttribPointer(location, size, type, normalized, stride, offset);
-    this.gl.enableVertexAttribArray(location);
+  setAttributePointer(location2, size, type, normalized = false, stride = 0, offset = 0) {
+    this.gl.vertexAttribPointer(location2, size, type, normalized, stride, offset);
+    this.gl.enableVertexAttribArray(location2);
   }
   dispose() {
     this.gl.deleteVertexArray(this.vao);
@@ -5207,8 +5207,8 @@ var ShaderManager = class {
       const info = this.gl.getActiveUniform(program, i);
       if (!info)
         continue;
-      const location = this.gl.getUniformLocation(program, info.name);
-      if (!location) {
+      const location2 = this.gl.getUniformLocation(program, info.name);
+      if (!location2) {
         console.warn("Could not get location for uniform '".concat(info.name, "' in shader '").concat(name, "'"));
         continue;
       }
@@ -5217,7 +5217,7 @@ var ShaderManager = class {
       uniformMap.set(baseName, {
         type: typeName,
         value: this.getDefaultValueForType(info.type),
-        location,
+        location: location2,
         isArray: info.size > 1,
         arraySize: info.size
       });
@@ -5228,13 +5228,13 @@ var ShaderManager = class {
       const info = this.gl.getActiveAttrib(program, i);
       if (!info)
         continue;
-      const location = this.gl.getAttribLocation(program, info.name);
-      if (location === -1)
+      const location2 = this.gl.getAttribLocation(program, info.name);
+      if (location2 === -1)
         continue;
       attributeMap.set(info.name, {
         type: this.getAttributeTypeName(info.type),
         size: this.getAttributeSize(info.type),
-        location
+        location: location2
       });
     }
   }
@@ -5271,62 +5271,62 @@ var ShaderManager = class {
       console.error("Error setting uniform '".concat(name, "' in program '").concat(this.currentProgram, "':"), error);
     }
   }
-  setUniformValue(type, location, value) {
+  setUniformValue(type, location2, value) {
     switch (type) {
       case "float":
         if (Array.isArray(value) || value instanceof Float32Array) {
-          this.gl.uniform1fv(location, value);
+          this.gl.uniform1fv(location2, value);
         } else {
-          this.gl.uniform1f(location, value);
+          this.gl.uniform1f(location2, value);
         }
         break;
       case "vec2":
-        this.gl.uniform2fv(location, value);
+        this.gl.uniform2fv(location2, value);
         break;
       case "vec3":
-        this.gl.uniform3fv(location, value);
+        this.gl.uniform3fv(location2, value);
         break;
       case "vec4":
-        this.gl.uniform4fv(location, value);
+        this.gl.uniform4fv(location2, value);
         break;
       case "mat4":
-        this.gl.uniformMatrix4fv(location, false, value);
+        this.gl.uniformMatrix4fv(location2, false, value);
         break;
       case "mat4[]":
-        this.gl.uniformMatrix4fv(location, false, value);
+        this.gl.uniformMatrix4fv(location2, false, value);
         break;
       case "mat3":
-        this.gl.uniformMatrix3fv(location, false, value);
+        this.gl.uniformMatrix3fv(location2, false, value);
         break;
       case "int":
         if (Array.isArray(value) || value instanceof Int32Array) {
-          this.gl.uniform1iv(location, value);
+          this.gl.uniform1iv(location2, value);
         } else {
-          this.gl.uniform1i(location, value);
+          this.gl.uniform1i(location2, value);
         }
         break;
       case "bool":
         if (Array.isArray(value)) {
           const intArray = new Int32Array(value.map((v) => v ? 1 : 0));
-          this.gl.uniform1iv(location, intArray);
+          this.gl.uniform1iv(location2, intArray);
         } else if (value instanceof Int32Array) {
-          this.gl.uniform1iv(location, value);
+          this.gl.uniform1iv(location2, value);
         } else {
-          this.gl.uniform1i(location, value ? 1 : 0);
+          this.gl.uniform1i(location2, value ? 1 : 0);
         }
         break;
       case "sampler2D":
       case "sampler2D[]":
       case "samplerCube":
         if (Array.isArray(value) || value instanceof Int32Array) {
-          this.gl.uniform1iv(location, value);
+          this.gl.uniform1iv(location2, value);
         } else {
-          this.gl.uniform1i(location, value);
+          this.gl.uniform1i(location2, value);
         }
         break;
       case "Light":
         const data = value;
-        this.gl.uniform1fv(location, data);
+        this.gl.uniform1fv(location2, data);
         break;
       default:
         console.warn("Unsupported uniform type: ".concat(type));
@@ -10521,6 +10521,11 @@ var Game = class {
 
 // ts/index.ts
 document.addEventListener("DOMContentLoaded", async () => {
+  if (location.hostname !== "localhost") {
+    const base = document.createElement("base");
+    base.href = "https://basamols.github.io/BWGL2/dist/";
+    document.head.appendChild(base);
+  }
   const g = new Game();
   document.body.appendChild(g.renderer.dom);
 });
