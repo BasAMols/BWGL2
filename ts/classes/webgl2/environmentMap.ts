@@ -86,12 +86,41 @@ export class EnvironmentMap {
         ];
 
         // Load all images
-        const imagePromises = urls.map(url => {
+        const imagePromises = urls.map((url, index) => {
             return new Promise<HTMLImageElement>((resolve, reject) => {
                 const img = new Image();
                 img.onload = () => resolve(img);
-                img.onerror = reject;
+                img.onerror = (err) => {
+                    console.error(`Failed to load cubemap image: ${url}`, err);
+                    // Create a colored placeholder for debugging
+                    const colors = [
+                        [255, 0, 0, 255],    // positiveX - red
+                        [0, 255, 0, 255],    // negativeX - green
+                        [0, 0, 255, 255],    // positiveY - blue
+                        [255, 255, 0, 255],  // negativeY - yellow
+                        [255, 0, 255, 255],  // positiveZ - magenta
+                        [0, 255, 255, 255]   // negativeZ - cyan
+                    ];
+                    
+                    // Create a small canvas with the placeholder color
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 64;
+                    canvas.height = 64;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.fillStyle = `rgba(${colors[index].join(',')})`;
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        
+                        // Draw error text
+                        ctx.fillStyle = 'black';
+                        ctx.font = '10px Arial';
+                        ctx.fillText('Load Error', 5, 32);
+                    }
+                    
+                    resolve(canvas as unknown as HTMLImageElement);
+                };
                 img.src = url;
+                console.log(`Loading cubemap image: ${url}`);
             });
         });
 
@@ -172,13 +201,27 @@ export class EnvironmentMapLoader {
             UrlUtils.resolveUrl(urls.negativeZ)
         ];
 
+        console.log('Loading environment maps from URLs:', {
+            positiveX: urlArray[0],
+            negativeX: urlArray[1],
+            positiveY: urlArray[2],
+            negativeY: urlArray[3],
+            positiveZ: urlArray[4],
+            negativeZ: urlArray[5]
+        });
+
         await envMap.loadFromUrls(urlArray);
         return envMap;
     }
 
     public static async loadFromDirectory(baseUrl: string, format: string = 'png'): Promise<EnvironmentMap> {
+        // Make sure path doesn't start with / to avoid going to the domain root
+        const texturePath = baseUrl.replace(/^\//, '');
+        
         // Resolve the baseUrl using UrlUtils
-        const fullBaseUrl = UrlUtils.resolveUrl(baseUrl);
+        const fullBaseUrl = UrlUtils.resolveUrl(texturePath);
+        
+        console.log(`Loading environment maps from: ${fullBaseUrl}`);
         
         return this.loadFromUrls({
             positiveX: `${fullBaseUrl}/px.${format}`,

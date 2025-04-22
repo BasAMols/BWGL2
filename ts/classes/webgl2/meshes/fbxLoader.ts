@@ -595,11 +595,19 @@ export class FBXLoader extends BaseMesh {
                 }
             };
 
-            image.onerror = () => reject(new Error(`Failed to load texture: ${filename}`));
+            image.onerror = (err) => {
+                console.error(`Failed to load texture: ${filename}`, err);
+                reject(new Error(`Failed to load texture: ${filename}`));
+            };
         });
         
+        // Make the path relative to the current app, not root-relative
+        const texturePath = `fbx/${filename}`.replace(/^\//, '');
+        
         // Construct the full URL using UrlUtils
-        image.src = UrlUtils.resolveUrl(`fbx/${filename}`);
+        image.src = UrlUtils.resolveUrl(texturePath);
+        
+        console.log(`Loading texture from: ${image.src}`);
 
         return texturePromise;
     }

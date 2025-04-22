@@ -9703,8 +9703,9 @@ var UrlUtils = class {
     if (baseTag && baseTag.href) {
       return baseTag.href;
     }
-    const location2 = window.location;
-    return "".concat(location2.protocol, "//").concat(location2.host).concat(location2.pathname.replace(/\/[^/]*$/, "/"));
+    const href = window.location.href;
+    const cleanHref = href.split(/[?#]/)[0];
+    return cleanHref.endsWith("/") ? cleanHref : cleanHref.substring(0, cleanHref.lastIndexOf("/") + 1);
   }
   /**
    * Resolve a relative URL against the application's base URL
@@ -9712,6 +9713,12 @@ var UrlUtils = class {
    * @returns The fully resolved URL
    */
   static resolveUrl(url) {
+    if (url.match(/^(https?:)?\/\//)) {
+      return url;
+    }
+    if (url.startsWith("/")) {
+      return new URL(url, window.location.origin).href;
+    }
     return new URL(url, this.getBaseUrl()).href;
   }
 };
@@ -9780,12 +9787,41 @@ var EnvironmentMap = class {
       gl.TEXTURE_CUBE_MAP_POSITIVE_Z,
       gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
     ];
-    const imagePromises = urls.map((url) => {
+    const imagePromises = urls.map((url, index) => {
       return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => resolve(img);
-        img.onerror = reject;
+        img.onerror = (err) => {
+          console.error("Failed to load cubemap image: ".concat(url), err);
+          const colors = [
+            [255, 0, 0, 255],
+            // positiveX - red
+            [0, 255, 0, 255],
+            // negativeX - green
+            [0, 0, 255, 255],
+            // positiveY - blue
+            [255, 255, 0, 255],
+            // negativeY - yellow
+            [255, 0, 255, 255],
+            // positiveZ - magenta
+            [0, 255, 255, 255]
+            // negativeZ - cyan
+          ];
+          const canvas = document.createElement("canvas");
+          canvas.width = 64;
+          canvas.height = 64;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.fillStyle = "rgba(".concat(colors[index].join(","), ")");
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "black";
+            ctx.font = "10px Arial";
+            ctx.fillText("Load Error", 5, 32);
+          }
+          resolve(canvas);
+        };
         img.src = url;
+        console.log("Loading cubemap image: ".concat(url));
       });
     });
     try {
@@ -9832,11 +9868,21 @@ var EnvironmentMapLoader = class {
       UrlUtils.resolveUrl(urls.positiveZ),
       UrlUtils.resolveUrl(urls.negativeZ)
     ];
+    console.log("Loading environment maps from URLs:", {
+      positiveX: urlArray[0],
+      negativeX: urlArray[1],
+      positiveY: urlArray[2],
+      negativeY: urlArray[3],
+      positiveZ: urlArray[4],
+      negativeZ: urlArray[5]
+    });
     await envMap.loadFromUrls(urlArray);
     return envMap;
   }
   static async loadFromDirectory(baseUrl, format = "png") {
-    const fullBaseUrl = UrlUtils.resolveUrl(baseUrl);
+    const texturePath = baseUrl.replace(/^\//, "");
+    const fullBaseUrl = UrlUtils.resolveUrl(texturePath);
+    console.log("Loading environment maps from: ".concat(fullBaseUrl));
     return this.loadFromUrls({
       positiveX: "".concat(fullBaseUrl, "/px.").concat(format),
       negativeX: "".concat(fullBaseUrl, "/nx.").concat(format),
@@ -10234,9 +10280,14 @@ var _FBXLoader = class _FBXLoader extends BaseMesh {
           reject(error);
         }
       };
-      image.onerror = () => reject(new Error("Failed to load texture: ".concat(filename)));
+      image.onerror = (err) => {
+        console.error("Failed to load texture: ".concat(filename), err);
+        reject(new Error("Failed to load texture: ".concat(filename)));
+      };
     });
-    image.src = UrlUtils.resolveUrl("fbx/".concat(filename));
+    const texturePath = "fbx/".concat(filename).replace(/^\//, "");
+    image.src = UrlUtils.resolveUrl(texturePath);
+    console.log("Loading texture from: ".concat(image.src));
     return texturePromise;
   }
   static async loadFromBuffer(buffer, props = {}) {

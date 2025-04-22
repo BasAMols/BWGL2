@@ -12,9 +12,13 @@ export class UrlUtils {
             return baseTag.href;
         }
         
-        // Otherwise, build from the current location
-        const location = window.location;
-        return `${location.protocol}//${location.host}${location.pathname.replace(/\/[^/]*$/, '/')}`;
+        // Use the window.location.href but ensure it ends with a slash
+        // This preserves the full path including any directories
+        const href = window.location.href;
+        // Remove any query parameters or hash
+        const cleanHref = href.split(/[?#]/)[0];
+        // Ensure the URL ends with a slash
+        return cleanHref.endsWith('/') ? cleanHref : cleanHref.substring(0, cleanHref.lastIndexOf('/') + 1);
     }
 
     /**
@@ -23,6 +27,17 @@ export class UrlUtils {
      * @returns The fully resolved URL
      */
     public static resolveUrl(url: string): string {
+        // Don't modify URLs that are already absolute
+        if (url.match(/^(https?:)?\/\//)) {
+            return url;
+        }
+        
+        // For absolute paths starting with /, use the origin only
+        if (url.startsWith('/')) {
+            return new URL(url, window.location.origin).href;
+        }
+        
+        // For relative paths, use the full base URL
         return new URL(url, this.getBaseUrl()).href;
     }
 } 
