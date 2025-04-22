@@ -1,5 +1,5 @@
 import { mat4 } from 'gl-matrix';
-import { glob } from '../../global';
+import { glob } from '../../game';
 
 export class SceneObject {
     visible: boolean = true;

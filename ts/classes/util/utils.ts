@@ -13,6 +13,15 @@ export abstract class Util {
         }
         return output;
     }
+    public static duplicate(array: unknown[], size: number): unknown[]{
+        const output: unknown[] = [];
+        array.forEach((v) => {
+            for (let i=0; i < size; i++) {
+                output.push(v);
+            }
+        })
+        return output;
+    }
 
     public static padArray(ar: any[], b: any, len: number) {
         return ar.concat(Array.from(Array(len).fill(b))).slice(0, len);

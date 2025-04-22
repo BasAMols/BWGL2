@@ -6,6 +6,7 @@ import { BaseMesh, BaseMeshProps } from './baseMesh';
 import { v3 } from '../../util/math/vector3';
 import { ContainerObject } from './containerObject';
 import { glob } from '../../../game';
+import { Util } from '../../util/utils';
 
 // Base FBX node types
 interface FBXNodeBase {
@@ -86,7 +87,6 @@ type FBXNode = FBXGeometryNode | FBXMaterialNode | FBXConnectionNode | FBXObject
 
 // Add smoothShading to props interface
 export interface FBXLoaderProps extends BaseMeshProps {
-    smoothShading?: boolean;
     gl?: WebGL2RenderingContext;
 }
 
@@ -96,15 +96,19 @@ export class FBXLoader extends BaseMesh {
         const verticesNode = fbxMesh.nodes.find(n => n.name === 'Vertices');
         const vertices = verticesNode?.props[0] as number[] || [];
         const indicesNode = fbxMesh.nodes.find(n => n.name === 'PolygonVertexIndex');
-        const indices = (indicesNode?.props[0] as number[] || []).map(index => 
+        const indices = (indicesNode?.props[0] as number[] || []).map(index =>
             index < 0 ? (-index - 1) : index
         );
 
         // Get UV coordinates (for texture mapping)
-        const uvsNode = fbxMesh.nodes
-            .find(n => n.name === 'LayerElementUV')
-            ?.nodes.find(n => n.name === 'UV');
+        const layerElementUV = fbxMesh.nodes.find(n => n.name === 'LayerElementUV');
+        const uvsNode = layerElementUV?.nodes.find(n => n.name === 'UV');
+        const uvIndexNode = layerElementUV?.nodes.find(n => n.name === 'UVIndex');
+
         const uvs = uvsNode?.props[0] as number[] || [];
+        const uvIndices = uvIndexNode?.props[0] as number[] || indices;
+        const uvPairs = Util.duplicate(Util.chunk(uvs, 2) as [number, number][], 1) as [number, number][];
+
 
         // Helper function to normalize a vector
         const normalizeVector = (x: number, y: number, z: number) => {
@@ -113,114 +117,85 @@ export class FBXLoader extends BaseMesh {
             return [x / length, y / length, z / length];
         };
 
-        if (smoothShading) {
-            // Get normal mapping information
-            const normalElement = fbxMesh.nodes.find(n => n.name === 'LayerElementNormal');
-            const mappingType = normalElement?.nodes.find(n => n.name === 'MappingInformationType')?.props[0];
-            const referenceType = normalElement?.nodes.find(n => n.name === 'ReferenceInformationType')?.props[0];
-            const normalsNode = normalElement?.nodes.find(n => n.name === 'Normals');
-            const rawNormals = normalsNode?.props[0] as number[] || [];
+        // Helper function to transform vertices from FBX coordinate system
+        const transformVertex = (x: number, y: number, z: number) => {
+            // Transform based on FBX normal data:
+            // Original [0,1,0] should be top (red)
+            // Original [0,-1,0] should be bottom (green)
+            // Original [0,0,-1] should be back (yellow)
+            return [x, z, -y];
+        };
 
-            console.log('Normal data:', {
-                mappingType,
-                referenceType,
-                normalCount: rawNormals.length / 3,
-                firstFewNormals: rawNormals.slice(0, 9)
-            });
+        // For flat shading, we need to duplicate vertices for each face
+        const flatVertices: number[] = [];
+        const flatNormals: number[] = [];
+        const flatIndices: number[] = [];
+        const flatTexCoords: number[] = [];
 
-            // Process normals
-            let processedNormals: number[] = new Array(vertices.length).fill(0);
-            let normalCounter = 0;
+        // Process all triangles in the mesh
+        for (let i = 0; i < indices.length; i += 3) {
 
-            // Map normals to vertices
-            for (let i = 0; i < indices.length; i++) {
-                const vertexIndex = indices[i];
-                if (normalCounter + 2 < rawNormals.length) {
-                    const [nx, ny, nz] = normalizeVector(
-                        rawNormals[normalCounter],
-                        rawNormals[normalCounter + 1],
-                        rawNormals[normalCounter + 2]
-                    );
+            // Get vertex indices for this triangle
+            const v1Index = indices[i] * 3;
+            const v2Index = indices[i + 1] * 3;
+            const v3Index = indices[i + 2] * 3;
 
-                    processedNormals[vertexIndex * 3] = nx;
-                    processedNormals[vertexIndex * 3 + 1] = ny;
-                    processedNormals[vertexIndex * 3 + 2] = nz;
+            // Get vertices and transform them
+            const v1 = transformVertex(
+                vertices[v1Index],
+                vertices[v1Index + 1],
+                vertices[v1Index + 2]
+            );
+            const v2 = transformVertex(
+                vertices[v2Index],
+                vertices[v2Index + 1],
+                vertices[v2Index + 2]
+            );
+            const v3 = transformVertex(
+                vertices[v3Index],
+                vertices[v3Index + 1],
+                vertices[v3Index + 2]
+            );
 
-                    normalCounter += 3;
-                }
-            }
+            // Calculate face normal
+            const ax = v2[0] - v1[0];
+            const ay = v2[1] - v1[1];
+            const az = v2[2] - v1[2];
 
-            return {
-                vertices: new Float32Array(vertices),
-                indices: new Uint16Array(indices),
-                normals: new Float32Array(processedNormals),
-                texCoords: uvs.length > 0 ? new Float32Array(uvs) : undefined
-            };
-        } else {
-            // For flat shading, we need to duplicate vertices for each face
-            // since each vertex needs its own normal
-            const flatVertices: number[] = [];
-            const flatNormals: number[] = [];
-            const flatIndices: number[] = [];
-            const flatTexCoords: number[] = [];
+            const bx = v3[0] - v1[0];
+            const by = v3[1] - v1[1];
+            const bz = v3[2] - v1[2];
 
-            // Process each face (assuming triangles)
-            for (let i = 0; i < indices.length; i += 3) {
-                // Get the three vertices of this face
-                const v1Index = indices[i] * 3;
-                const v2Index = indices[i + 1] * 3;
-                const v3Index = indices[i + 2] * 3;
+            const normal = normalizeVector(
+                ay * bz - az * by,
+                az * bx - ax * bz,
+                ax * by - ay * bx
+            );
 
-                // Calculate face normal
-                const v1 = [vertices[v1Index], vertices[v1Index + 1], vertices[v1Index + 2]];
-                const v2 = [vertices[v2Index], vertices[v2Index + 1], vertices[v2Index + 2]];
-                const v3 = [vertices[v3Index], vertices[v3Index + 1], vertices[v3Index + 2]];
+            // const uv1 = [uvs[uvIndices[i]], uvs[uvIndices[i] + 1]];
+            // const uv2 = [uvs[uvIndices[i + 1]], uvs[uvIndices[i + 1] + 1]];
+            // const uv3 = [uvs[uvIndices[i + 2]], uvs[uvIndices[i + 2] + 1]];
 
-                // Calculate face normal using cross product
-                const ax = v2[0] - v1[0];
-                const ay = v2[1] - v1[1];
-                const az = v2[2] - v1[2];
+            const vertexCount = Math.floor(flatVertices.length / 3);
 
-                const bx = v3[0] - v1[0];
-                const by = v3[1] - v1[1];
-                const bz = v3[2] - v1[2];
-
-                const normal = normalizeVector(
-                    ay * bz - az * by,
-                    az * bx - ax * bz,
-                    ax * by - ay * bx
+            // Add triangle
+            flatVertices.push(...v1, ...v2, ...v3);
+            flatTexCoords.push
+                (
+                    ...uvPairs[uvIndices[i + 0]],
+                    ...uvPairs[uvIndices[i + 1]],
+                    ...uvPairs[uvIndices[i + 2]]
                 );
-
-                // Add vertices
-                flatVertices.push(...v1, ...v2, ...v3);
-
-                // Add the same normal for all three vertices
-                flatNormals.push(...normal, ...normal, ...normal);
-
-                // Add UV coordinates if available
-                if (uvs.length > 0) {
-                    const uv1Index = indices[i] * 2;
-                    const uv2Index = indices[i + 1] * 2;
-                    const uv3Index = indices[i + 2] * 2;
-                    flatTexCoords.push(
-                        uvs[uv1Index], uvs[uv1Index + 1],
-                        uvs[uv2Index], uvs[uv2Index + 1],
-                        uvs[uv3Index], uvs[uv3Index + 1]
-                    );
-                }
-
-                // Add indices
-                const baseIndex = i;
-                flatIndices.push(baseIndex, baseIndex + 1, baseIndex + 2);
-            }
-
-            return {
-                vertices: new Float32Array(flatVertices),
-                indices: new Uint16Array(flatIndices),
-                normals: new Float32Array(flatNormals),
-                texCoords: uvs.length > 0 ? new Float32Array(flatTexCoords) : undefined
-            };
+            flatNormals.push(...normal, ...normal, ...normal);
+            flatIndices.push(vertexCount, vertexCount + 1, vertexCount + 2);
         }
+
+        return {
+            vertices: new Float32Array(flatVertices),
+            indices: new Uint16Array(flatIndices),
+            normals: new Float32Array(flatNormals),
+            texCoords: new Float32Array(flatTexCoords.map((v, i) => i % 2 !== 0 ? (1 - v) : v)) // flip v 
+        };
     }
 
     private static async parseMaterial(fbxMaterial: FBXMaterialNode, fbxData: FBXNode[]): Promise<Material> {
@@ -229,7 +204,7 @@ export class FBXLoader extends BaseMesh {
 
         // Default material properties
         let baseColor = v3(0.8, 0.2, 0.2);  // Default to red
-        let roughness = 0.5;
+        let roughness = 1;
         let metallic = 0.0;
         let ambientOcclusion = 1.0;
         let emissive = v3(0, 0, 0);
@@ -238,13 +213,12 @@ export class FBXLoader extends BaseMesh {
         // Find textures connected to this material
         const objectsNode = fbxData.find(node => node.name === 'Objects') as FBXObjectsNode;
         const connectionsNode = fbxData.find(node => node.name === 'Connections') as FBXConnectionNode;
-        
+
         // Find texture nodes
         const textures = objectsNode.nodes.filter(n => n.name === 'Texture') as FBXTextureNode[];
-        
+
         // Get material ID from the material's properties
         const materialId = fbxMaterial.props[0];
-        
         // Find texture connections (look for both directions)
         const textureConnections = connectionsNode.nodes.filter(c => {
             const conn = c as FBXConnectionValueNode;
@@ -261,9 +235,9 @@ export class FBXLoader extends BaseMesh {
             const textureNode = textures.find(t => {
                 const textureId = t.props[0];
                 return textureId === (connection as FBXConnectionValueNode).props[0] ||
-                       textureId === (connection as FBXConnectionValueNode).props[1];
+                    textureId === (connection as FBXConnectionValueNode).props[1];
             });
-            
+
             if (textureNode) {
                 const textureName = textureNode.nodes.find(n => n.name === 'TextureName')?.props[0] as string;
                 const relativeFilename = textureNode.nodes.find(n => n.name === 'RelativeFilename')?.props[0] as string;
@@ -271,9 +245,9 @@ export class FBXLoader extends BaseMesh {
                 if (relativeFilename) {
                     try {
                         const texture = await this.createTextureFromFile(relativeFilename);
-                        
+
                         // Determine texture type from the connection or name
-                        if (textureName?.toLowerCase().includes('diffuse') || 
+                        if (textureName?.toLowerCase().includes('diffuse') ||
                             textureName?.toLowerCase().includes('base_color')) {
                             albedoMap = texture;
                             baseColor = v3(1, 1, 1); // Set base color to white to let texture color show through
@@ -291,7 +265,7 @@ export class FBXLoader extends BaseMesh {
 
             const propName = prop.props[0] as string;
             const propType = prop.props[1] as string;
-            
+
             const isColorProp = propType === 'Color' || propType === 'ColorRGB';
             const colorValues = isColorProp ? [
                 prop.props[4] as number,
@@ -330,10 +304,10 @@ export class FBXLoader extends BaseMesh {
                 case 'EmissiveColor':
                 case 'Emissive':
                     if (colorValues) {
-                        const emissiveFactor = properties.find(p => 
+                        const emissiveFactor = properties.find(p =>
                             p.props[0] === 'EmissiveFactor'
                         )?.props[4] as number || 1.0;
-                        
+
                         emissive = v3(
                             colorValues[0] * emissiveFactor,
                             colorValues[1] * emissiveFactor,
@@ -358,7 +332,7 @@ export class FBXLoader extends BaseMesh {
     private static async createTextureFromFile(filename: string): Promise<WebGLTexture> {
         // Create a new image element
         const image = new Image();
-        
+
         // Set up a promise to handle the image loading
         const texturePromise = new Promise<WebGLTexture>((resolve, reject) => {
             image.onload = () => {
@@ -385,7 +359,7 @@ export class FBXLoader extends BaseMesh {
 
                     // Upload the image into the texture
                     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-                    
+
                     // Generate mipmaps
                     gl.generateMipmap(gl.TEXTURE_2D);
 
@@ -394,13 +368,12 @@ export class FBXLoader extends BaseMesh {
                     reject(error);
                 }
             };
-            
+
             image.onerror = () => reject(new Error(`Failed to load texture: ${filename}`));
         });
-
         // Set the image source to start loading - use the same directory as the FBX
         image.src = `/fbx/${filename}`;
-        
+
         return texturePromise;
     }
 
@@ -409,31 +382,31 @@ export class FBXLoader extends BaseMesh {
             const fbxData = FBXParser.parseBinary(new Uint8Array(buffer)) as FBXNode[];
             const container = new ContainerObject();
             const objectsNode = fbxData.find(node => node.name === 'Objects') as FBXObjectsNode;
-            
+
             if (!objectsNode) {
                 throw new Error('No Objects node found in FBX file');
             }
 
             // Type guard functions
-            const isGeometryNode = (node: FBXNode): node is FBXGeometryNode => 
+            const isGeometryNode = (node: FBXNode): node is FBXGeometryNode =>
                 node.name === 'Geometry';
-            const isMaterialNode = (node: FBXNode): node is FBXMaterialNode => 
+            const isMaterialNode = (node: FBXNode): node is FBXMaterialNode =>
                 node.name === 'Material';
 
             const geometries = objectsNode.nodes.filter(isGeometryNode);
             const materials = objectsNode.nodes.filter(isMaterialNode);
 
             for (const geometry of geometries) {
-                const meshData = this.parseMesh(geometry, props.smoothShading ?? true);
+                const meshData = this.parseMesh(geometry);
 
                 // Find associated material if any
                 const connectionsNode = fbxData.find(node => node.name === 'Connections') as FBXConnectionNode | undefined;
                 const connections = connectionsNode?.nodes || [];
-                
+
                 const materialConnection = connections
                     .find(c => {
                         const geomValue = (geometry.nodes[0]?.nodes[0] as FBXGeometryValueNode)?.value;
-                        const matValue = materials.some((m: FBXMaterialNode) => 
+                        const matValue = materials.some((m: FBXMaterialNode) =>
                             (m.nodes[0]?.nodes[0] as FBXMaterialValueNode)?.value === (c as FBXConnectionValueNode).value
                         );
                         return (c as FBXConnectionValueNode).value === geomValue && matValue;
@@ -441,7 +414,7 @@ export class FBXLoader extends BaseMesh {
 
                 let material: Material | undefined;
                 if (materialConnection) {
-                    const materialNode = materials.find((m: FBXMaterialNode) => 
+                    const materialNode = materials.find((m: FBXMaterialNode) =>
                         (m.nodes[0]?.nodes[0] as FBXMaterialValueNode)?.value === (materialConnection as FBXConnectionValueNode).value
                     );
                     if (materialNode) {

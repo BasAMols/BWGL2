@@ -57,8 +57,9 @@ export class Scene {
 
     }
 
-    public add(object: SceneObject): void {
+    public add(object: SceneObject): SceneObject {
         this.objects.push(object);
+        return object;
     }
 
     public remove(object: SceneObject): void {
