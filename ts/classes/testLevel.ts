@@ -8,6 +8,8 @@ import { Plane } from './webgl2/meshes/plane';
 import { EnvironmentMapLoader } from './webgl2/environmentMap';
 import { FBXLoader } from './webgl2/meshes/fbxLoader';
 import { Quaternion } from './util/math/quaternion';
+import { Material } from './webgl2/material';
+import { IcoSphere } from './webgl2/meshes/icoSphere';
 
 export class TestLevel extends Scene {
     protected clearColor: [number, number, number, number] = [0.2, 0.3, 0.5, 1.0];  // Match sky color
@@ -34,6 +36,23 @@ export class TestLevel extends Scene {
             },
             scale: v2(100000, 100000),  // Adjust scale to see more of the reflection
         }));
+
+        this.add(IcoSphere.create({
+            position: v3(0, 0, 0),
+            rotation: Quaternion.fromEuler(0, 0, 0),
+            scale: v3(1000, 1000, 1000),
+            subdivisions: 1,
+            smoothShading: false,
+            material: new Material({
+                baseColor: v3(0, 0, 0),
+                roughness: 0,
+                metallic: 1,
+                emissive: v3(0, 0, 0),
+                ambientOcclusion: 1,
+            }),
+            
+        }));
+        
 
         // Adjust lighting to match skybox
         this.addLight(this.sun = new DirectionalLight({
@@ -78,7 +97,7 @@ export class TestLevel extends Scene {
             0
         ).rotateXY(obj.total * 0.0001 % Math.PI*2);
         this.camera.setPosition(v.add(v3(0, Math.sin(obj.total * 0.0005) * 1000, 0)));
-        this.camera.setTarget(v3(Math.sin(obj.total * 0.0005) * 1000, -1000, Math.sin(obj.total * 0.0007) * 1000));  // Keep looking at the reflective plane
+        this.camera.setTarget(v3(0, 0, 0));  // Keep looking at the reflective plane
 
         // Slowly rotate the sun to match skybox movement
         const sunRadius = 3;

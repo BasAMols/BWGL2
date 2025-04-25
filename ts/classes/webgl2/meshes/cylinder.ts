@@ -18,6 +18,8 @@ export class Cylinder extends BaseMesh {
         const normals: number[] = [];
         const generatedColors: number[] = [];
         const texCoords: number[] = [];
+        const tangents: number[] = [];
+        const bitangents: number[] = [];
 
         // Default colors
         const defaultColors: [[number, number, number], [number, number, number], [number, number, number]] = [
@@ -38,8 +40,9 @@ export class Cylinder extends BaseMesh {
             }
         }
 
+        // STEP 1: Generate sides with smooth or flat shading as specified
         if (smoothShading) {
-            // Smooth shading - vertices share normals
+            // Smooth shading for sides - vertices share normals
             for (let i = 0; i <= sides; i++) {
                 const angle = (i * Math.PI * 2) / sides;
                 const x = Math.cos(angle);
@@ -61,6 +64,17 @@ export class Cylinder extends BaseMesh {
                 // Texture coordinates
                 texCoords.push(i / sides, 1);
                 texCoords.push(i / sides, 0);
+
+                // Tangent vectors for normal mapping - tangent to the cylinder surface
+                // For a cylinder, tangent is perpendicular to normal in horizontal plane
+                const tx = -z;
+                const tz = x;
+                tangents.push(tx, 0, tz);
+                tangents.push(tx, 0, tz);
+
+                // Bitangent is cross product of normal and tangent (up/down direction)
+                bitangents.push(0, 1, 0);
+                bitangents.push(0, 1, 0);
             }
 
             // Generate indices for the side triangles
@@ -73,77 +87,8 @@ export class Cylinder extends BaseMesh {
                 indices.push(topFirst, topSecond, bottomFirst);
                 indices.push(bottomFirst, topSecond, bottomSecond);
             }
-
-            // Generate caps for smooth shading
-            const sideVertexCount = vertices.length / 3;
-            
-            // Add centers for both caps
-            vertices.push(0, 0.5, 0);  // Top center
-            vertices.push(0, -0.5, 0); // Bottom center
-            normals.push(0, 1, 0);     // Top normal
-            normals.push(0, -1, 0);    // Bottom normal
-            generatedColors.push(...topColor, ...bottomColor);
-            texCoords.push(0.5, 0.5, 0.5, 0.5);
-
-            const topCenterIndex = sideVertexCount;
-            const bottomCenterIndex = sideVertexCount + 1;
-
-            // Generate cap vertices
-            for (let i = 0; i < sides; i++) {
-                const angle1 = (i * Math.PI * 2) / sides;
-                const angle2 = ((i + 1) * Math.PI * 2) / sides;
-                
-                const x1 = Math.cos(angle1) * 0.5;
-                const z1 = Math.sin(angle1) * 0.5;
-                const x2 = Math.cos(angle2) * 0.5;
-                const z2 = Math.sin(angle2) * 0.5;
-
-                // Add vertices for caps
-                vertices.push(
-                    x1, 0.5, z1,    // Top cap point 1
-                    x2, 0.5, z2,    // Top cap point 2
-                    x1, -0.5, z1,   // Bottom cap point 1
-                    x2, -0.5, z2    // Bottom cap point 2
-                );
-
-                // Add normals
-                normals.push(
-                    0, 1, 0,    // Top cap normal
-                    0, 1, 0,    // Top cap normal
-                    0, -1, 0,   // Bottom cap normal
-                    0, -1, 0    // Bottom cap normal
-                );
-
-                // Add colors
-                generatedColors.push(
-                    ...topColor, ...topColor,       // Top cap colors
-                    ...bottomColor, ...bottomColor  // Bottom cap colors
-                );
-
-                // Add texture coordinates for both caps
-                texCoords.push(
-                    x1 + 0.5, z1 + 0.5,    // Top cap first point
-                    x2 + 0.5, z2 + 0.5,    // Top cap second point
-                    x1 + 0.5, z1 + 0.5,    // Bottom cap first point
-                    x2 + 0.5, z2 + 0.5     // Bottom cap second point
-                );
-
-                // Calculate vertex indices for this segment
-                const topSegmentStart = sideVertexCount + 2 + (i * 4);
-                const bottomSegmentStart = topSegmentStart + 2;
-
-                // Add indices for caps
-                indices.push(
-                    topCenterIndex,        // Top center
-                    topSegmentStart,       // Top current point
-                    topSegmentStart + 1,   // Top next point
-                    bottomCenterIndex,     // Bottom center
-                    bottomSegmentStart,    // Bottom current point
-                    bottomSegmentStart + 1 // Bottom next point
-                );
-            }
         } else {
-            // Flat shading - each face has its own vertices with unique normals
+            // Flat shading for sides - each face has its own vertices with unique normals
             for (let i = 0; i < sides; i++) {
                 const angle1 = (i * Math.PI * 2) / sides;
                 const angle2 = ((i + 1) * Math.PI * 2) / sides;
@@ -154,6 +99,7 @@ export class Cylinder extends BaseMesh {
                 const z2 = Math.sin(angle2);
 
                 // Each face gets its own vertices
+                const baseIndex = vertices.length / 3;
                 vertices.push(
                     x1 * 0.5, 0.5, z1 * 0.5,    // top-left
                     x2 * 0.5, 0.5, z2 * 0.5,    // top-right
@@ -186,89 +132,103 @@ export class Cylinder extends BaseMesh {
                     (i + 1) / sides, 0
                 );
 
+                // Tangent and bitangent for flat shading
+                const tangentX = -normalZ;
+                const tangentZ = normalX;
+                for (let j = 0; j < 6; j++) {
+                    tangents.push(tangentX, 0, tangentZ);
+                    bitangents.push(0, 1, 0);
+                }
+
                 // Indices for flat shading are just sequential
-                const baseIndex = i * 6;
                 indices.push(
                     baseIndex, baseIndex + 1, baseIndex + 2,
                     baseIndex + 3, baseIndex + 4, baseIndex + 5
                 );
             }
+        }
 
-            // Generate caps for flat shading
-            const sideVertexCount = vertices.length / 3;
-
-            // Add centers for both caps
-            vertices.push(0, 0.5, 0);  // Top center
-            vertices.push(0, -0.5, 0); // Bottom center
-            normals.push(0, 1, 0);     // Top normal
-            normals.push(0, -1, 0);    // Bottom normal
-            generatedColors.push(...topColor, ...bottomColor);
-            texCoords.push(0.5, 0.5, 0.5, 0.5);
-
-            const topCenterIndex = sideVertexCount;
-            const bottomCenterIndex = sideVertexCount + 1;
-
-            // Generate vertices for both caps
-            for (let i = 0; i < sides; i++) {
-                const angle1 = (i * Math.PI * 2) / sides;
-                const angle2 = ((i + 1) * Math.PI * 2) / sides;
-                
-                const x1 = Math.cos(angle1) * 0.5;
-                const z1 = Math.sin(angle1) * 0.5;
-                const x2 = Math.cos(angle2) * 0.5;
-                const z2 = Math.sin(angle2) * 0.5;
-
-                // Add vertices for top cap
-                vertices.push(
-                    x1, 0.5, z1,
-                    x2, 0.5, z2
-                );
-
-                // Add normals for top cap
-                normals.push(0, 1, 0, 0, 1, 0);
-                generatedColors.push(...topColor, ...topColor);
-                texCoords.push(
-                    x1 + 0.5, z1 + 0.5,
-                    x2 + 0.5, z2 + 0.5
-                );
-
-                // Add indices for top cap (reverse order from bottom to flip normal)
-                const topOffset = sideVertexCount + 2 + i * 4;
+        // STEP 2: Generate caps directly using triangle fans with explicit vertices
+        // Store current vertex count before adding caps
+        const sideVertexCount = vertices.length / 3;
+        
+        // Generate top cap (counter-clockwise triangles when viewed from above)
+        const topCenterIndex = vertices.length / 3;
+        vertices.push(0, 0.5, 0);  // Center point of top cap
+        normals.push(0, 1, 0);     // Normal pointing up
+        generatedColors.push(...topColor);
+        texCoords.push(0.5, 0.5);  // Center of texture
+        tangents.push(1, 0, 0);    // Consistent tangent for the cap
+        bitangents.push(0, 0, -1); // Bitangent perpendicular to normal and tangent
+        
+        // Create the top cap vertices in counter-clockwise order
+        for (let i = 0; i <= sides; i++) {
+            const angle = (i * Math.PI * 2) / sides;
+            // For counter-clockwise, go around in reverse
+            const x = Math.cos(-angle) * 0.5;
+            const z = Math.sin(-angle) * 0.5;
+            
+            vertices.push(x, 0.5, z);
+            normals.push(0, 1, 0);
+            generatedColors.push(...topColor);
+            texCoords.push(x + 0.5, z + 0.5);
+            tangents.push(1, 0, 0);
+            bitangents.push(0, 0, -1);
+            
+            // Add a triangle connecting the center to each adjacent pair of points
+            if (i > 0) {
                 indices.push(
-                    topCenterIndex,    // center
-                    topOffset + 1,     // next point
-                    topOffset          // current point
+                    topCenterIndex,                // Center
+                    topCenterIndex + i,            // Current point
+                    topCenterIndex + i + 1         // Next point
                 );
-
-                // Add vertices for bottom cap
-                vertices.push(
-                    x1, -0.5, z1,
-                    x2, -0.5, z2
-                );
-
-                // Add normals for bottom cap
-                normals.push(0, -1, 0, 0, -1, 0);
-                generatedColors.push(...bottomColor, ...bottomColor);
-                texCoords.push(
-                    x1 + 0.5, z1 + 0.5,
-                    x2 + 0.5, z2 + 0.5
-                );
-
-                // Add indices for bottom cap
-                const bottomOffset = topOffset + 2;
+            }
+        }
+        
+        // Generate bottom cap (counter-clockwise triangles when viewed from below)
+        const bottomCenterIndex = vertices.length / 3;
+        vertices.push(0, -0.5, 0);  // Center point of bottom cap
+        normals.push(0, -1, 0);     // Normal pointing down
+        generatedColors.push(...bottomColor);
+        texCoords.push(0.5, 0.5);   // Center of texture
+        tangents.push(1, 0, 0);     // Consistent tangent for the cap
+        bitangents.push(0, 0, 1);   // Bitangent perpendicular to normal and tangent
+        
+        // Create the bottom cap vertices - also in counter-clockwise when viewed from below
+        // From the bottom, counter-clockwise means going in the same direction as the top
+        for (let i = 0; i <= sides; i++) {
+            const angle = (i * Math.PI * 2) / sides;
+            // For bottom cap, counter-clockwise when looking from bottom means regular
+            // direction as top cap, but the winding order needs to be flipped
+            const x = Math.cos(angle) * 0.5;
+            const z = Math.sin(angle) * 0.5;
+            
+            vertices.push(x, -0.5, z);
+            normals.push(0, -1, 0);
+            generatedColors.push(...bottomColor);
+            texCoords.push(x + 0.5, z + 0.5);
+            tangents.push(1, 0, 0);
+            bitangents.push(0, 0, 1);
+            
+            // Add a triangle connecting the center to each adjacent pair of points
+            // Note the flipped winding order compared to the top cap
+            if (i > 0) {
                 indices.push(
-                    bottomCenterIndex,    // center
-                    bottomOffset,         // current point
-                    bottomOffset + 1      // next point
+                    bottomCenterIndex,             // Center
+                    bottomCenterIndex + i + 1,     // Next point
+                    bottomCenterIndex + i          // Current point
                 );
             }
         }
 
         return {
             vertices: new Float32Array(vertices),
+            indices: new Uint16Array(indices),
             normals: new Float32Array(normals),
             colors: new Float32Array(generatedColors),
-            texCoords: new Float32Array(texCoords)
+            texCoords: new Float32Array(texCoords),
+            tangents: new Float32Array(tangents),
+            bitangents: new Float32Array(bitangents)
         };
     }
 

@@ -8403,7 +8403,7 @@ var _Material = class _Material {
     this.roughness = roughness;
     this.metallic = metallic;
     this.ambientOcclusion = ambientOcclusion;
-    this.emissive = emissive;
+    this.emissive = emissive != null ? emissive : v3(0, 0, 0);
     this.albedoMap = albedoMap;
     this.normalMap = normalMap;
     this.metallicMap = metallicMap;
@@ -10340,6 +10340,20 @@ var TestLevel = class extends Scene {
       scale: v2(1e5, 1e5)
       // Adjust scale to see more of the reflection
     }));
+    this.add(IcoSphere.create({
+      position: v3(0, 0, 0),
+      rotation: Quaternion.fromEuler(0, 0, 0),
+      scale: v3(1e3, 1e3, 1e3),
+      subdivisions: 1,
+      smoothShading: false,
+      material: new Material({
+        baseColor: v3(0, 0, 0),
+        roughness: 0,
+        metallic: 1,
+        emissive: v3(0, 0, 0),
+        ambientOcclusion: 1
+      })
+    }));
     this.addLight(this.sun = new DirectionalLight({
       direction: v3(0.2, -1, -1.3).normalize(),
       // Match sun position in skybox
@@ -10377,7 +10391,7 @@ var TestLevel = class extends Scene {
       0
     ).rotateXY(obj.total * 1e-4 % Math.PI * 2);
     this.camera.setPosition(v.add(v3(0, Math.sin(obj.total * 5e-4) * 1e3, 0)));
-    this.camera.setTarget(v3(Math.sin(obj.total * 5e-4) * 1e3, -1e3, Math.sin(obj.total * 7e-4) * 1e3));
+    this.camera.setTarget(v3(0, 0, 0));
     const sunRadius = 3;
     const v22 = v3(
       sunRadius,

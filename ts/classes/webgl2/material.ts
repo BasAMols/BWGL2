@@ -59,7 +59,7 @@ export class Material {
         this.roughness = roughness;
         this.metallic = metallic;
         this.ambientOcclusion = ambientOcclusion;
-        this.emissive = emissive;
+        this.emissive = emissive ?? v3(0.0, 0.0, 0.0);
         this.albedoMap = albedoMap;
         this.normalMap = normalMap;
         this.metallicMap = metallicMap;

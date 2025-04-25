@@ -23,6 +23,8 @@ export class Sphere extends BaseMesh {
         const normals: number[] = [];
         const generatedColors: number[] = [];
         const texCoords: number[] = [];
+        const tangents: number[] = [];
+        const bitangents: number[] = [];
 
         if (smoothShading) {
             // Generate vertices with shared normals
@@ -51,21 +53,34 @@ export class Sphere extends BaseMesh {
 
                     // Texture coordinates
                     texCoords.push(segment / segments, ring / rings);
+                    
+                    // Calculate tangent
+                    // For a sphere, the tangent is perpendicular to the normal in the theta direction
+                    const tx = -sinTheta;
+                    const tz = cosTheta;
+                    tangents.push(tx, 0, tz);
+                    
+                    // Bitangent (cross product of normal and tangent)
+                    const bx = -cosPhi * cosTheta;
+                    const by = sinPhi;
+                    const bz = -cosPhi * sinTheta;
+                    bitangents.push(bx, by, bz);
                 }
             }
 
-            // Generate indices
+            // Generate indices - ensure proper winding order
             for (let ring = 0; ring < rings; ring++) {
                 for (let segment = 0; segment < segments; segment++) {
                     const first = (ring * (segments + 1)) + segment;
                     const second = first + segments + 1;
 
-                    indices.push(first, second, first + 1);
-                    indices.push(second, second + 1, first + 1);
+                    // NOTE: Order matters for winding! This order makes normals point outward
+                    indices.push(first, first + 1, second);
+                    indices.push(second, first + 1, second + 1);
                 }
             }
         } else {
-            // Flat shading - each triangle has its own vertices
+            // Flat shading - each triangle has its own vertices with correct winding order
             for (let ring = 0; ring < rings; ring++) {
                 const phi1 = (ring * Math.PI) / rings;
                 const phi2 = ((ring + 1) * Math.PI) / rings;
@@ -74,42 +89,42 @@ export class Sphere extends BaseMesh {
                     const theta1 = (segment * 2 * Math.PI) / segments;
                     const theta2 = ((segment + 1) * 2 * Math.PI) / segments;
 
-                    // Calculate vertices for two triangles
+                    // Calculate vertices for two triangles with proper winding order
                     const vertices1 = [
-                        // First triangle
+                        // First triangle - vertices in COUNTER-CLOCKWISE order
                         [
                             Math.cos(theta1) * Math.sin(phi1) * 0.5,
                             Math.cos(phi1) * 0.5,
                             Math.sin(theta1) * Math.sin(phi1) * 0.5
                         ],
                         [
-                            Math.cos(theta1) * Math.sin(phi2) * 0.5,
-                            Math.cos(phi2) * 0.5,
-                            Math.sin(theta1) * Math.sin(phi2) * 0.5
-                        ],
-                        [
                             Math.cos(theta2) * Math.sin(phi1) * 0.5,
                             Math.cos(phi1) * 0.5,
                             Math.sin(theta2) * Math.sin(phi1) * 0.5
+                        ],
+                        [
+                            Math.cos(theta1) * Math.sin(phi2) * 0.5,
+                            Math.cos(phi2) * 0.5,
+                            Math.sin(theta1) * Math.sin(phi2) * 0.5
                         ]
                     ];
 
                     const vertices2 = [
-                        // Second triangle
+                        // Second triangle - vertices in COUNTER-CLOCKWISE order
                         [
                             Math.cos(theta2) * Math.sin(phi1) * 0.5,
                             Math.cos(phi1) * 0.5,
                             Math.sin(theta2) * Math.sin(phi1) * 0.5
-                        ],
-                        [
-                            Math.cos(theta1) * Math.sin(phi2) * 0.5,
-                            Math.cos(phi2) * 0.5,
-                            Math.sin(theta1) * Math.sin(phi2) * 0.5
                         ],
                         [
                             Math.cos(theta2) * Math.sin(phi2) * 0.5,
                             Math.cos(phi2) * 0.5,
                             Math.sin(theta2) * Math.sin(phi2) * 0.5
+                        ],
+                        [
+                            Math.cos(theta1) * Math.sin(phi2) * 0.5,
+                            Math.cos(phi2) * 0.5,
+                            Math.sin(theta1) * Math.sin(phi2) * 0.5
                         ]
                     ];
 
@@ -118,7 +133,7 @@ export class Sphere extends BaseMesh {
                     const v2 = vertices1[1];
                     const v3 = vertices1[2];
 
-                    // Calculate normal using cross product
+                    // Calculate normal using cross product with correct ordering for outward normals
                     const ax = v2[0] - v1[0];
                     const ay = v2[1] - v1[1];
                     const az = v2[2] - v1[2];
@@ -136,6 +151,20 @@ export class Sphere extends BaseMesh {
                     ny /= length;
                     nz /= length;
 
+                    // Calculate a basic tangent
+                    const tx = ny * v1[2] - nz * v1[1];
+                    const ty = nz * v1[0] - nx * v1[2];
+                    const tz = nx * v1[1] - ny * v1[0];
+                    const tlength = Math.sqrt(tx * tx + ty * ty + tz * tz);
+                    const normTx = tlength > 0.001 ? tx / tlength : 1;
+                    const normTy = tlength > 0.001 ? ty / tlength : 0;
+                    const normTz = tlength > 0.001 ? tz / tlength : 0;
+                    
+                    // Calculate bitangent (cross product of normal and tangent)
+                    const bx1 = ny * normTz - nz * normTy;
+                    const by1 = nz * normTx - nx * normTz;
+                    const bz1 = nx * normTy - ny * normTx;
+
                     // Add first triangle
                     for (const vertex of vertices1) {
                         vertices.push(...vertex);
@@ -143,22 +172,48 @@ export class Sphere extends BaseMesh {
                         generatedColors.push(...color);
                         // Approximate texture coordinates
                         const u = 0.5 + Math.atan2(vertex[2], vertex[0]) / (2 * Math.PI);
-                        const vCoord = 0.5 - Math.asin(vertex[1]) / Math.PI;
+                        const vCoord = 0.5 - Math.asin(vertex[1] * 2) / Math.PI;
                         texCoords.push(u, vCoord);
+                        tangents.push(normTx, normTy, normTz);
+                        bitangents.push(bx1, by1, bz1);
                     }
+
+                    // For the second triangle, use the same normal calculation approach
+                    const v4 = vertices2[0];
+                    const v5 = vertices2[1];
+                    const v6 = vertices2[2];
+
+                    const cx = v5[0] - v4[0];
+                    const cy = v5[1] - v4[1];
+                    const cz = v5[2] - v4[2];
+                    const dx = v6[0] - v4[0];
+                    const dy = v6[1] - v4[1];
+                    const dz = v6[2] - v4[2];
+
+                    let nx2 = cy * dz - cz * dy;
+                    let ny2 = cz * dx - cx * dz;
+                    let nz2 = cx * dy - cy * dx;
+
+                    // Normalize
+                    const length2 = Math.sqrt(nx2 * nx2 + ny2 * ny2 + nz2 * nz2);
+                    nx2 /= length2;
+                    ny2 /= length2;
+                    nz2 /= length2;
 
                     // Add second triangle
                     for (const vertex of vertices2) {
                         vertices.push(...vertex);
-                        normals.push(nx, ny, nz);
+                        normals.push(nx2, ny2, nz2);
                         generatedColors.push(...color);
                         // Approximate texture coordinates
                         const u = 0.5 + Math.atan2(vertex[2], vertex[0]) / (2 * Math.PI);
-                        const vCoord = 0.5 - Math.asin(vertex[1]) / Math.PI;
+                        const vCoord = 0.5 - Math.asin(vertex[1] * 2) / Math.PI;
                         texCoords.push(u, vCoord);
+                        tangents.push(normTx, normTy, normTz);
+                        bitangents.push(bx1, by1, bz1);
                     }
 
-                    // Add indices
+                    // Add indices for both triangles
                     const baseIndex = (ring * segments + segment) * 6;
                     indices.push(
                         baseIndex, baseIndex + 1, baseIndex + 2,
@@ -173,7 +228,9 @@ export class Sphere extends BaseMesh {
             indices: new Uint16Array(indices),
             normals: new Float32Array(normals),
             colors: new Float32Array(generatedColors),
-            texCoords: new Float32Array(texCoords)
+            texCoords: new Float32Array(texCoords),
+            tangents: new Float32Array(tangents),
+            bitangents: new Float32Array(bitangents)
         };
     }
 
