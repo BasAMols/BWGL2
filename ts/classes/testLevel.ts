@@ -49,7 +49,6 @@ export class TestLevel extends Scene {
                 emissive: v3(0, 0, 0),
                 ambientOcclusion: 1,
             }),
-            
         }));
         
 
@@ -63,15 +62,15 @@ export class TestLevel extends Scene {
 
         this.setEnvironmentMap('textures/envmap/sky');
             
-        this.add(new FBX('fbx/island1.fbx', {
+        this.add(FBX.create('fbx/island1.fbx', {
             position: v3(0, 0, 0),
             rotation: Quaternion.fromEuler(0, 0, 0),
         }));
-        this.add(new FBX('fbx/island2.fbx', {
+        this.add(FBX.create('fbx/island2.fbx', {
             position: v3(0, 0, 0),
             rotation: Quaternion.fromEuler(0, 0, 0),
         }));
-        this.add(new FBX('fbx/island3.fbx', {
+        this.add(FBX.create('fbx/island3.fbx', {
             position: v3(0, 0, 0),
             rotation: Quaternion.fromEuler(0, 0, 0),
         }));
@@ -92,7 +91,6 @@ export class TestLevel extends Scene {
         ).rotateXY(obj.total * 0.0001 % Math.PI*2);
         this.camera.setPosition(v.add(v3(0, Math.sin(obj.total * 0.0005) * 1000, 0)));
         this.camera.setTarget(v3(0, 0, 0));  // Keep looking at the reflective plane
-
         // Slowly rotate the sun to match skybox movement
         const sunRadius = 3;
         const v2 = v3(

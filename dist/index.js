@@ -8843,6 +8843,9 @@ var Light = class {
   getShadowMap() {
     return this.enabled ? null : null;
   }
+  setColor(color) {
+    this.color = color;
+  }
 };
 var AmbientLight = class extends Light {
   constructor({ color = v3(1, 1, 1), intensity = 0.1 } = {}) {
@@ -10371,7 +10374,7 @@ _FBXLoader.CHUNK_SIZE = 65536;
 var FBXLoader = _FBXLoader;
 
 // ts/classes/webgl2/meshes/fbx.ts
-var FBX = class extends ContainerObject {
+var FBX = class _FBX extends ContainerObject {
   constructor(url, props = {}) {
     super(props);
     this.loadFbx(url);
@@ -10379,6 +10382,10 @@ var FBX = class extends ContainerObject {
   async loadFbx(url) {
     const data = await FBXLoader.loadFromUrl(url);
     this.addChild(data);
+  }
+  static create(url, props = {}) {
+    const fbx = new _FBX(url, props);
+    return fbx;
   }
 };
 
@@ -10432,15 +10439,15 @@ var TestLevel = class extends Scene {
       enabled: true
     }));
     this.setEnvironmentMap("textures/envmap/sky");
-    this.add(new FBX("fbx/island1.fbx", {
+    this.add(FBX.create("fbx/island1.fbx", {
       position: v3(0, 0, 0),
       rotation: Quaternion.fromEuler(0, 0, 0)
     }));
-    this.add(new FBX("fbx/island2.fbx", {
+    this.add(FBX.create("fbx/island2.fbx", {
       position: v3(0, 0, 0),
       rotation: Quaternion.fromEuler(0, 0, 0)
     }));
-    this.add(new FBX("fbx/island3.fbx", {
+    this.add(FBX.create("fbx/island3.fbx", {
       position: v3(0, 0, 0),
       rotation: Quaternion.fromEuler(0, 0, 0)
     }));

@@ -1,9 +1,9 @@
-import { SceneObjectProps } from "./sceneObject";
+import { SceneObject, SceneObjectProps } from "./sceneObject";
 import { FBXLoader } from "./fbxLoader";
 import { ContainerObject } from './containerObject';
 
 export class FBX extends ContainerObject {
-    constructor(url: string, props: SceneObjectProps = {}) {
+    private constructor(url: string, props: SceneObjectProps = {}) {
         super(props);
         this.loadFbx(url);
     }
@@ -11,5 +11,10 @@ export class FBX extends ContainerObject {
     private async loadFbx(url: string) {
         const data = await FBXLoader.loadFromUrl(url);
         this.addChild(data);
+    }
+
+    static create(url: string, props: SceneObjectProps = {}): SceneObject {
+        const fbx = new FBX(url, props);
+        return fbx;
     }
 }

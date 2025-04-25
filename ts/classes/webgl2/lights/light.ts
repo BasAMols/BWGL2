@@ -87,6 +87,10 @@ export class Light {
     getShadowMap(): ShadowMap | null {
         return this.enabled ? null : null;
     }
+
+    public setColor(color: Vector3): void {
+        this.color = color;
+    }
 }
 
 export class AmbientLight extends Light {
