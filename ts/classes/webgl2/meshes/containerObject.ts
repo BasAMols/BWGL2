@@ -16,26 +16,41 @@ export class ContainerObject extends SceneObject {
             drawCount: 0,
             ignoreLighting: false
         };
-        
+
         super(dummyData, props);
     }
 
     /**
      * Add a child object to this container
      */
-    public addChild(child: SceneObject): void {
-        this.children.push(child);
-        child.transform.setParent(this.transform);
+    public addChild(child: SceneObject | SceneObject[]): void {
+        if (Array.isArray(child)) {
+            this.children.push(...child);
+            child.forEach((c) => c.transform.setParent(this.transform));
+        } else {
+            this.children.push(child);
+            child.transform.setParent(this.transform);
+        }
     }
 
     /**
      * Remove a child object from this container
      */
-    public removeChild(child: SceneObject): void {
-        const index = this.children.indexOf(child);
-        if (index !== -1) {
-            this.children.splice(index, 1);
-            child.transform.setParent(null);
+    public removeChild(child: SceneObject|SceneObject[]): void {
+        if (Array.isArray(child)) {
+            child.forEach((c) => {
+                const index = this.children.indexOf(c);
+                if (index !== -1) {
+                    this.children.splice(index, 1);
+                    c.transform.setParent(null);
+                }
+            });
+        } else {
+            const index = this.children.indexOf(child);
+            if (index !== -1) {
+                this.children.splice(index, 1);
+                child.transform.setParent(null);
+            }
         }
     }
 

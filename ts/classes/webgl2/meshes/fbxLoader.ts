@@ -649,7 +649,8 @@ export class FBXLoader extends BaseMesh {
                 throw new Error(`Failed to fetch FBX file: ${response.statusText} (${response.status})`);
             }
             const buffer = await response.arrayBuffer();
-            return this.loadFromBuffer(buffer, props);
+            const data = await this.loadFromBuffer(buffer, props);
+            return data;
         } catch (error) {
             console.error(`Error loading FBX from URL: ${url}`, error);
             throw error;

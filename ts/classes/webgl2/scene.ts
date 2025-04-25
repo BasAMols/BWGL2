@@ -8,7 +8,7 @@ import { v3, Vector3 } from '../util/math/vector3';
 import { Vector2 } from '../util/math/vector2';
 import { colorPickingVertexShader, colorPickingFragmentShader } from './shaders/colorPickingShader';
 import { VertexArray } from './buffer';
-import { EnvironmentMap } from './environmentMap';
+import { EnvironmentMap, EnvironmentMapLoader } from './environmentMap';
 import { Skybox } from './skybox';
 
 export interface SceneOptions {
@@ -361,9 +361,9 @@ export class Scene {
         this.showColorPicking = !this.showColorPicking;
     }
 
-    public setEnvironmentMap(envMap: EnvironmentMap) {
+    public async setEnvironmentMap(envMapUrl: string) {
+        const envMap = await EnvironmentMapLoader.loadFromDirectory(envMapUrl);
         this.environmentMap = envMap;
-        // Also update the skybox with the new environment map
         this.skybox.setEnvironmentMap(envMap);
     }
 } 

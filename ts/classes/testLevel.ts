@@ -5,11 +5,10 @@ import { Camera } from './webgl2/camera';
 import { DirectionalLight } from './webgl2/lights/light';
 import { v2 } from './util/math/vector2';
 import { Plane } from './webgl2/meshes/plane';
-import { EnvironmentMapLoader } from './webgl2/environmentMap';
-import { FBXLoader } from './webgl2/meshes/fbxLoader';
 import { Quaternion } from './util/math/quaternion';
 import { Material } from './webgl2/material';
 import { IcoSphere } from './webgl2/meshes/icoSphere';
+import { FBX } from './webgl2/meshes/fbx';
 
 export class TestLevel extends Scene {
     protected clearColor: [number, number, number, number] = [0.2, 0.3, 0.5, 1.0];  // Match sky color
@@ -62,28 +61,23 @@ export class TestLevel extends Scene {
             enabled: true,
         }));
 
-        this.build();
+        this.setEnvironmentMap('textures/envmap/sky');
+            
+        this.add(new FBX('fbx/island1.fbx', {
+            position: v3(0, 0, 0),
+            rotation: Quaternion.fromEuler(0, 0, 0),
+        }));
+        this.add(new FBX('fbx/island2.fbx', {
+            position: v3(0, 0, 0),
+            rotation: Quaternion.fromEuler(0, 0, 0),
+        }));
+        this.add(new FBX('fbx/island3.fbx', {
+            position: v3(0, 0, 0),
+            rotation: Quaternion.fromEuler(0, 0, 0),
+        }));
 
-        this.baseRotation = 0;
     }
 
-    async build() {
-        // Load environment map using the EnvironmentMapLoader
-        this.setEnvironmentMap(await EnvironmentMapLoader.loadFromDirectory('textures/envmap/sky'));
-
-        this.add(await FBXLoader.loadFromUrl('fbx/island1.fbx', {
-            position: v3(0, 0, 0),
-            rotation: Quaternion.fromEuler(0, 0, 0),
-        }));
-        this.add(await FBXLoader.loadFromUrl('fbx/island2.fbx', {
-            position: v3(0, 0, 0),
-            rotation: Quaternion.fromEuler(0, 0, 0),
-        }));
-        this.add(await FBXLoader.loadFromUrl('fbx/island3.fbx', {
-            position: v3(0, 0, 0),
-            rotation: Quaternion.fromEuler(0, 0, 0),
-        }));
-    }
 
     tick(obj: TickerReturnData) {
         super.tick(obj);

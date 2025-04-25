@@ -8292,6 +8292,60 @@ var SceneObject = class {
   }
 };
 
+// ts/classes/webgl2/meshes/containerObject.ts
+var ContainerObject = class extends SceneObject {
+  constructor(props = {}) {
+    const dummyData = {
+      vao: null,
+      indexBuffer: null,
+      drawCount: 0,
+      ignoreLighting: false
+    };
+    super(dummyData, props);
+    this.children = [];
+  }
+  /**
+   * Add a child object to this container
+   */
+  addChild(child) {
+    if (Array.isArray(child)) {
+      this.children.push(...child);
+      child.forEach((c) => c.transform.setParent(this.transform));
+    } else {
+      this.children.push(child);
+      child.transform.setParent(this.transform);
+    }
+  }
+  /**
+   * Remove a child object from this container
+   */
+  removeChild(child) {
+    if (Array.isArray(child)) {
+      child.forEach((c) => {
+        const index = this.children.indexOf(c);
+        if (index !== -1) {
+          this.children.splice(index, 1);
+          c.transform.setParent(null);
+        }
+      });
+    } else {
+      const index = this.children.indexOf(child);
+      if (index !== -1) {
+        this.children.splice(index, 1);
+        child.transform.setParent(null);
+      }
+    }
+  }
+  /**
+   * Override render to render all children
+   */
+  render(viewMatrix, projectionMatrix) {
+    for (const child of this.children) {
+      child.render(viewMatrix, projectionMatrix);
+    }
+  }
+};
+
 // ts/classes/webgl2/meshes/baseMesh.ts
 var BaseMesh = class _BaseMesh extends SceneObject {
   static setupBuffers(meshData, props) {
@@ -9090,6 +9144,197 @@ var LightManager = class {
 var colorPickingVertexShader = "#version 300 es\nin vec3 a_position;\n\nuniform mat4 u_modelMatrix;\nuniform mat4 u_viewMatrix;\nuniform mat4 u_projectionMatrix;\n\nvoid main() {\n    gl_Position = u_projectionMatrix * u_viewMatrix * u_modelMatrix * vec4(a_position, 1.0);\n}";
 var colorPickingFragmentShader = "#version 300 es\nprecision highp float;\n\nuniform vec3 u_pickingColor;\nout vec4 fragColor;\n\nvoid main() {\n    fragColor = vec4(u_pickingColor, 1.0);\n}";
 
+// ts/classes/util/urlUtils.ts
+var UrlUtils = class {
+  /**
+   * Gets the base URL for the application, considering base tags and current location
+   */
+  static getBaseUrl() {
+    const baseTag = document.querySelector("base");
+    if (baseTag && baseTag.href) {
+      return baseTag.href;
+    }
+    const href = window.location.href;
+    const cleanHref = href.split(/[?#]/)[0];
+    return cleanHref.endsWith("/") ? cleanHref : cleanHref.substring(0, cleanHref.lastIndexOf("/") + 1);
+  }
+  /**
+   * Resolve a relative URL against the application's base URL
+   * @param url The URL to resolve
+   * @returns The fully resolved URL
+   */
+  static resolveUrl(url) {
+    if (url.match(/^(https?:)?\/\//)) {
+      return url;
+    }
+    if (url.startsWith("/")) {
+      return new URL(url, window.location.origin).href;
+    }
+    return new URL(url, this.getBaseUrl()).href;
+  }
+};
+
+// ts/classes/webgl2/environmentMap.ts
+var EnvironmentMap = class {
+  constructor() {
+    const gl = glob.ctx;
+    this.cubemapTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.cubemapTexture);
+    const faces = [
+      gl.TEXTURE_CUBE_MAP_POSITIVE_X,
+      gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
+      gl.TEXTURE_CUBE_MAP_POSITIVE_Y,
+      gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
+      gl.TEXTURE_CUBE_MAP_POSITIVE_Z,
+      gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
+    ];
+    faces.forEach((face) => {
+      gl.texImage2D(face, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255]));
+    });
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+    this.irradianceTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.irradianceTexture);
+    faces.forEach((face) => {
+      gl.texImage2D(face, 0, gl.RGBA8, 32, 32, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    });
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+    this.prefilterTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.prefilterTexture);
+    faces.forEach((face) => {
+      gl.texImage2D(face, 0, gl.RGBA8, 128, 128, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    });
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+    gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
+    this.brdfLUTTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.brdfLUTTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 512, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  }
+  async loadFromUrls(urls) {
+    if (urls.length !== 6) {
+      throw new Error("Environment map requires exactly 6 image URLs for the cubemap faces");
+    }
+    const gl = glob.ctx;
+    const faces = [
+      gl.TEXTURE_CUBE_MAP_POSITIVE_X,
+      gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
+      gl.TEXTURE_CUBE_MAP_POSITIVE_Y,
+      gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
+      gl.TEXTURE_CUBE_MAP_POSITIVE_Z,
+      gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
+    ];
+    const imagePromises = urls.map((url, index) => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = (err) => {
+          console.error("Failed to load cubemap image: ".concat(url), err);
+          const colors = [
+            [255, 0, 0, 255],
+            // positiveX - red
+            [0, 255, 0, 255],
+            // negativeX - green
+            [0, 0, 255, 255],
+            // positiveY - blue
+            [255, 255, 0, 255],
+            // negativeY - yellow
+            [255, 0, 255, 255],
+            // positiveZ - magenta
+            [0, 255, 255, 255]
+            // negativeZ - cyan
+          ];
+          const canvas = document.createElement("canvas");
+          canvas.width = 64;
+          canvas.height = 64;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.fillStyle = "rgba(".concat(colors[index].join(","), ")");
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "black";
+            ctx.font = "10px Arial";
+            ctx.fillText("Load Error", 5, 32);
+          }
+          resolve(canvas);
+        };
+        img.src = url;
+      });
+    });
+    try {
+      const images = await Promise.all(imagePromises);
+      gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.cubemapTexture);
+      images.forEach((image, i) => {
+        gl.texImage2D(faces[i], 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, image);
+      });
+      gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
+    } catch (error) {
+      console.error("Failed to load environment map images:", error);
+      throw error;
+    }
+  }
+  bind(unit = 0) {
+    const gl = glob.ctx;
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.cubemapTexture);
+    gl.activeTexture(gl.TEXTURE0 + unit + 1);
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.irradianceTexture);
+    gl.activeTexture(gl.TEXTURE0 + unit + 2);
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.prefilterTexture);
+    gl.activeTexture(gl.TEXTURE0 + unit + 3);
+    gl.bindTexture(gl.TEXTURE_2D, this.brdfLUTTexture);
+  }
+  /**
+   * Binds only the main cubemap texture (for skybox)
+   * @param unit The texture unit to bind to
+   */
+  bindCubemap(unit = 0) {
+    const gl = glob.ctx;
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.cubemapTexture);
+  }
+};
+var EnvironmentMapLoader = class {
+  static async loadFromUrls(urls) {
+    const envMap = new EnvironmentMap();
+    const urlArray = [
+      UrlUtils.resolveUrl(urls.positiveX),
+      UrlUtils.resolveUrl(urls.negativeX),
+      UrlUtils.resolveUrl(urls.positiveY),
+      UrlUtils.resolveUrl(urls.negativeY),
+      UrlUtils.resolveUrl(urls.positiveZ),
+      UrlUtils.resolveUrl(urls.negativeZ)
+    ];
+    await envMap.loadFromUrls(urlArray);
+    return envMap;
+  }
+  static async loadFromDirectory(baseUrl, format = "png") {
+    const texturePath = baseUrl.replace(/^\//, "");
+    const fullBaseUrl = UrlUtils.resolveUrl(texturePath);
+    return this.loadFromUrls({
+      positiveX: "".concat(fullBaseUrl, "/px.").concat(format),
+      negativeX: "".concat(fullBaseUrl, "/nx.").concat(format),
+      positiveY: "".concat(fullBaseUrl, "/py.").concat(format),
+      negativeY: "".concat(fullBaseUrl, "/ny.").concat(format),
+      positiveZ: "".concat(fullBaseUrl, "/pz.").concat(format),
+      negativeZ: "".concat(fullBaseUrl, "/nz.").concat(format)
+    });
+  }
+};
+
 // ts/classes/webgl2/shaders/skyboxVertexShader.ts
 var skyboxVertexShader = "#version 300 es\nprecision highp float;\n\n// Attributes\nin vec3 a_position;\n\n// Uniforms\nuniform mat4 u_viewMatrix;\nuniform mat4 u_projectionMatrix;\n\n// Output to fragment shader\nout vec3 v_texCoord;\n\nvoid main() {\n    // Use position as texture coordinate for cubemap sampling\n    v_texCoord = a_position;\n    \n    // Remove translation from view matrix to keep skybox centered on camera\n    mat4 viewMatrixNoTranslation = mat4(\n        vec4(u_viewMatrix[0].xyz, 0.0),\n        vec4(u_viewMatrix[1].xyz, 0.0),\n        vec4(u_viewMatrix[2].xyz, 0.0),\n        vec4(0.0, 0.0, 0.0, 1.0)\n    );\n    \n    // Position vertices at the far plane\n    vec4 pos = u_projectionMatrix * viewMatrixNoTranslation * vec4(a_position, 1.0);\n    \n    // Set z equal to w to ensure skybox is always at the far plane\n    gl_Position = pos.xyww;\n}";
 
@@ -9504,7 +9749,8 @@ var Scene = class {
   toggleColorPicking() {
     this.showColorPicking = !this.showColorPicking;
   }
-  setEnvironmentMap(envMap) {
+  async setEnvironmentMap(envMapUrl) {
+    const envMap = await EnvironmentMapLoader.loadFromDirectory(envMapUrl);
     this.environmentMap = envMap;
     this.skybox.setEnvironmentMap(envMap);
   }
@@ -9686,197 +9932,6 @@ Plane.texCoords = new Float32Array([
   0,
   1
 ]);
-
-// ts/classes/util/urlUtils.ts
-var UrlUtils = class {
-  /**
-   * Gets the base URL for the application, considering base tags and current location
-   */
-  static getBaseUrl() {
-    const baseTag = document.querySelector("base");
-    if (baseTag && baseTag.href) {
-      return baseTag.href;
-    }
-    const href = window.location.href;
-    const cleanHref = href.split(/[?#]/)[0];
-    return cleanHref.endsWith("/") ? cleanHref : cleanHref.substring(0, cleanHref.lastIndexOf("/") + 1);
-  }
-  /**
-   * Resolve a relative URL against the application's base URL
-   * @param url The URL to resolve
-   * @returns The fully resolved URL
-   */
-  static resolveUrl(url) {
-    if (url.match(/^(https?:)?\/\//)) {
-      return url;
-    }
-    if (url.startsWith("/")) {
-      return new URL(url, window.location.origin).href;
-    }
-    return new URL(url, this.getBaseUrl()).href;
-  }
-};
-
-// ts/classes/webgl2/environmentMap.ts
-var EnvironmentMap = class {
-  constructor() {
-    const gl = glob.ctx;
-    this.cubemapTexture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.cubemapTexture);
-    const faces = [
-      gl.TEXTURE_CUBE_MAP_POSITIVE_X,
-      gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
-      gl.TEXTURE_CUBE_MAP_POSITIVE_Y,
-      gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
-      gl.TEXTURE_CUBE_MAP_POSITIVE_Z,
-      gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
-    ];
-    faces.forEach((face) => {
-      gl.texImage2D(face, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255]));
-    });
-    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
-    this.irradianceTexture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.irradianceTexture);
-    faces.forEach((face) => {
-      gl.texImage2D(face, 0, gl.RGBA8, 32, 32, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    });
-    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
-    this.prefilterTexture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.prefilterTexture);
-    faces.forEach((face) => {
-      gl.texImage2D(face, 0, gl.RGBA8, 128, 128, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    });
-    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
-    gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
-    this.brdfLUTTexture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, this.brdfLUTTexture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 512, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  }
-  async loadFromUrls(urls) {
-    if (urls.length !== 6) {
-      throw new Error("Environment map requires exactly 6 image URLs for the cubemap faces");
-    }
-    const gl = glob.ctx;
-    const faces = [
-      gl.TEXTURE_CUBE_MAP_POSITIVE_X,
-      gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
-      gl.TEXTURE_CUBE_MAP_POSITIVE_Y,
-      gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
-      gl.TEXTURE_CUBE_MAP_POSITIVE_Z,
-      gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
-    ];
-    const imagePromises = urls.map((url, index) => {
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = (err) => {
-          console.error("Failed to load cubemap image: ".concat(url), err);
-          const colors = [
-            [255, 0, 0, 255],
-            // positiveX - red
-            [0, 255, 0, 255],
-            // negativeX - green
-            [0, 0, 255, 255],
-            // positiveY - blue
-            [255, 255, 0, 255],
-            // negativeY - yellow
-            [255, 0, 255, 255],
-            // positiveZ - magenta
-            [0, 255, 255, 255]
-            // negativeZ - cyan
-          ];
-          const canvas = document.createElement("canvas");
-          canvas.width = 64;
-          canvas.height = 64;
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            ctx.fillStyle = "rgba(".concat(colors[index].join(","), ")");
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = "black";
-            ctx.font = "10px Arial";
-            ctx.fillText("Load Error", 5, 32);
-          }
-          resolve(canvas);
-        };
-        img.src = url;
-      });
-    });
-    try {
-      const images = await Promise.all(imagePromises);
-      gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.cubemapTexture);
-      images.forEach((image, i) => {
-        gl.texImage2D(faces[i], 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, image);
-      });
-      gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
-    } catch (error) {
-      console.error("Failed to load environment map images:", error);
-      throw error;
-    }
-  }
-  bind(unit = 0) {
-    const gl = glob.ctx;
-    gl.activeTexture(gl.TEXTURE0 + unit);
-    gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.cubemapTexture);
-    gl.activeTexture(gl.TEXTURE0 + unit + 1);
-    gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.irradianceTexture);
-    gl.activeTexture(gl.TEXTURE0 + unit + 2);
-    gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.prefilterTexture);
-    gl.activeTexture(gl.TEXTURE0 + unit + 3);
-    gl.bindTexture(gl.TEXTURE_2D, this.brdfLUTTexture);
-  }
-  /**
-   * Binds only the main cubemap texture (for skybox)
-   * @param unit The texture unit to bind to
-   */
-  bindCubemap(unit = 0) {
-    const gl = glob.ctx;
-    gl.activeTexture(gl.TEXTURE0 + unit);
-    gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.cubemapTexture);
-  }
-};
-var EnvironmentMapLoader = class {
-  static async loadFromUrls(urls) {
-    const envMap = new EnvironmentMap();
-    const urlArray = [
-      UrlUtils.resolveUrl(urls.positiveX),
-      UrlUtils.resolveUrl(urls.negativeX),
-      UrlUtils.resolveUrl(urls.positiveY),
-      UrlUtils.resolveUrl(urls.negativeY),
-      UrlUtils.resolveUrl(urls.positiveZ),
-      UrlUtils.resolveUrl(urls.negativeZ)
-    ];
-    await envMap.loadFromUrls(urlArray);
-    return envMap;
-  }
-  static async loadFromDirectory(baseUrl, format = "png") {
-    const texturePath = baseUrl.replace(/^\//, "");
-    const fullBaseUrl = UrlUtils.resolveUrl(texturePath);
-    return this.loadFromUrls({
-      positiveX: "".concat(fullBaseUrl, "/px.").concat(format),
-      negativeX: "".concat(fullBaseUrl, "/nx.").concat(format),
-      positiveY: "".concat(fullBaseUrl, "/py.").concat(format),
-      negativeY: "".concat(fullBaseUrl, "/ny.").concat(format),
-      positiveZ: "".concat(fullBaseUrl, "/pz.").concat(format),
-      negativeZ: "".concat(fullBaseUrl, "/nz.").concat(format)
-    });
-  }
-};
 
 // ts/classes/webgl2/meshes/fbxLoader.ts
 var FBXParser = __toESM(require_lib2(), 1);
@@ -10304,7 +10359,8 @@ var _FBXLoader = class _FBXLoader extends BaseMesh {
         throw new Error("Failed to fetch FBX file: ".concat(response.statusText, " (").concat(response.status, ")"));
       }
       const buffer = await response.arrayBuffer();
-      return this.loadFromBuffer(buffer, props);
+      const data = await this.loadFromBuffer(buffer, props);
+      return data;
     } catch (error) {
       console.error("Error loading FBX from URL: ".concat(url), error);
       throw error;
@@ -10313,6 +10369,18 @@ var _FBXLoader = class _FBXLoader extends BaseMesh {
 };
 _FBXLoader.CHUNK_SIZE = 65536;
 var FBXLoader = _FBXLoader;
+
+// ts/classes/webgl2/meshes/fbx.ts
+var FBX = class extends ContainerObject {
+  constructor(url, props = {}) {
+    super(props);
+    this.loadFbx(url);
+  }
+  async loadFbx(url) {
+    const data = await FBXLoader.loadFromUrl(url);
+    this.addChild(data);
+  }
+};
 
 // ts/classes/testLevel.ts
 var TestLevel = class extends Scene {
@@ -10363,20 +10431,16 @@ var TestLevel = class extends Scene {
       // Increased intensity
       enabled: true
     }));
-    this.build();
-    this.baseRotation = 0;
-  }
-  async build() {
-    this.setEnvironmentMap(await EnvironmentMapLoader.loadFromDirectory("textures/envmap/sky"));
-    this.add(await FBXLoader.loadFromUrl("fbx/island1.fbx", {
+    this.setEnvironmentMap("textures/envmap/sky");
+    this.add(new FBX("fbx/island1.fbx", {
       position: v3(0, 0, 0),
       rotation: Quaternion.fromEuler(0, 0, 0)
     }));
-    this.add(await FBXLoader.loadFromUrl("fbx/island2.fbx", {
+    this.add(new FBX("fbx/island2.fbx", {
       position: v3(0, 0, 0),
       rotation: Quaternion.fromEuler(0, 0, 0)
     }));
-    this.add(await FBXLoader.loadFromUrl("fbx/island3.fbx", {
+    this.add(new FBX("fbx/island3.fbx", {
       position: v3(0, 0, 0),
       rotation: Quaternion.fromEuler(0, 0, 0)
     }));
