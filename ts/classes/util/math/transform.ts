@@ -38,6 +38,11 @@ export class Transform {
         this._isDirty = true;
     }
 
+    public move(position: Vector3): void {
+        this._localPosition = this._localPosition.add(position);
+        this._isDirty = true;
+    }
+
     public getLocalPosition(): Vector3 {
         return this._localPosition.clone();
     }

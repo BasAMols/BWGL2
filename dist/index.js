@@ -8037,6 +8037,10 @@ var Transform = class {
     this._localPosition = position;
     this._isDirty = true;
   }
+  move(position) {
+    this._localPosition = this._localPosition.add(position);
+    this._isDirty = true;
+  }
   getLocalPosition() {
     return this._localPosition.clone();
   }
@@ -8196,7 +8200,7 @@ var SceneObject = class {
   static getAttributeLocation(name) {
     return glob.shaderManager.getAttributeLocation("a_".concat(name));
   }
-  render(viewMatrix, projectionMatrix) {
+  render(obj, viewMatrix, projectionMatrix) {
     const modelMatrix = this.transform.getWorldMatrix();
     if (this.shaderManager.hasUniform("u_modelMatrix")) {
       this.shaderManager.setUniform("u_modelMatrix", modelMatrix.mat4);
@@ -8290,6 +8294,8 @@ var SceneObject = class {
     }
     this.vao.unbind();
   }
+  build() {
+  }
 };
 
 // ts/classes/webgl2/meshes/containerObject.ts
@@ -8307,13 +8313,21 @@ var ContainerObject = class extends SceneObject {
   /**
    * Add a child object to this container
    */
-  addChild(child) {
+  add(child) {
     if (Array.isArray(child)) {
       this.children.push(...child);
-      child.forEach((c) => c.transform.setParent(this.transform));
+      child.forEach((c) => {
+        c.transform.setParent(this.transform);
+        c.parent = this;
+        c.scene = this.scene;
+        c.build();
+      });
     } else {
       this.children.push(child);
       child.transform.setParent(this.transform);
+      child.parent = this;
+      child.scene = this.scene;
+      child.build();
     }
   }
   /**
@@ -8339,9 +8353,9 @@ var ContainerObject = class extends SceneObject {
   /**
    * Override render to render all children
    */
-  render(viewMatrix, projectionMatrix) {
+  render(obj, viewMatrix, projectionMatrix) {
     for (const child of this.children) {
-      child.render(viewMatrix, projectionMatrix);
+      child.render(obj, viewMatrix, projectionMatrix);
     }
   }
 };
@@ -9503,9 +9517,10 @@ var Skybox = class {
 };
 
 // ts/classes/webgl2/scene.ts
-var Scene = class {
+var Scene = class extends ContainerObject {
   constructor(camera, options = {}) {
-    this.objects = [];
+    var _a;
+    super();
     this.clearColor = [0, 0, 0, 1];
     this.showColorPicking = true;
     // Debug flag to show color picking
@@ -9518,8 +9533,13 @@ var Scene = class {
     this.debugShadowMap = false;
     this.debugLightIndex = 0;
     this.fullScreenQuadVAO = null;
-    var _a;
+    this.passes = {
+      shadow: false,
+      picking: false,
+      render: true
+    };
     this.camera = camera;
+    this.scene = this;
     this.lightManager = new LightManager(glob.shaderManager);
     this.ambientLight = new AmbientLight({ color: options.ambientLightColor || v3(1, 1, 1), intensity: (_a = options.ambientLightIntensity) != null ? _a : 0.1 });
     this.environmentMap = options.environmentMap;
@@ -9540,47 +9560,34 @@ var Scene = class {
   click(vector2) {
     this.lastClick = vector2;
   }
-  add(object) {
-    if (Array.isArray(object)) {
-      this.objects.push(...object);
-      return object[0];
-    } else {
-      this.objects.push(object);
-      return object;
-    }
-  }
-  remove(object) {
-    const index = this.objects.indexOf(object);
-    if (index !== -1) {
-      this.objects.splice(index, 1);
-    }
-  }
   getLights() {
     return this.lightManager.getLights();
   }
-  render() {
+  render(obj) {
     const gl = glob.ctx;
     const viewMatrix = this.camera.getViewMatrix();
     const projectionMatrix = this.camera.getProjectionMatrix();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.pickingFramebuffer);
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    gl.clearColor(0, 0, 0, 1);
-    gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LEQUAL);
-    glob.shaderManager.useProgram("picking");
-    for (const object of this.objects) {
-      if (!object.vao || object.pickColorArray === void 0)
-        continue;
-      glob.shaderManager.setUniform("u_pickingColor", new Float32Array(object.pickColorArray.vec));
-      object.render(viewMatrix, projectionMatrix);
+    if (this.passes.picking) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.pickingFramebuffer);
+      gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.clearColor(0, 0, 0, 1);
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthFunc(gl.LEQUAL);
+      glob.shaderManager.useProgram("picking");
+      for (const object of this.children) {
+        if (!object.vao || object.pickColorArray === void 0)
+          continue;
+        glob.shaderManager.setUniform("u_pickingColor", new Float32Array(object.pickColorArray.vec));
+        object.render(obj, viewMatrix, projectionMatrix);
+      }
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-    const shadowCastingLights = this.getLights().filter(
+    const shadowCastingLights = this.passes.shadow ? this.getLights().filter(
       (light) => light instanceof PointLight && light.isEnabled() && light.getIntensity() > 1e-4
       // Only cast shadows for lights that are actually contributing
-    );
+    ) : [];
     const castsShadow = new Array(10).fill(false);
     const lightSpaceMatrices = new Float32Array(10 * 16);
     const hasAmbientLight = this.ambientLight !== null && this.ambientLight.isEnabled();
@@ -9603,7 +9610,7 @@ var Scene = class {
         lightSpaceMatrices[lightIndex * 16 + index] = value;
       });
       castsShadow[lightIndex] = true;
-      for (const object of this.objects) {
+      for (const object of this.children) {
         if (!object.vao)
           continue;
         glob.shaderManager.setUniform("u_modelMatrix", object.transform.getWorldMatrix().mat4);
@@ -9616,68 +9623,71 @@ var Scene = class {
       }
       shadowMap.unbind(glob.ctx);
     }
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-    gl.clearColor(...this.clearColor);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LESS);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    if (this.environmentMap) {
-      this.skybox.render(viewMatrix.mat4, projectionMatrix.mat4);
-    }
-    glob.shaderManager.useProgram("pbr");
-    this.lightManager.updateShaderUniforms();
-    glob.shaderManager.setUniform("u_lightSpaceMatrices", lightSpaceMatrices);
-    glob.shaderManager.setUniform("u_castsShadow", castsShadow);
-    shadowCastingLights.forEach((light, i) => {
-      if (light instanceof PointLight) {
-        const lightIndex = i + indexOffset;
-        const shadowMap = light.getShadowMap();
-        shadowMap.bindDepthTexture(glob.ctx, lightIndex + 5);
-        if (lightIndex < 4) {
-          glob.shaderManager.setUniform("u_shadowMap".concat(lightIndex), lightIndex + 5);
-          const lightSpaceMatrix = light.getLightSpaceMatrix();
-          for (let j = 0; j < 16; j++) {
-            lightSpaceMatrices[lightIndex * 16 + j] = lightSpaceMatrix.mat4[j];
-          }
-          castsShadow[lightIndex] = true;
-        }
+    if (this.passes.render) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+      gl.clearColor(...this.clearColor);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthFunc(gl.LESS);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      if (this.environmentMap) {
+        this.skybox.render(viewMatrix.mat4, projectionMatrix.mat4);
       }
-    });
-    glob.shaderManager.setUniform("u_lightSpaceMatrices", lightSpaceMatrices);
-    glob.shaderManager.setUniform("u_castsShadow", castsShadow);
-    if (this.environmentMap) {
-      this.environmentMap.bind(11);
-      glob.shaderManager.setUniform("u_environmentMap", 11);
-      glob.shaderManager.setUniform("u_irradianceMap", 12);
-      glob.shaderManager.setUniform("u_prefilterMap", 13);
-      glob.shaderManager.setUniform("u_brdfLUT", 14);
-      glob.shaderManager.setUniform("u_useEnvironmentMap", 1);
-    } else {
-      glob.shaderManager.setUniform("u_useEnvironmentMap", 0);
-    }
-    const cameraPosition = this.camera.getPosition();
-    glob.shaderManager.setUniform("u_viewPos", new Float32Array([cameraPosition.x, cameraPosition.y, cameraPosition.z]));
-    for (const object of this.objects) {
-      object.render(viewMatrix, projectionMatrix);
+      glob.shaderManager.useProgram("pbr");
+      this.lightManager.updateShaderUniforms();
+      glob.shaderManager.setUniform("u_lightSpaceMatrices", lightSpaceMatrices);
+      glob.shaderManager.setUniform("u_castsShadow", castsShadow);
+      shadowCastingLights.forEach((light, i) => {
+        if (light instanceof PointLight) {
+          const lightIndex = i + indexOffset;
+          const shadowMap = light.getShadowMap();
+          shadowMap.bindDepthTexture(glob.ctx, lightIndex + 5);
+          if (lightIndex < 4) {
+            glob.shaderManager.setUniform("u_shadowMap".concat(lightIndex), lightIndex + 5);
+            const lightSpaceMatrix = light.getLightSpaceMatrix();
+            for (let j = 0; j < 16; j++) {
+              lightSpaceMatrices[lightIndex * 16 + j] = lightSpaceMatrix.mat4[j];
+            }
+            castsShadow[lightIndex] = true;
+          }
+        }
+      });
+      glob.shaderManager.setUniform("u_lightSpaceMatrices", lightSpaceMatrices);
+      glob.shaderManager.setUniform("u_castsShadow", castsShadow);
+      if (this.environmentMap) {
+        this.environmentMap.bind(11);
+        glob.shaderManager.setUniform("u_environmentMap", 11);
+        glob.shaderManager.setUniform("u_irradianceMap", 12);
+        glob.shaderManager.setUniform("u_prefilterMap", 13);
+        glob.shaderManager.setUniform("u_brdfLUT", 14);
+        glob.shaderManager.setUniform("u_useEnvironmentMap", 1);
+      } else {
+        glob.shaderManager.setUniform("u_useEnvironmentMap", 0);
+      }
+      const cameraPosition = this.camera.getPosition();
+      glob.shaderManager.setUniform("u_viewPos", new Float32Array([cameraPosition.x, cameraPosition.y, cameraPosition.z]));
+      for (const object of this.children) {
+        object.render(obj, viewMatrix, projectionMatrix);
+      }
     }
     this.frameCount++;
   }
   dispose() {
     var _a;
-    for (const object of this.objects) {
+    for (const object of this.children) {
       object.vao.dispose();
       (_a = object.indexBuffer) == null ? void 0 : _a.dispose();
     }
     this.skybox.dispose();
-    this.objects = [];
+    this.children = [];
   }
   tick(obj) {
+    this.camera.tick(obj);
   }
   afterTick(obj) {
-    this.render();
+    this.render(obj);
   }
   resize() {
     this.camera.updateProjectionMatrix();
@@ -9727,7 +9737,7 @@ var Scene = class {
     const color = this.getActualColor(vector2);
     if (color.equals(v3(0, 0, 0)) || color.equals(v3(1, 1, 1)))
       return void 0;
-    for (const object of this.objects) {
+    for (const object of this.children) {
       if (object.colorMatch(color)) {
         return object;
       }
@@ -9804,10 +9814,662 @@ var Camera = class {
   getTarget() {
     return this.target;
   }
+  tick(obj) {
+  }
+};
+
+// ts/classes/actor/actor.ts
+var Actor = class extends ContainerObject {
+  constructor(props = {}) {
+    var _a;
+    super(props);
+    this.controllers = [];
+    this.controllerList = {
+      preTick: [],
+      postTick: [],
+      preRender: [],
+      postRender: []
+    };
+    (_a = props.controllers) == null ? void 0 : _a.forEach((controller) => {
+      this.addController(controller);
+    });
+  }
+  addController(controller) {
+    this.controllers.push(controller);
+    controller.register(this);
+    this.controllerList[controller.order].push(controller);
+  }
+  removeController(controller) {
+    this.controllers = this.controllers.filter((c) => c !== controller);
+    controller.unregister(this);
+    this.controllerList[controller.props.order] = this.controllerList[controller.props.order].filter((c) => c !== controller);
+  }
+  render(obj, viewMatrix, projectionMatrix) {
+    this.controllerList.preTick.forEach((controller) => {
+      controller.tick(obj);
+    });
+    this.tick(obj);
+    this.controllerList.postTick.forEach((controller) => {
+      controller.tick(obj);
+    });
+    this.controllerList.preRender.forEach((controller) => {
+      controller.tick(obj);
+    });
+    super.render(obj, viewMatrix, projectionMatrix);
+    this.controllerList.postRender.forEach((controller) => {
+      controller.tick(obj);
+    });
+  }
+  tick(obj) {
+  }
+};
+
+// ts/classes/actor/controller.ts
+var Controller = class {
+  constructor(props = {}) {
+    var _a;
+    this.props = props;
+    this.order = (_a = props.order) != null ? _a : "preTick";
+  }
+  register(actor) {
+    this.actor = actor;
+  }
+  unregister(actor) {
+    this.actor = null;
+  }
+  tick(obj) {
+  }
+};
+
+// ts/classes/level/plane/planeController.ts
+var PlaneController = class extends Controller {
+  constructor() {
+    super();
+  }
+  tick() {
+    this.actor.transform.move(v3(0, 0, 1));
+  }
+};
+
+// ts/classes/webgl2/meshes/cube.ts
+var Cube = class extends BaseMesh {
+  static generateColors(colors) {
+    const defaultColors = [
+      [0.8, 0.2, 0.2],
+      // Front face (red)
+      [1, 1, 0],
+      // Back face (yellow)
+      [0.2, 0.8, 0.2],
+      // Right face (green)
+      [0.8, 0.2, 0.8],
+      // Left face (purple)
+      [0.2, 0.2, 0.8],
+      // Top face (blue)
+      [1, 0.5, 0]
+      // Bottom face (orange)
+    ];
+    let faceColors;
+    if (!colors) {
+      faceColors = defaultColors;
+    } else if (Array.isArray(colors[0])) {
+      faceColors = colors;
+      if (faceColors.length !== 6) {
+        throw new Error("Must provide exactly 6 colors for faces or a single color");
+      }
+    } else {
+      const singleColor = colors;
+      faceColors = Array(6).fill(singleColor);
+    }
+    const colorArray = [];
+    faceColors.forEach((color) => {
+      for (let i = 0; i < 4; i++) {
+        colorArray.push(...color);
+      }
+    });
+    return new Float32Array(colorArray);
+  }
+  static generateTangents() {
+    const tangents = [
+      // Front face: tangent along x-axis
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      // Back face: tangent along negative x-axis
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      // Right face: tangent along negative z-axis
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      // Left face: tangent along z-axis
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      // Top face: tangent along x-axis
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      // Bottom face: tangent along x-axis
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0
+    ];
+    return new Float32Array(tangents);
+  }
+  static generateBitangents() {
+    const bitangents = [
+      // Front face: bitangent along y-axis
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      // Back face: bitangent along y-axis
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      // Right face: bitangent along y-axis
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      // Left face: bitangent along y-axis
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      // Top face: bitangent along z-axis (negative)
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      // Bottom face: bitangent along z-axis
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1
+    ];
+    return new Float32Array(bitangents);
+  }
+  static createMeshData(props = {}) {
+    let meshColors = props.colors;
+    if (props.material && !meshColors) {
+      const { baseColor } = props.material;
+      meshColors = [baseColor.x, baseColor.y, baseColor.z];
+    }
+    return {
+      vertices: this.vertices,
+      indices: this.indices,
+      normals: this.normals,
+      texCoords: this.texCoords,
+      colors: this.generateColors(meshColors),
+      tangents: this.generateTangents(),
+      bitangents: this.generateBitangents()
+    };
+  }
+  static create(props = {}) {
+    if (!props.material && props.colors) {
+      let baseColor;
+      if (Array.isArray(props.colors[0])) {
+        const firstColor = props.colors[0];
+        baseColor = v3(firstColor[0], firstColor[1], firstColor[2]);
+      } else {
+        const singleColor = props.colors;
+        baseColor = v3(singleColor[0], singleColor[1], singleColor[2]);
+      }
+      props = __spreadProps(__spreadValues({}, props), {
+        material: new Material({
+          baseColor,
+          roughness: 0.5,
+          metallic: 0,
+          ambientOcclusion: 1,
+          emissive: v3(0, 0, 0)
+        })
+      });
+    }
+    const meshData = this.createMeshData(props);
+    const sceneObject = this.createSceneObject(meshData, props);
+    return sceneObject;
+  }
+};
+Cube.vertices = new Float32Array([
+  // Front face
+  -0.5,
+  -0.5,
+  0.5,
+  // 0
+  0.5,
+  -0.5,
+  0.5,
+  // 1
+  0.5,
+  0.5,
+  0.5,
+  // 2
+  -0.5,
+  0.5,
+  0.5,
+  // 3
+  // Back face
+  -0.5,
+  -0.5,
+  -0.5,
+  // 4
+  0.5,
+  -0.5,
+  -0.5,
+  // 5
+  0.5,
+  0.5,
+  -0.5,
+  // 6
+  -0.5,
+  0.5,
+  -0.5,
+  // 7
+  // Right face
+  0.5,
+  -0.5,
+  0.5,
+  // 8 (1)
+  0.5,
+  -0.5,
+  -0.5,
+  // 9 (5)
+  0.5,
+  0.5,
+  -0.5,
+  // 10 (6)
+  0.5,
+  0.5,
+  0.5,
+  // 11 (2)
+  // Left face
+  -0.5,
+  -0.5,
+  -0.5,
+  // 12 (4)
+  -0.5,
+  -0.5,
+  0.5,
+  // 13 (0)
+  -0.5,
+  0.5,
+  0.5,
+  // 14 (3)
+  -0.5,
+  0.5,
+  -0.5,
+  // 15 (7)
+  // Top face
+  -0.5,
+  0.5,
+  0.5,
+  // 16 (3)
+  0.5,
+  0.5,
+  0.5,
+  // 17 (2)
+  0.5,
+  0.5,
+  -0.5,
+  // 18 (6)
+  -0.5,
+  0.5,
+  -0.5,
+  // 19 (7)
+  // Bottom face
+  -0.5,
+  -0.5,
+  -0.5,
+  // 20 (4)
+  0.5,
+  -0.5,
+  -0.5,
+  // 21 (5)
+  0.5,
+  -0.5,
+  0.5,
+  // 22 (1)
+  -0.5,
+  -0.5,
+  0.5
+  // 23 (0)
+]);
+Cube.indices = new Uint16Array([
+  // Front
+  0,
+  1,
+  2,
+  2,
+  3,
+  0,
+  // Back (reversed order)
+  4,
+  6,
+  5,
+  6,
+  4,
+  7,
+  // Right
+  8,
+  9,
+  10,
+  10,
+  11,
+  8,
+  // Left
+  12,
+  13,
+  14,
+  14,
+  15,
+  12,
+  // Top
+  16,
+  17,
+  18,
+  18,
+  19,
+  16,
+  // Bottom
+  20,
+  21,
+  22,
+  22,
+  23,
+  20
+]);
+Cube.normals = new Float32Array([
+  // Front face
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  // Back face
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  // Right face
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  // Left face
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  // Top face
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  // Bottom face
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0
+]);
+Cube.texCoords = new Float32Array([
+  // Front
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  0,
+  1,
+  // Back
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  // Right
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  0,
+  1,
+  // Left
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  // Top
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  0,
+  1,
+  // Bottom
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1
+]);
+
+// ts/classes/level/plane/camera.ts
+var PlaneCamera = class extends Camera {
+  constructor(scene, parent) {
+    super({ position: v3(0, 100, 200), target: v3(0, 0, 0), fov: 40 });
+    this.scene = scene;
+    this.parent = parent;
+  }
+  tick(obj) {
+    const radius = 4e3 + Math.sin(obj.total * 5e-4) * 2e3;
+    const height = 2e3;
+    const v = v3(
+      radius,
+      height,
+      0
+    ).rotateXY(obj.total * 1e-4 % Math.PI * 2);
+    this.setPosition(v.add(v3(0, Math.sin(obj.total * 5e-4) * 1e3, 0)));
+    this.setTarget(this.parent.transform.getWorldPosition());
+  }
+};
+
+// ts/classes/level/plane/plane.ts
+var Plane = class extends Actor {
+  constructor() {
+    super({
+      controllers: [
+        new PlaneController()
+      ]
+    });
+  }
+  build() {
+    this.add(Cube.create({
+      position: v3(0, 200, 0),
+      scale: v3(100, 100, 100),
+      material: {
+        baseColor: v3(0.5, 0.5, 0.5),
+        roughness: 0.5,
+        metallic: 0.5,
+        ambientOcclusion: 1,
+        emissive: v3(0.1, 0.1, 0.1)
+      }
+    }));
+    this.scene.camera = new PlaneCamera(this.scene, this);
+  }
+  tick(obj) {
+    super.tick(obj);
+  }
 };
 
 // ts/classes/webgl2/meshes/plane.ts
-var Plane = class extends BaseMesh {
+var PlaneMesh = class extends BaseMesh {
   static generateIndices(flipNormal) {
     return new Uint16Array(
       flipNormal ? [0, 1, 2, 2, 3, 0] : [0, 2, 1, 0, 3, 2]
@@ -9906,7 +10568,7 @@ var Plane = class extends BaseMesh {
     return sceneObject;
   }
 };
-Plane.vertices = new Float32Array([
+PlaneMesh.vertices = new Float32Array([
   // Single face (square)
   -0.5,
   0,
@@ -9925,7 +10587,7 @@ Plane.vertices = new Float32Array([
   0.5
   // top-left
 ]);
-Plane.texCoords = new Float32Array([
+PlaneMesh.texCoords = new Float32Array([
   0,
   0,
   1,
@@ -9935,6 +10597,34 @@ Plane.texCoords = new Float32Array([
   0,
   1
 ]);
+
+// ts/classes/level/world/ocean.ts
+var Ocean = class extends Actor {
+  constructor() {
+    super();
+    this.add(this.waterPlane = PlaneMesh.create({
+      position: v3(0, 10, 0),
+      // Lower position for better sky reflections - world position affects reflection quality
+      material: {
+        baseColor: v3(0.4, 0.8, 0.9),
+        // Deep blue-green tint for ocean
+        roughness: 0.4,
+        // Smoother surface for calm water, but not perfectly reflective
+        metallic: 0.8,
+        // Good reflection without being too mirror-like
+        ambientOcclusion: 0.8,
+        emissive: v3(0.01, 0.03, 0.05)
+        // Subtle glow for depth
+      },
+      scale: v2(1e5, 1e5)
+      // Adjust scale to see more of the reflection
+    }));
+  }
+  tick(obj) {
+    super.tick(obj);
+    this.waterPlane.transform.setPosition(v3(0, Math.sin(obj.total * 1e-3) * 15 + 10, 0));
+  }
+};
 
 // ts/classes/webgl2/meshes/fbxLoader.ts
 var FBXParser = __toESM(require_lib2(), 1);
@@ -10381,7 +11071,7 @@ var FBX = class _FBX extends ContainerObject {
   }
   async loadFbx(url) {
     const data = await FBXLoader.loadFromUrl(url);
-    this.addChild(data);
+    this.add(data);
   }
   static create(url, props = {}) {
     const fbx = new _FBX(url, props);
@@ -10389,56 +11079,10 @@ var FBX = class _FBX extends ContainerObject {
   }
 };
 
-// ts/classes/testLevel.ts
-var TestLevel = class extends Scene {
+// ts/classes/level/world/island.ts
+var Island = class extends Actor {
   constructor() {
-    super(new Camera({ position: v3(0, 100, 200), target: v3(0, 0, 0), fov: 40 }), {
-      ambientLightColor: v3(0.4, 0.8, 0.9),
-      ambientLightIntensity: 0.7
-      // Very subtle ambient lighting
-    });
-    this.clearColor = [0.2, 0.3, 0.5, 1];
-    this.add(this.waterPlane = Plane.create({
-      position: v3(0, 10, 0),
-      // Lower position for better sky reflections - world position affects reflection quality
-      material: {
-        baseColor: v3(0.4, 0.8, 0.9),
-        // Deep blue-green tint for ocean
-        roughness: 0.4,
-        // Smoother surface for calm water, but not perfectly reflective
-        metallic: 0.8,
-        // Good reflection without being too mirror-like
-        ambientOcclusion: 0.8,
-        emissive: v3(0.01, 0.03, 0.05)
-        // Subtle glow for depth
-      },
-      scale: v2(1e5, 1e5)
-      // Adjust scale to see more of the reflection
-    }));
-    this.add(IcoSphere.create({
-      position: v3(0, 0, 0),
-      rotation: Quaternion.fromEuler(0, 0, 0),
-      scale: v3(1e3, 1e3, 1e3),
-      subdivisions: 1,
-      smoothShading: false,
-      material: new Material({
-        baseColor: v3(0, 0, 0),
-        roughness: 0,
-        metallic: 1,
-        emissive: v3(0, 0, 0),
-        ambientOcclusion: 1
-      })
-    }));
-    this.addLight(this.sun = new DirectionalLight({
-      direction: v3(0.2, -1, -1.3).normalize(),
-      // Match sun position in skybox
-      color: v3(1, 0.98, 0.95),
-      // Slightly warm sunlight
-      intensity: 2,
-      // Increased intensity
-      enabled: true
-    }));
-    this.setEnvironmentMap("textures/envmap/sky");
+    super();
     this.add(FBX.create("fbx/island1.fbx", {
       position: v3(0, 0, 0),
       rotation: Quaternion.fromEuler(0, 0, 0)
@@ -10452,17 +11096,24 @@ var TestLevel = class extends Scene {
       rotation: Quaternion.fromEuler(0, 0, 0)
     }));
   }
+};
+
+// ts/classes/level/world/sky.ts
+var Sky = class extends ContainerObject {
+  constructor(level) {
+    super();
+    level.setEnvironmentMap("textures/envmap/sky");
+    level.addLight(this.sun = new DirectionalLight({
+      direction: v3(0.2, -1, -1.3).normalize(),
+      // Match sun position in skybox
+      color: v3(1, 0.98, 0.95),
+      // Slightly warm sunlight
+      intensity: 1,
+      // Increased intensity
+      enabled: true
+    }));
+  }
   tick(obj) {
-    super.tick(obj);
-    const radius = 4e3 + Math.sin(obj.total * 5e-4) * 2e3;
-    const height = 2e3;
-    const v = v3(
-      radius,
-      height,
-      0
-    ).rotateXY(obj.total * 1e-4 % Math.PI * 2);
-    this.camera.setPosition(v.add(v3(0, Math.sin(obj.total * 5e-4) * 1e3, 0)));
-    this.camera.setTarget(v3(0, 0, 0));
     const sunRadius = 3;
     const v22 = v3(
       sunRadius,
@@ -10470,7 +11121,26 @@ var TestLevel = class extends Scene {
       0
     ).normalize().rotateXY((obj.total * -1e-4 + Math.PI / 0.75) % Math.PI * 2);
     this.sun.setDirection(v22);
-    this.waterPlane.transform.setPosition(v3(0, Math.sin(obj.total * 1e-3) * 15 + 10, 0));
+  }
+};
+
+// ts/classes/level/testLevel.ts
+var TestLevel = class extends Scene {
+  // Match sky color
+  constructor() {
+    super(new Camera({ position: v3(0, 100, 200), target: v3(0, 0, 0), fov: 40 }), {
+      ambientLightColor: v3(0.4, 0.8, 0.9),
+      ambientLightIntensity: 0.7
+      // Very subtle ambient lighting
+    });
+    this.clearColor = [0.2, 0.3, 0.5, 1];
+    this.add(new Ocean());
+    this.add(new Island());
+    this.add(new Sky(this));
+    this.add(new Plane());
+  }
+  tick(obj) {
+    super.tick(obj);
   }
 };
 

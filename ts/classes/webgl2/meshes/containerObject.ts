@@ -1,12 +1,13 @@
 import { SceneObject, SceneObjectProps } from './sceneObject';
 import { Matrix4 } from '../../util/math/matrix4';
+import { TickerReturnData } from '../../ticker';
 
 /**
  * A specialized SceneObject that acts as a container for other scene objects.
  * It only handles transforms and parenting without any rendering functionality.
  */
 export class ContainerObject extends SceneObject {
-    private children: SceneObject[] = [];
+    protected children: SceneObject[] = [];
 
     constructor(props: SceneObjectProps = {}) {
         // Create a dummy SceneObjectData with minimal requirements
@@ -23,13 +24,21 @@ export class ContainerObject extends SceneObject {
     /**
      * Add a child object to this container
      */
-    public addChild(child: SceneObject | SceneObject[]): void {
+    public add(child: SceneObject | SceneObject[]): void {
         if (Array.isArray(child)) {
             this.children.push(...child);
-            child.forEach((c) => c.transform.setParent(this.transform));
+            child.forEach((c) => {
+                c.transform.setParent(this.transform);
+                c.parent = this;
+                c.scene = this.scene;
+                c.build();
+            });
         } else {
             this.children.push(child);
             child.transform.setParent(this.transform);
+            child.parent = this;
+            child.scene = this.scene;
+            child.build();
         }
     }
 
@@ -57,10 +66,10 @@ export class ContainerObject extends SceneObject {
     /**
      * Override render to render all children
      */
-    public render(viewMatrix: Matrix4, projectionMatrix: Matrix4): void {
+    public override render(obj: TickerReturnData, viewMatrix: Matrix4, projectionMatrix: Matrix4): void {
         // Render all children
         for (const child of this.children) {
-            child.render(viewMatrix, projectionMatrix);
+            child.render(obj, viewMatrix, projectionMatrix);
         }
     }
 } 

@@ -1,7 +1,7 @@
 import { Renderer } from './classes/elements/renderer';
 import { PadManager } from './classes/input/gamepadManager';
 import { InputDevices } from './classes/input/inputDevices';
-import { TestLevel } from './classes/testLevel';
+import { TestLevel } from './classes/level/testLevel';
 import { Ticker, TickerReturnData } from './classes/ticker';
 import { Events } from './classes/util/event';
 import { Loader } from './classes/util/loader';

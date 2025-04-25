@@ -10,7 +10,7 @@ export class FBX extends ContainerObject {
 
     private async loadFbx(url: string) {
         const data = await FBXLoader.loadFromUrl(url);
-        this.addChild(data);
+        this.add(data);
     }
 
     static create(url: string, props: SceneObjectProps = {}): SceneObject {

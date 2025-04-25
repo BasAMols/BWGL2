@@ -12,7 +12,7 @@ export interface PlaneProps extends BaseMeshProps {
     flipNormal?: boolean;
 }
 
-export class Plane extends BaseMesh {
+export class PlaneMesh extends BaseMesh {
     private static vertices: Float32Array = new Float32Array([
         // Single face (square)
         -0.5, 0.0, -0.5,  // bottom-left

@@ -1,5 +1,6 @@
 import { v3, Vector3 } from '../util/math/vector3';
 import { m4, Matrix4 } from '../util/math/matrix4';
+import { TickerReturnData } from '../ticker';
 
 export class Camera {
     private position: Vector3;
@@ -66,5 +67,9 @@ export class Camera {
 
     public getTarget(): Vector3 {
         return this.target;
+    }
+
+    tick(obj: TickerReturnData) {
+        
     }
 } 

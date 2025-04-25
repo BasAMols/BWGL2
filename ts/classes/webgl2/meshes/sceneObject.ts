@@ -7,6 +7,8 @@ import { Transform } from '../../util/math/transform';
 import { Quaternion } from '../../util/math/quaternion';
 import { hslToRgb } from '../../util/math/color';
 import { Material } from '../material';
+import { TickerReturnData } from '../../ticker';
+import { Scene } from '../scene';
 
 export interface SceneObjectData {
     vao: VertexArray;
@@ -38,6 +40,8 @@ export class SceneObject implements SceneObjectData {
     public readonly drawType: number = glob.ctx.UNSIGNED_SHORT;
     public readonly ignoreLighting: boolean = false;
     public readonly material?: Material;
+    public parent?: SceneObject;
+    public scene?: Scene;
     private set pickColor(value: number) {
         if (value === 0) {
             this.pickColorArray = v3(1, 1, 1);
@@ -74,7 +78,7 @@ export class SceneObject implements SceneObjectData {
         }
     }
 
-    public render(viewMatrix: Matrix4, projectionMatrix: Matrix4) {
+    public render(obj: TickerReturnData, viewMatrix: Matrix4, projectionMatrix: Matrix4) {
         const modelMatrix = this.transform.getWorldMatrix();
 
         // Set transform uniforms if they exist in the current shader
@@ -188,5 +192,8 @@ export class SceneObject implements SceneObjectData {
 
         // Cleanup
         this.vao.unbind();
+    }
+
+    public build() {
     }
 }
