@@ -1,5 +1,6 @@
 import { Renderer } from './classes/elements/renderer';
 import { PadManager } from './classes/input/gamepadManager';
+import { InputMap } from './classes/input/input';
 import { InputDevices } from './classes/input/inputDevices';
 import { TestLevel } from './classes/level/testLevel';
 import { Ticker, TickerReturnData } from './classes/ticker';
@@ -24,6 +25,7 @@ export var glob = new class {
         return this.renderer.ctx;
     }
     public events: Record<string, Events<any>> = {};
+    public input: InputMap = new InputMap();
 };
 
 export class Game {
@@ -113,6 +115,7 @@ export class Game {
         //     document.body.appendChild(level.interface.dom)
         // }
         this.active = level;
+        glob.input = this.active.inputMap;
     }
 
     public get level(): Scene {

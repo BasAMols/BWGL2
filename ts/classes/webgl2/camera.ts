@@ -69,6 +69,10 @@ export class Camera {
         return this.target;
     }
 
+    public getAngle(): Vector3 {
+        return this.target.subtract(this.position).normalize();
+    }
+
     tick(obj: TickerReturnData) {
         
     }

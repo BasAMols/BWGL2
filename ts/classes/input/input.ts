@@ -81,10 +81,10 @@ export class InputMap {
     }
 
     public axis(key: string) {
-        return this.joysticks[key].value;
+        return this.joysticks[key]?.value;
     }
 
     public button(key: string) {
-        return this.buttons[key].value;
+        return this.buttons[key]?.value;
     }
 }

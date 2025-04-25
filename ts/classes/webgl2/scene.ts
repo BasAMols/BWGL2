@@ -11,11 +11,13 @@ import { VertexArray } from './buffer';
 import { EnvironmentMap, EnvironmentMapLoader } from './environmentMap';
 import { Skybox } from './skybox';
 import { ContainerObject } from './meshes/containerObject';
+import { InputMap } from '../input/input';
 
 export interface SceneOptions {
     ambientLightColor?: Vector3;
     ambientLightIntensity?: number;
     environmentMap?: EnvironmentMap;
+    inputMap?: InputMap;
 }
 
 export class Scene extends ContainerObject {
@@ -28,6 +30,7 @@ export class Scene extends ContainerObject {
     private pickingFramebuffer: WebGLFramebuffer | null = null;
     private pickingTexture: WebGLTexture | null = null;
     private pickingDepthBuffer: WebGLRenderbuffer | null = null;
+    inputMap: InputMap;
     protected get ambientLight(): AmbientLight {
         return this._ambientLight;
     }
@@ -64,8 +67,8 @@ export class Scene extends ContainerObject {
         this.camera = camera;
         this.scene = this;
         this.lightManager = new LightManager(glob.shaderManager);
+        this.inputMap = options.inputMap ?? new InputMap();
 
-        // Set up ambient light with default or provided values
         this.ambientLight = new AmbientLight({ color: options.ambientLightColor || v3(1, 1, 1), intensity: options.ambientLightIntensity ?? 0.1 });
         this.environmentMap = options.environmentMap;
 
@@ -88,6 +91,7 @@ export class Scene extends ContainerObject {
 
     public render(obj: TickerReturnData): void {
         const gl = glob.ctx;
+        this.camera.tick(obj);
         const viewMatrix = this.camera.getViewMatrix();
         const projectionMatrix = this.camera.getProjectionMatrix();
 
@@ -243,6 +247,7 @@ export class Scene extends ContainerObject {
                 glob.shaderManager.setUniform('u_useEnvironmentMap', 0);
             }
 
+
             // Update the camera position for reflections and lighting calculations
             const cameraPosition = this.camera.getPosition();
             glob.shaderManager.setUniform('u_viewPos', new Float32Array([cameraPosition.x, cameraPosition.y, cameraPosition.z]));
@@ -267,7 +272,6 @@ export class Scene extends ContainerObject {
     }
 
     public tick(obj: TickerReturnData) {
-        this.camera.tick(obj);
     }
     public afterTick(obj: TickerReturnData) {
         this.render(obj);

@@ -5657,6 +5657,68 @@ var PadManager = class {
   }
 };
 
+// ts/classes/input/input.ts
+var InputReader = class {
+  tick() {
+  }
+};
+var Input = class {
+  constructor(readers) {
+    this.readers = readers;
+  }
+  tick() {
+    this.readers.forEach((r) => {
+      r.tick();
+    });
+  }
+};
+var JoyStick = class extends Input {
+  get value() {
+    let total = v2(0);
+    this.readers.forEach((r) => {
+      total = total.add(r.value);
+    });
+    return total;
+  }
+};
+var Button = class extends Input {
+  get value() {
+    let total = 0;
+    this.readers.forEach((r) => {
+      total += r.value;
+    });
+    return total;
+  }
+};
+var InputMap = class {
+  constructor(joysticks = {}, buttons = {}) {
+    this.joysticks = {};
+    this.buttons = {};
+    Object.entries(joysticks).forEach(([key, readers]) => {
+      this.joysticks[key] = new JoyStick(readers);
+    });
+    Object.entries(buttons).forEach(([key, readers]) => {
+      this.buttons[key] = new Button(readers);
+    });
+  }
+  tick() {
+    Object.values(this.joysticks).forEach((j) => {
+      j.tick();
+    });
+    Object.values(this.buttons).forEach((j) => {
+      j.tick();
+    });
+  }
+  axis(key) {
+    var _a;
+    return (_a = this.joysticks[key]) == null ? void 0 : _a.value;
+  }
+  button(key) {
+    var _a;
+    return (_a = this.buttons[key]) == null ? void 0 : _a.value;
+  }
+};
+
 // ts/classes/elements/domText.ts
 var DomText = class extends DomElement {
   set color(v) {
@@ -6048,16 +6110,16 @@ var Vector3 = class _Vector3 {
     const [a, b] = this.xy.rotate(rad).array;
     return new _Vector3(
       a,
-      this.y,
-      b
+      b,
+      this.z
     );
   }
   rotateXZ(rad) {
     const [a, b] = this.xz.rotate(rad).array;
     return new _Vector3(
       a,
-      b,
-      this.z
+      this.y,
+      b
     );
   }
   rotateYZ(rad) {
@@ -8164,6 +8226,7 @@ var SceneObject = class {
     this.drawMode = glob.ctx.TRIANGLES;
     this.drawType = glob.ctx.UNSIGNED_SHORT;
     this.ignoreLighting = false;
+    this.visible = true;
     var _a, _b;
     this.vao = data.vao;
     this.indexBuffer = data.indexBuffer;
@@ -9519,7 +9582,7 @@ var Skybox = class {
 // ts/classes/webgl2/scene.ts
 var Scene = class extends ContainerObject {
   constructor(camera, options = {}) {
-    var _a;
+    var _a, _b;
     super();
     this.clearColor = [0, 0, 0, 1];
     this.showColorPicking = true;
@@ -9541,7 +9604,8 @@ var Scene = class extends ContainerObject {
     this.camera = camera;
     this.scene = this;
     this.lightManager = new LightManager(glob.shaderManager);
-    this.ambientLight = new AmbientLight({ color: options.ambientLightColor || v3(1, 1, 1), intensity: (_a = options.ambientLightIntensity) != null ? _a : 0.1 });
+    this.inputMap = (_a = options.inputMap) != null ? _a : new InputMap();
+    this.ambientLight = new AmbientLight({ color: options.ambientLightColor || v3(1, 1, 1), intensity: (_b = options.ambientLightIntensity) != null ? _b : 0.1 });
     this.environmentMap = options.environmentMap;
     this.skybox = new Skybox();
     if (this.environmentMap) {
@@ -9565,6 +9629,7 @@ var Scene = class extends ContainerObject {
   }
   render(obj) {
     const gl = glob.ctx;
+    this.camera.tick(obj);
     const viewMatrix = this.camera.getViewMatrix();
     const projectionMatrix = this.camera.getProjectionMatrix();
     if (this.passes.picking) {
@@ -9684,7 +9749,6 @@ var Scene = class extends ContainerObject {
     this.children = [];
   }
   tick(obj) {
-    this.camera.tick(obj);
   }
   afterTick(obj) {
     this.render(obj);
@@ -9814,6 +9878,9 @@ var Camera = class {
   getTarget() {
     return this.target;
   }
+  getAngle() {
+    return this.target.subtract(this.position).normalize();
+  }
   tick(obj) {
   }
 };
@@ -9881,587 +9948,69 @@ var Controller = class {
   }
 };
 
-// ts/classes/level/plane/planeController.ts
+// ts/classes/level/freeCam/freeCamController.ts
 var PlaneController = class extends Controller {
   constructor() {
-    super();
+    super(...arguments);
+    this.velocity = v3(0);
   }
-  tick() {
-    this.actor.transform.move(v3(0, 0, 1));
+  tick(obj) {
+    var _a, _b;
+    this.velocity = v3(
+      (_a = glob.input.axis("movement")) == null ? void 0 : _a.x,
+      glob.input.button("height"),
+      -((_b = glob.input.axis("movement")) == null ? void 0 : _b.y)
+    ).scale(4).rotateXZ(this.actor.camera.angle - Math.PI / 2);
+    if (this.velocity.magnitude() > 0) {
+      this.actor.transform.setRotation(Quaternion.fromEuler(0, this.velocity.xz.angle(), 0));
+    }
+    this.actor.transform.setPosition(this.actor.transform.getLocalPosition().add(this.velocity.scale(obj.intervalS10 / 6)));
   }
 };
 
-// ts/classes/webgl2/meshes/cube.ts
-var Cube = class extends BaseMesh {
-  static generateColors(colors) {
-    const defaultColors = [
-      [0.8, 0.2, 0.2],
-      // Front face (red)
-      [1, 1, 0],
-      // Back face (yellow)
-      [0.2, 0.8, 0.2],
-      // Right face (green)
-      [0.8, 0.2, 0.8],
-      // Left face (purple)
-      [0.2, 0.2, 0.8],
-      // Top face (blue)
-      [1, 0.5, 0]
-      // Bottom face (orange)
-    ];
-    let faceColors;
-    if (!colors) {
-      faceColors = defaultColors;
-    } else if (Array.isArray(colors[0])) {
-      faceColors = colors;
-      if (faceColors.length !== 6) {
-        throw new Error("Must provide exactly 6 colors for faces or a single color");
-      }
-    } else {
-      const singleColor = colors;
-      faceColors = Array(6).fill(singleColor);
-    }
-    const colorArray = [];
-    faceColors.forEach((color) => {
-      for (let i = 0; i < 4; i++) {
-        colorArray.push(...color);
-      }
-    });
-    return new Float32Array(colorArray);
-  }
-  static generateTangents() {
-    const tangents = [
-      // Front face: tangent along x-axis
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      // Back face: tangent along negative x-axis
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      // Right face: tangent along negative z-axis
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      // Left face: tangent along z-axis
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      // Top face: tangent along x-axis
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      // Bottom face: tangent along x-axis
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0
-    ];
-    return new Float32Array(tangents);
-  }
-  static generateBitangents() {
-    const bitangents = [
-      // Front face: bitangent along y-axis
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      // Back face: bitangent along y-axis
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      // Right face: bitangent along y-axis
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      // Left face: bitangent along y-axis
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      // Top face: bitangent along z-axis (negative)
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      // Bottom face: bitangent along z-axis
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1
-    ];
-    return new Float32Array(bitangents);
-  }
-  static createMeshData(props = {}) {
-    let meshColors = props.colors;
-    if (props.material && !meshColors) {
-      const { baseColor } = props.material;
-      meshColors = [baseColor.x, baseColor.y, baseColor.z];
-    }
-    return {
-      vertices: this.vertices,
-      indices: this.indices,
-      normals: this.normals,
-      texCoords: this.texCoords,
-      colors: this.generateColors(meshColors),
-      tangents: this.generateTangents(),
-      bitangents: this.generateBitangents()
-    };
-  }
-  static create(props = {}) {
-    if (!props.material && props.colors) {
-      let baseColor;
-      if (Array.isArray(props.colors[0])) {
-        const firstColor = props.colors[0];
-        baseColor = v3(firstColor[0], firstColor[1], firstColor[2]);
-      } else {
-        const singleColor = props.colors;
-        baseColor = v3(singleColor[0], singleColor[1], singleColor[2]);
-      }
-      props = __spreadProps(__spreadValues({}, props), {
-        material: new Material({
-          baseColor,
-          roughness: 0.5,
-          metallic: 0,
-          ambientOcclusion: 1,
-          emissive: v3(0, 0, 0)
-        })
-      });
-    }
-    const meshData = this.createMeshData(props);
-    const sceneObject = this.createSceneObject(meshData, props);
-    return sceneObject;
-  }
-};
-Cube.vertices = new Float32Array([
-  // Front face
-  -0.5,
-  -0.5,
-  0.5,
-  // 0
-  0.5,
-  -0.5,
-  0.5,
-  // 1
-  0.5,
-  0.5,
-  0.5,
-  // 2
-  -0.5,
-  0.5,
-  0.5,
-  // 3
-  // Back face
-  -0.5,
-  -0.5,
-  -0.5,
-  // 4
-  0.5,
-  -0.5,
-  -0.5,
-  // 5
-  0.5,
-  0.5,
-  -0.5,
-  // 6
-  -0.5,
-  0.5,
-  -0.5,
-  // 7
-  // Right face
-  0.5,
-  -0.5,
-  0.5,
-  // 8 (1)
-  0.5,
-  -0.5,
-  -0.5,
-  // 9 (5)
-  0.5,
-  0.5,
-  -0.5,
-  // 10 (6)
-  0.5,
-  0.5,
-  0.5,
-  // 11 (2)
-  // Left face
-  -0.5,
-  -0.5,
-  -0.5,
-  // 12 (4)
-  -0.5,
-  -0.5,
-  0.5,
-  // 13 (0)
-  -0.5,
-  0.5,
-  0.5,
-  // 14 (3)
-  -0.5,
-  0.5,
-  -0.5,
-  // 15 (7)
-  // Top face
-  -0.5,
-  0.5,
-  0.5,
-  // 16 (3)
-  0.5,
-  0.5,
-  0.5,
-  // 17 (2)
-  0.5,
-  0.5,
-  -0.5,
-  // 18 (6)
-  -0.5,
-  0.5,
-  -0.5,
-  // 19 (7)
-  // Bottom face
-  -0.5,
-  -0.5,
-  -0.5,
-  // 20 (4)
-  0.5,
-  -0.5,
-  -0.5,
-  // 21 (5)
-  0.5,
-  -0.5,
-  0.5,
-  // 22 (1)
-  -0.5,
-  -0.5,
-  0.5
-  // 23 (0)
-]);
-Cube.indices = new Uint16Array([
-  // Front
-  0,
-  1,
-  2,
-  2,
-  3,
-  0,
-  // Back (reversed order)
-  4,
-  6,
-  5,
-  6,
-  4,
-  7,
-  // Right
-  8,
-  9,
-  10,
-  10,
-  11,
-  8,
-  // Left
-  12,
-  13,
-  14,
-  14,
-  15,
-  12,
-  // Top
-  16,
-  17,
-  18,
-  18,
-  19,
-  16,
-  // Bottom
-  20,
-  21,
-  22,
-  22,
-  23,
-  20
-]);
-Cube.normals = new Float32Array([
-  // Front face
-  0,
-  0,
-  1,
-  0,
-  0,
-  1,
-  0,
-  0,
-  1,
-  0,
-  0,
-  1,
-  // Back face
-  0,
-  0,
-  -1,
-  0,
-  0,
-  -1,
-  0,
-  0,
-  -1,
-  0,
-  0,
-  -1,
-  // Right face
-  1,
-  0,
-  0,
-  1,
-  0,
-  0,
-  1,
-  0,
-  0,
-  1,
-  0,
-  0,
-  // Left face
-  -1,
-  0,
-  0,
-  -1,
-  0,
-  0,
-  -1,
-  0,
-  0,
-  -1,
-  0,
-  0,
-  // Top face
-  0,
-  1,
-  0,
-  0,
-  1,
-  0,
-  0,
-  1,
-  0,
-  0,
-  1,
-  0,
-  // Bottom face
-  0,
-  -1,
-  0,
-  0,
-  -1,
-  0,
-  0,
-  -1,
-  0,
-  0,
-  -1,
-  0
-]);
-Cube.texCoords = new Float32Array([
-  // Front
-  0,
-  0,
-  1,
-  0,
-  1,
-  1,
-  0,
-  1,
-  // Back
-  1,
-  0,
-  0,
-  0,
-  0,
-  1,
-  1,
-  1,
-  // Right
-  0,
-  0,
-  1,
-  0,
-  1,
-  1,
-  0,
-  1,
-  // Left
-  1,
-  0,
-  0,
-  0,
-  0,
-  1,
-  1,
-  1,
-  // Top
-  0,
-  0,
-  1,
-  0,
-  1,
-  1,
-  0,
-  1,
-  // Bottom
-  1,
-  0,
-  0,
-  0,
-  0,
-  1,
-  1,
-  1
-]);
-
-// ts/classes/level/plane/camera.ts
+// ts/classes/level/freeCam/camera.ts
 var PlaneCamera = class extends Camera {
   constructor(scene, parent) {
     super({ position: v3(0, 100, 200), target: v3(0, 0, 0), fov: 40 });
     this.scene = scene;
     this.parent = parent;
+    this.offset = v3(1e3, 600, 0);
+    this.angle = 0;
   }
   tick(obj) {
-    const radius = 4e3 + Math.sin(obj.total * 5e-4) * 2e3;
-    const height = 2e3;
-    const v = v3(
-      radius,
-      height,
-      0
-    ).rotateXY(obj.total * 1e-4 % Math.PI * 2);
-    this.setPosition(v.add(v3(0, Math.sin(obj.total * 5e-4) * 1e3, 0)));
+    var _a, _b;
+    this.angle += ((_a = glob.input.axis("camera")) == null ? void 0 : _a.x) * 0.01;
+    this.offset.y += ((_b = glob.input.axis("camera")) == null ? void 0 : _b.y) * 2;
+    this.offset.x += glob.input.button("cameraHeight") * 2;
+    this.setPosition(this.parent.transform.getWorldPosition().add(this.offset.rotateXZ(this.angle)));
     this.setTarget(this.parent.transform.getWorldPosition());
   }
 };
 
-// ts/classes/level/plane/plane.ts
+// ts/classes/level/freeCam/freeCam.ts
 var Plane = class extends Actor {
   constructor() {
     super({
+      position: v3(0, 200, 0),
       controllers: [
         new PlaneController()
       ]
     });
   }
   build() {
-    this.add(Cube.create({
-      position: v3(0, 200, 0),
-      scale: v3(100, 100, 100),
-      material: {
-        baseColor: v3(0.5, 0.5, 0.5),
-        roughness: 0.5,
-        metallic: 0.5,
-        ambientOcclusion: 1,
-        emissive: v3(0.1, 0.1, 0.1)
-      }
+    this.add(IcoSphere.create({
+      scale: v3(1, 1, 1),
+      subdivisions: 4,
+      smoothShading: true,
+      material: new Material({
+        baseColor: v3(1, 1, 1),
+        roughness: 1,
+        metallic: 0,
+        ambientOcclusion: 0
+      })
     }));
-    this.scene.camera = new PlaneCamera(this.scene, this);
+    this.camera = new PlaneCamera(this.scene, this);
+    this.scene.camera = this.camera;
   }
   tick(obj) {
     super.tick(obj);
@@ -11124,14 +10673,97 @@ var Sky = class extends ContainerObject {
   }
 };
 
+// ts/classes/input/keyboardReader.ts
+var KeyboardJoyStickReader = class extends InputReader {
+  constructor(keys) {
+    super();
+    this._state = [[false, false], [false, false]];
+    this._vector = v2(0);
+    this._frameFired = [0, 0];
+    keys.forEach((k, i) => {
+      glob.device.keyboard.register(
+        k,
+        () => {
+          if (!this._state[Math.floor(i / 2)][i % 2]) {
+            this._frameFired[i] = glob.frame;
+          }
+          this._state[Math.floor(i / 2)][i % 2] = true;
+          this.setVector();
+        },
+        () => {
+          this._state[Math.floor(i / 2)][i % 2] = false;
+          this._frameFired[i] = void 0;
+          this.setVector();
+        }
+      );
+    });
+  }
+  setVector() {
+    this._vector = v2(
+      -this._state[0][0] + +this._state[0][1],
+      -this._state[1][0] + +this._state[1][1]
+    );
+  }
+  get value() {
+    return this._vector;
+  }
+  get first() {
+    return this._frameFired[0] === glob.frame || this._frameFired[1] === glob.frame;
+  }
+};
+var KeyboardAxisReader = class extends InputReader {
+  constructor(keys) {
+    super();
+    this._state = [false, false];
+    this._value = 0;
+    this._frameFired = [0, 0];
+    keys.forEach((k, i) => {
+      glob.device.keyboard.register(
+        k,
+        (frame) => {
+          if (!this._state[i]) {
+            this._frameFired[i] = frame;
+          }
+          this._state[i] = true;
+          this.setValue();
+        },
+        () => {
+          this._state[i] = false;
+          this._frameFired[i] = void 0;
+          this.setValue();
+        }
+      );
+    });
+  }
+  setValue() {
+    this._value = -this._state[0] + +this._state[1];
+  }
+  get value() {
+    return this._value;
+  }
+  get first() {
+    return this._frameFired[0] === glob.frame || this._frameFired[1] === glob.frame;
+  }
+};
+
 // ts/classes/level/testLevel.ts
 var TestLevel = class extends Scene {
   // Match sky color
   constructor() {
     super(new Camera({ position: v3(0, 100, 200), target: v3(0, 0, 0), fov: 40 }), {
       ambientLightColor: v3(0.4, 0.8, 0.9),
-      ambientLightIntensity: 0.7
-      // Very subtle ambient lighting
+      ambientLightIntensity: 0.7,
+      // Very subtle ambient lighting,
+      inputMap: new InputMap(
+        {
+          "movement": [new KeyboardJoyStickReader(["a", "d", "s", "w"])],
+          "camera": [new KeyboardJoyStickReader(["4", "6", "8", "2"])]
+        },
+        {
+          "cameraHeight": [new KeyboardAxisReader(["9", "3"])],
+          "height": [new KeyboardAxisReader(["q", "e"])]
+        }
+      )
     });
     this.clearColor = [0.2, 0.3, 0.5, 1];
     this.add(new Ocean());
@@ -11256,6 +10888,7 @@ var glob = new class {
     this.device = new InputDevices();
     this.frame = 0;
     this.events = {};
+    this.input = new InputMap();
   }
   get renderer() {
     return this.game.renderer;
@@ -11323,6 +10956,7 @@ var Game = class {
   addLevel(s, level) {
     this.levels[s] = level;
     this.active = level;
+    glob.input = this.active.inputMap;
   }
   get level() {
     return this.active;

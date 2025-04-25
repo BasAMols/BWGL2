@@ -42,6 +42,7 @@ export class SceneObject implements SceneObjectData {
     public readonly material?: Material;
     public parent?: SceneObject;
     public scene?: Scene;
+    public visible: boolean = true;
     private set pickColor(value: number) {
         if (value === 0) {
             this.pickColorArray = v3(1, 1, 1);

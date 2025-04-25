@@ -198,8 +198,8 @@ export class Vector3 {
 
 		return new Vector3(
 			a,
-			this.y,
 			b,
+			this.z,
 		);
 	}
 	rotateXZ(rad: number) {
@@ -207,8 +207,8 @@ export class Vector3 {
 
 		return new Vector3(
 			a,
+			this.y,
 			b,
-			this.z,
 		);
 	}
 	rotateYZ(rad: number) {
