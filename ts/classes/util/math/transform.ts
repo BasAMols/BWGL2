@@ -72,6 +72,10 @@ export class Transform {
         this._isDirty = true;
     }
 
+    public getLocalScale(): Vector3 {
+        return this._localScale.clone();
+    }
+
     // Anchor point methods
     public setAnchor(anchor: Vector3): void {
         this._anchor = anchor;

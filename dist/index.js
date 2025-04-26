@@ -72,10 +72,10 @@ var Vector2 = class _Vector2 {
   magnitudeSqr() {
     return this.x * this.x + this.y * this.y;
   }
-  clampMagnitude(max = 1) {
+  clampMagnitude(max2 = 1) {
     if (this.magnitude() === 0)
       return v2(0);
-    return this.scale(1 / this.magnitude() || 1).scale(Math.min(max, this.magnitude()));
+    return this.scale(1 / this.magnitude() || 1).scale(Math.min(max2, this.magnitude()));
   }
   distance(vector) {
     return Math.sqrt(this.distanceSqr(vector));
@@ -121,8 +121,8 @@ var Vector2 = class _Vector2 {
     var vector = this.toPrecision(1);
     return "[" + vector.x + "; " + vector.y + "]";
   }
-  clamp(min, max) {
-    return _Vector2.clamp(this, min, max);
+  clamp(min2, max2) {
+    return _Vector2.clamp(this, min2, max2);
   }
   static min(a, b) {
     return new _Vector2(
@@ -136,8 +136,8 @@ var Vector2 = class _Vector2 {
       Math.max(a.y, b.y)
     );
   }
-  static clamp(value, min, max) {
-    return _Vector2.max(_Vector2.min(value, min), max);
+  static clamp(value, min2, max2) {
+    return _Vector2.max(_Vector2.min(value, min2), max2);
   }
   clampMagnitute(mag) {
     return _Vector2.clampMagnitute(this, mag);
@@ -1054,8 +1054,8 @@ var InputDevices = class {
 
 // ts/classes/util/utils.ts
 var Util = class {
-  static clamp(value, min, max) {
-    return Math.max(Math.min(value, max), min);
+  static clamp(value, min2, max2) {
+    return Math.max(Math.min(value, max2), min2);
   }
   static to0(value, tolerance = 0.1) {
     return Math.abs(value) < tolerance ? 0 : value;
@@ -1076,8 +1076,8 @@ var Util = class {
     });
     return output;
   }
-  static padArray(ar, b, len) {
-    return ar.concat(Array.from(Array(len).fill(b))).slice(0, len);
+  static padArray(ar, b, len2) {
+    return ar.concat(Array.from(Array(len2).fill(b))).slice(0, len2);
   }
   static addArrays(ar, br) {
     return ar.map((a, i) => a + br[i]);
@@ -1368,29 +1368,29 @@ var Vector3 = class _Vector3 {
   magnitudeSqr() {
     return this.x * this.x + this.y * this.y + this.z * this.z;
   }
-  mod(max) {
+  mod(max2) {
     return new _Vector3(
-      this.x % max.x,
-      this.y % max.y,
-      this.z % max.z
+      this.x % max2.x,
+      this.y % max2.y,
+      this.z % max2.z
     );
   }
-  clamp(min, max) {
+  clamp(min2, max2) {
     return new _Vector3(
-      Util.clamp(this.x, min.x, max.x),
-      Util.clamp(this.y, min.y, max.y),
-      Util.clamp(this.z, min.z, max.z)
+      Util.clamp(this.x, min2.x, max2.x),
+      Util.clamp(this.y, min2.y, max2.y),
+      Util.clamp(this.z, min2.z, max2.z)
     );
   }
   normalize() {
-    let len = this.x * this.x + this.y * this.y + this.z * this.z;
-    if (len > 0) {
-      len = 1 / Math.sqrt(len);
+    let len2 = this.x * this.x + this.y * this.y + this.z * this.z;
+    if (len2 > 0) {
+      len2 = 1 / Math.sqrt(len2);
     }
     return v3(
-      this.x * len,
-      this.y * len,
-      this.z * len
+      this.x * len2,
+      this.y * len2,
+      this.z * len2
     );
   }
   applyQuaternion(q) {
@@ -1461,6 +1461,7 @@ var Vector3 = class _Vector3 {
 // node_modules/gl-matrix/esm/common.js
 var EPSILON = 1e-6;
 var ARRAY_TYPE = typeof Float32Array !== "undefined" ? Float32Array : Array;
+var RANDOM = Math.random;
 var degree = Math.PI / 180;
 if (!Math.hypot)
   Math.hypot = function() {
@@ -1864,7 +1865,7 @@ function scale(out, a, v) {
 }
 function rotate(out, a, rad, axis) {
   var x = axis[0], y = axis[1], z = axis[2];
-  var len = Math.hypot(x, y, z);
+  var len2 = Math.hypot(x, y, z);
   var s, c, t;
   var a00, a01, a02, a03;
   var a10, a11, a12, a13;
@@ -1872,13 +1873,13 @@ function rotate(out, a, rad, axis) {
   var b00, b01, b02;
   var b10, b11, b12;
   var b20, b21, b22;
-  if (len < EPSILON) {
+  if (len2 < EPSILON) {
     return null;
   }
-  len = 1 / len;
-  x *= len;
-  y *= len;
-  z *= len;
+  len2 = 1 / len2;
+  x *= len2;
+  y *= len2;
+  z *= len2;
   s = Math.sin(rad);
   c = Math.cos(rad);
   t = 1 - c;
@@ -2056,15 +2057,15 @@ function fromScaling(out, v) {
 }
 function fromRotation(out, rad, axis) {
   var x = axis[0], y = axis[1], z = axis[2];
-  var len = Math.hypot(x, y, z);
+  var len2 = Math.hypot(x, y, z);
   var s, c, t;
-  if (len < EPSILON) {
+  if (len2 < EPSILON) {
     return null;
   }
-  len = 1 / len;
-  x *= len;
-  y *= len;
-  z *= len;
+  len2 = 1 / len2;
+  x *= len2;
+  y *= len2;
+  z *= len2;
   s = Math.sin(rad);
   c = Math.cos(rad);
   t = 1 - c;
@@ -2522,7 +2523,7 @@ function orthoZO(out, left, right, bottom, top, near, far) {
   return out;
 }
 function lookAt(out, eye, center, up) {
-  var x0, x1, x2, y0, y1, y2, z0, z1, z2, len;
+  var x0, x1, x2, y0, y1, y2, z0, z1, z2, len2;
   var eyex = eye[0];
   var eyey = eye[1];
   var eyez = eye[2];
@@ -2538,37 +2539,37 @@ function lookAt(out, eye, center, up) {
   z0 = eyex - centerx;
   z1 = eyey - centery;
   z2 = eyez - centerz;
-  len = 1 / Math.hypot(z0, z1, z2);
-  z0 *= len;
-  z1 *= len;
-  z2 *= len;
+  len2 = 1 / Math.hypot(z0, z1, z2);
+  z0 *= len2;
+  z1 *= len2;
+  z2 *= len2;
   x0 = upy * z2 - upz * z1;
   x1 = upz * z0 - upx * z2;
   x2 = upx * z1 - upy * z0;
-  len = Math.hypot(x0, x1, x2);
-  if (!len) {
+  len2 = Math.hypot(x0, x1, x2);
+  if (!len2) {
     x0 = 0;
     x1 = 0;
     x2 = 0;
   } else {
-    len = 1 / len;
-    x0 *= len;
-    x1 *= len;
-    x2 *= len;
+    len2 = 1 / len2;
+    x0 *= len2;
+    x1 *= len2;
+    x2 *= len2;
   }
   y0 = z1 * x2 - z2 * x1;
   y1 = z2 * x0 - z0 * x2;
   y2 = z0 * x1 - z1 * x0;
-  len = Math.hypot(y0, y1, y2);
-  if (!len) {
+  len2 = Math.hypot(y0, y1, y2);
+  if (!len2) {
     y0 = 0;
     y1 = 0;
     y2 = 0;
   } else {
-    len = 1 / len;
-    y0 *= len;
-    y1 *= len;
-    y2 *= len;
+    len2 = 1 / len2;
+    y0 *= len2;
+    y1 *= len2;
+    y2 *= len2;
   }
   out[0] = x0;
   out[1] = y0;
@@ -2591,20 +2592,20 @@ function lookAt(out, eye, center, up) {
 function targetTo(out, eye, target, up) {
   var eyex = eye[0], eyey = eye[1], eyez = eye[2], upx = up[0], upy = up[1], upz = up[2];
   var z0 = eyex - target[0], z1 = eyey - target[1], z2 = eyez - target[2];
-  var len = z0 * z0 + z1 * z1 + z2 * z2;
-  if (len > 0) {
-    len = 1 / Math.sqrt(len);
-    z0 *= len;
-    z1 *= len;
-    z2 *= len;
+  var len2 = z0 * z0 + z1 * z1 + z2 * z2;
+  if (len2 > 0) {
+    len2 = 1 / Math.sqrt(len2);
+    z0 *= len2;
+    z1 *= len2;
+    z2 *= len2;
   }
   var x0 = upy * z2 - upz * z1, x1 = upz * z0 - upx * z2, x2 = upx * z1 - upy * z0;
-  len = x0 * x0 + x1 * x1 + x2 * x2;
-  if (len > 0) {
-    len = 1 / Math.sqrt(len);
-    x0 *= len;
-    x1 *= len;
-    x2 *= len;
+  len2 = x0 * x0 + x1 * x1 + x2 * x2;
+  if (len2 > 0) {
+    len2 = 1 / Math.sqrt(len2);
+    x0 *= len2;
+    x1 *= len2;
+    x2 *= len2;
   }
   out[0] = x0;
   out[1] = x1;
@@ -2687,23 +2688,23 @@ function multiplyScalar(out, a, b) {
   out[15] = a[15] * b;
   return out;
 }
-function multiplyScalarAndAdd(out, a, b, scale2) {
-  out[0] = a[0] + b[0] * scale2;
-  out[1] = a[1] + b[1] * scale2;
-  out[2] = a[2] + b[2] * scale2;
-  out[3] = a[3] + b[3] * scale2;
-  out[4] = a[4] + b[4] * scale2;
-  out[5] = a[5] + b[5] * scale2;
-  out[6] = a[6] + b[6] * scale2;
-  out[7] = a[7] + b[7] * scale2;
-  out[8] = a[8] + b[8] * scale2;
-  out[9] = a[9] + b[9] * scale2;
-  out[10] = a[10] + b[10] * scale2;
-  out[11] = a[11] + b[11] * scale2;
-  out[12] = a[12] + b[12] * scale2;
-  out[13] = a[13] + b[13] * scale2;
-  out[14] = a[14] + b[14] * scale2;
-  out[15] = a[15] + b[15] * scale2;
+function multiplyScalarAndAdd(out, a, b, scale3) {
+  out[0] = a[0] + b[0] * scale3;
+  out[1] = a[1] + b[1] * scale3;
+  out[2] = a[2] + b[2] * scale3;
+  out[3] = a[3] + b[3] * scale3;
+  out[4] = a[4] + b[4] * scale3;
+  out[5] = a[5] + b[5] * scale3;
+  out[6] = a[6] + b[6] * scale3;
+  out[7] = a[7] + b[7] * scale3;
+  out[8] = a[8] + b[8] * scale3;
+  out[9] = a[9] + b[9] * scale3;
+  out[10] = a[10] + b[10] * scale3;
+  out[11] = a[11] + b[11] * scale3;
+  out[12] = a[12] + b[12] * scale3;
+  out[13] = a[13] + b[13] * scale3;
+  out[14] = a[14] + b[14] * scale3;
+  out[15] = a[15] + b[15] * scale3;
   return out;
 }
 function exactEquals(a, b) {
@@ -2722,6 +2723,390 @@ function equals(a, b) {
 }
 var mul = multiply;
 var sub = subtract;
+
+// node_modules/gl-matrix/esm/vec3.js
+var vec3_exports = {};
+__export(vec3_exports, {
+  add: () => add2,
+  angle: () => angle,
+  bezier: () => bezier,
+  ceil: () => ceil,
+  clone: () => clone2,
+  copy: () => copy2,
+  create: () => create2,
+  cross: () => cross,
+  dist: () => dist,
+  distance: () => distance,
+  div: () => div,
+  divide: () => divide,
+  dot: () => dot,
+  equals: () => equals2,
+  exactEquals: () => exactEquals2,
+  floor: () => floor,
+  forEach: () => forEach,
+  fromValues: () => fromValues2,
+  hermite: () => hermite,
+  inverse: () => inverse,
+  len: () => len,
+  length: () => length,
+  lerp: () => lerp,
+  max: () => max,
+  min: () => min,
+  mul: () => mul2,
+  multiply: () => multiply2,
+  negate: () => negate,
+  normalize: () => normalize,
+  random: () => random,
+  rotateX: () => rotateX2,
+  rotateY: () => rotateY2,
+  rotateZ: () => rotateZ2,
+  round: () => round,
+  scale: () => scale2,
+  scaleAndAdd: () => scaleAndAdd,
+  set: () => set2,
+  sqrDist: () => sqrDist,
+  sqrLen: () => sqrLen,
+  squaredDistance: () => squaredDistance,
+  squaredLength: () => squaredLength,
+  str: () => str2,
+  sub: () => sub2,
+  subtract: () => subtract2,
+  transformMat3: () => transformMat3,
+  transformMat4: () => transformMat4,
+  transformQuat: () => transformQuat,
+  zero: () => zero
+});
+function create2() {
+  var out = new ARRAY_TYPE(3);
+  if (ARRAY_TYPE != Float32Array) {
+    out[0] = 0;
+    out[1] = 0;
+    out[2] = 0;
+  }
+  return out;
+}
+function clone2(a) {
+  var out = new ARRAY_TYPE(3);
+  out[0] = a[0];
+  out[1] = a[1];
+  out[2] = a[2];
+  return out;
+}
+function length(a) {
+  var x = a[0];
+  var y = a[1];
+  var z = a[2];
+  return Math.hypot(x, y, z);
+}
+function fromValues2(x, y, z) {
+  var out = new ARRAY_TYPE(3);
+  out[0] = x;
+  out[1] = y;
+  out[2] = z;
+  return out;
+}
+function copy2(out, a) {
+  out[0] = a[0];
+  out[1] = a[1];
+  out[2] = a[2];
+  return out;
+}
+function set2(out, x, y, z) {
+  out[0] = x;
+  out[1] = y;
+  out[2] = z;
+  return out;
+}
+function add2(out, a, b) {
+  out[0] = a[0] + b[0];
+  out[1] = a[1] + b[1];
+  out[2] = a[2] + b[2];
+  return out;
+}
+function subtract2(out, a, b) {
+  out[0] = a[0] - b[0];
+  out[1] = a[1] - b[1];
+  out[2] = a[2] - b[2];
+  return out;
+}
+function multiply2(out, a, b) {
+  out[0] = a[0] * b[0];
+  out[1] = a[1] * b[1];
+  out[2] = a[2] * b[2];
+  return out;
+}
+function divide(out, a, b) {
+  out[0] = a[0] / b[0];
+  out[1] = a[1] / b[1];
+  out[2] = a[2] / b[2];
+  return out;
+}
+function ceil(out, a) {
+  out[0] = Math.ceil(a[0]);
+  out[1] = Math.ceil(a[1]);
+  out[2] = Math.ceil(a[2]);
+  return out;
+}
+function floor(out, a) {
+  out[0] = Math.floor(a[0]);
+  out[1] = Math.floor(a[1]);
+  out[2] = Math.floor(a[2]);
+  return out;
+}
+function min(out, a, b) {
+  out[0] = Math.min(a[0], b[0]);
+  out[1] = Math.min(a[1], b[1]);
+  out[2] = Math.min(a[2], b[2]);
+  return out;
+}
+function max(out, a, b) {
+  out[0] = Math.max(a[0], b[0]);
+  out[1] = Math.max(a[1], b[1]);
+  out[2] = Math.max(a[2], b[2]);
+  return out;
+}
+function round(out, a) {
+  out[0] = Math.round(a[0]);
+  out[1] = Math.round(a[1]);
+  out[2] = Math.round(a[2]);
+  return out;
+}
+function scale2(out, a, b) {
+  out[0] = a[0] * b;
+  out[1] = a[1] * b;
+  out[2] = a[2] * b;
+  return out;
+}
+function scaleAndAdd(out, a, b, scale3) {
+  out[0] = a[0] + b[0] * scale3;
+  out[1] = a[1] + b[1] * scale3;
+  out[2] = a[2] + b[2] * scale3;
+  return out;
+}
+function distance(a, b) {
+  var x = b[0] - a[0];
+  var y = b[1] - a[1];
+  var z = b[2] - a[2];
+  return Math.hypot(x, y, z);
+}
+function squaredDistance(a, b) {
+  var x = b[0] - a[0];
+  var y = b[1] - a[1];
+  var z = b[2] - a[2];
+  return x * x + y * y + z * z;
+}
+function squaredLength(a) {
+  var x = a[0];
+  var y = a[1];
+  var z = a[2];
+  return x * x + y * y + z * z;
+}
+function negate(out, a) {
+  out[0] = -a[0];
+  out[1] = -a[1];
+  out[2] = -a[2];
+  return out;
+}
+function inverse(out, a) {
+  out[0] = 1 / a[0];
+  out[1] = 1 / a[1];
+  out[2] = 1 / a[2];
+  return out;
+}
+function normalize(out, a) {
+  var x = a[0];
+  var y = a[1];
+  var z = a[2];
+  var len2 = x * x + y * y + z * z;
+  if (len2 > 0) {
+    len2 = 1 / Math.sqrt(len2);
+  }
+  out[0] = a[0] * len2;
+  out[1] = a[1] * len2;
+  out[2] = a[2] * len2;
+  return out;
+}
+function dot(a, b) {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+function cross(out, a, b) {
+  var ax = a[0], ay = a[1], az = a[2];
+  var bx = b[0], by = b[1], bz = b[2];
+  out[0] = ay * bz - az * by;
+  out[1] = az * bx - ax * bz;
+  out[2] = ax * by - ay * bx;
+  return out;
+}
+function lerp(out, a, b, t) {
+  var ax = a[0];
+  var ay = a[1];
+  var az = a[2];
+  out[0] = ax + t * (b[0] - ax);
+  out[1] = ay + t * (b[1] - ay);
+  out[2] = az + t * (b[2] - az);
+  return out;
+}
+function hermite(out, a, b, c, d, t) {
+  var factorTimes2 = t * t;
+  var factor1 = factorTimes2 * (2 * t - 3) + 1;
+  var factor2 = factorTimes2 * (t - 2) + t;
+  var factor3 = factorTimes2 * (t - 1);
+  var factor4 = factorTimes2 * (3 - 2 * t);
+  out[0] = a[0] * factor1 + b[0] * factor2 + c[0] * factor3 + d[0] * factor4;
+  out[1] = a[1] * factor1 + b[1] * factor2 + c[1] * factor3 + d[1] * factor4;
+  out[2] = a[2] * factor1 + b[2] * factor2 + c[2] * factor3 + d[2] * factor4;
+  return out;
+}
+function bezier(out, a, b, c, d, t) {
+  var inverseFactor = 1 - t;
+  var inverseFactorTimesTwo = inverseFactor * inverseFactor;
+  var factorTimes2 = t * t;
+  var factor1 = inverseFactorTimesTwo * inverseFactor;
+  var factor2 = 3 * t * inverseFactorTimesTwo;
+  var factor3 = 3 * factorTimes2 * inverseFactor;
+  var factor4 = factorTimes2 * t;
+  out[0] = a[0] * factor1 + b[0] * factor2 + c[0] * factor3 + d[0] * factor4;
+  out[1] = a[1] * factor1 + b[1] * factor2 + c[1] * factor3 + d[1] * factor4;
+  out[2] = a[2] * factor1 + b[2] * factor2 + c[2] * factor3 + d[2] * factor4;
+  return out;
+}
+function random(out, scale3) {
+  scale3 = scale3 || 1;
+  var r = RANDOM() * 2 * Math.PI;
+  var z = RANDOM() * 2 - 1;
+  var zScale = Math.sqrt(1 - z * z) * scale3;
+  out[0] = Math.cos(r) * zScale;
+  out[1] = Math.sin(r) * zScale;
+  out[2] = z * scale3;
+  return out;
+}
+function transformMat4(out, a, m) {
+  var x = a[0], y = a[1], z = a[2];
+  var w = m[3] * x + m[7] * y + m[11] * z + m[15];
+  w = w || 1;
+  out[0] = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w;
+  out[1] = (m[1] * x + m[5] * y + m[9] * z + m[13]) / w;
+  out[2] = (m[2] * x + m[6] * y + m[10] * z + m[14]) / w;
+  return out;
+}
+function transformMat3(out, a, m) {
+  var x = a[0], y = a[1], z = a[2];
+  out[0] = x * m[0] + y * m[3] + z * m[6];
+  out[1] = x * m[1] + y * m[4] + z * m[7];
+  out[2] = x * m[2] + y * m[5] + z * m[8];
+  return out;
+}
+function transformQuat(out, a, q) {
+  var qx = q[0], qy = q[1], qz = q[2], qw = q[3];
+  var x = a[0], y = a[1], z = a[2];
+  var uvx = qy * z - qz * y, uvy = qz * x - qx * z, uvz = qx * y - qy * x;
+  var uuvx = qy * uvz - qz * uvy, uuvy = qz * uvx - qx * uvz, uuvz = qx * uvy - qy * uvx;
+  var w2 = qw * 2;
+  uvx *= w2;
+  uvy *= w2;
+  uvz *= w2;
+  uuvx *= 2;
+  uuvy *= 2;
+  uuvz *= 2;
+  out[0] = x + uvx + uuvx;
+  out[1] = y + uvy + uuvy;
+  out[2] = z + uvz + uuvz;
+  return out;
+}
+function rotateX2(out, a, b, rad) {
+  var p = [], r = [];
+  p[0] = a[0] - b[0];
+  p[1] = a[1] - b[1];
+  p[2] = a[2] - b[2];
+  r[0] = p[0];
+  r[1] = p[1] * Math.cos(rad) - p[2] * Math.sin(rad);
+  r[2] = p[1] * Math.sin(rad) + p[2] * Math.cos(rad);
+  out[0] = r[0] + b[0];
+  out[1] = r[1] + b[1];
+  out[2] = r[2] + b[2];
+  return out;
+}
+function rotateY2(out, a, b, rad) {
+  var p = [], r = [];
+  p[0] = a[0] - b[0];
+  p[1] = a[1] - b[1];
+  p[2] = a[2] - b[2];
+  r[0] = p[2] * Math.sin(rad) + p[0] * Math.cos(rad);
+  r[1] = p[1];
+  r[2] = p[2] * Math.cos(rad) - p[0] * Math.sin(rad);
+  out[0] = r[0] + b[0];
+  out[1] = r[1] + b[1];
+  out[2] = r[2] + b[2];
+  return out;
+}
+function rotateZ2(out, a, b, rad) {
+  var p = [], r = [];
+  p[0] = a[0] - b[0];
+  p[1] = a[1] - b[1];
+  p[2] = a[2] - b[2];
+  r[0] = p[0] * Math.cos(rad) - p[1] * Math.sin(rad);
+  r[1] = p[0] * Math.sin(rad) + p[1] * Math.cos(rad);
+  r[2] = p[2];
+  out[0] = r[0] + b[0];
+  out[1] = r[1] + b[1];
+  out[2] = r[2] + b[2];
+  return out;
+}
+function angle(a, b) {
+  var ax = a[0], ay = a[1], az = a[2], bx = b[0], by = b[1], bz = b[2], mag1 = Math.sqrt(ax * ax + ay * ay + az * az), mag2 = Math.sqrt(bx * bx + by * by + bz * bz), mag = mag1 * mag2, cosine = mag && dot(a, b) / mag;
+  return Math.acos(Math.min(Math.max(cosine, -1), 1));
+}
+function zero(out) {
+  out[0] = 0;
+  out[1] = 0;
+  out[2] = 0;
+  return out;
+}
+function str2(a) {
+  return "vec3(" + a[0] + ", " + a[1] + ", " + a[2] + ")";
+}
+function exactEquals2(a, b) {
+  return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+}
+function equals2(a, b) {
+  var a0 = a[0], a1 = a[1], a2 = a[2];
+  var b0 = b[0], b1 = b[1], b2 = b[2];
+  return Math.abs(a0 - b0) <= EPSILON * Math.max(1, Math.abs(a0), Math.abs(b0)) && Math.abs(a1 - b1) <= EPSILON * Math.max(1, Math.abs(a1), Math.abs(b1)) && Math.abs(a2 - b2) <= EPSILON * Math.max(1, Math.abs(a2), Math.abs(b2));
+}
+var sub2 = subtract2;
+var mul2 = multiply2;
+var div = divide;
+var dist = distance;
+var sqrDist = squaredDistance;
+var len = length;
+var sqrLen = squaredLength;
+var forEach = function() {
+  var vec = create2();
+  return function(a, stride, offset, count, fn, arg) {
+    var i, l;
+    if (!stride) {
+      stride = 3;
+    }
+    if (!offset) {
+      offset = 0;
+    }
+    if (count) {
+      l = Math.min(count * stride + offset, a.length);
+    } else {
+      l = a.length;
+    }
+    for (i = offset; i < l; i += stride) {
+      vec[0] = a[i];
+      vec[1] = a[i + 1];
+      vec[2] = a[i + 2];
+      fn(vec, vec, arg);
+      a[i] = vec[0];
+      a[i + 1] = vec[1];
+      a[i + 2] = vec[2];
+    }
+    return a;
+  };
+}();
 
 // ts/classes/util/math/matrix4.ts
 function m4() {
@@ -2789,11 +3174,11 @@ var Matrix4 = class _Matrix4 {
     );
     return this;
   }
-  rotateAxis(angle, axis) {
+  rotateAxis(angle2, axis) {
     mat4_exports.rotate(
       this.mat4,
       this.mat4,
-      angle,
+      angle2,
       [[1, 0, 0], [0, 1, 0], [0, 0, 1]][axis]
     );
     return this;
@@ -2911,8 +3296,8 @@ var Quaternion = class _Quaternion {
   static f(x, y = x, z = x, w = 1) {
     return new _Quaternion(x, y, z, w);
   }
-  setAxisAngle(axis, angle) {
-    const halfAngle = angle * 0.5;
+  setAxisAngle(axis, angle2) {
+    const halfAngle = angle2 * 0.5;
     const s = Math.sin(halfAngle);
     this.x = axis.x * s;
     this.y = axis.y * s;
@@ -2968,9 +3353,12 @@ var Transform = class {
     return Quaternion.fromMatrix(this.getWorldMatrix());
   }
   // Scale methods
-  setScale(scale2) {
-    this._localScale = scale2;
+  setScale(scale3) {
+    this._localScale = scale3;
     this._isDirty = true;
+  }
+  getLocalScale() {
+    return this._localScale.clone();
   }
   // Anchor point methods
   setAnchor(anchor) {
@@ -3424,8 +3812,8 @@ var Material = _Material;
 // ts/classes/webgl2/meshes/icoSphere.ts
 var _IcoSphere = class _IcoSphere extends BaseMesh {
   static normalize(v) {
-    const length = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-    return [v[0] / length, v[1] / length, v[2] / length];
+    const length2 = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    return [v[0] / length2, v[1] / length2, v[2] / length2];
   }
   static midpoint(v1, v22) {
     return this.normalize([
@@ -4647,7 +5035,7 @@ var Camera = class {
     this._far = value;
     this.updateProjectionMatrix();
   }
-  constructor({ position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 30, near = 100, far = 1e5 } = {}) {
+  constructor({ position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 60, near = 0.1, far = 1e3 } = {}) {
     this.position = position;
     this.target = target;
     this.fov = fov;
@@ -4808,23 +5196,900 @@ var UI = class extends DomElement {
   }
 };
 
+// ts/classes/webgl2/meshes/cube.ts
+var Cube = class extends BaseMesh {
+  static generateColors(colors) {
+    const defaultColors = [
+      [0.8, 0.2, 0.2],
+      // Front face (red)
+      [1, 1, 0],
+      // Back face (yellow)
+      [0.2, 0.8, 0.2],
+      // Right face (green)
+      [0.8, 0.2, 0.8],
+      // Left face (purple)
+      [0.2, 0.2, 0.8],
+      // Top face (blue)
+      [1, 0.5, 0]
+      // Bottom face (orange)
+    ];
+    let faceColors;
+    if (!colors) {
+      faceColors = defaultColors;
+    } else if (Array.isArray(colors[0])) {
+      faceColors = colors;
+      if (faceColors.length !== 6) {
+        throw new Error("Must provide exactly 6 colors for faces or a single color");
+      }
+    } else {
+      const singleColor = colors;
+      faceColors = Array(6).fill(singleColor);
+    }
+    const colorArray = [];
+    faceColors.forEach((color) => {
+      for (let i = 0; i < 4; i++) {
+        colorArray.push(...color);
+      }
+    });
+    return new Float32Array(colorArray);
+  }
+  static generateTangents() {
+    const tangents = [
+      // Front face: tangent along x-axis
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      // Back face: tangent along negative x-axis
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      // Right face: tangent along negative z-axis
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      // Left face: tangent along z-axis
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      // Top face: tangent along x-axis
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      // Bottom face: tangent along x-axis
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0
+    ];
+    return new Float32Array(tangents);
+  }
+  static generateBitangents() {
+    const bitangents = [
+      // Front face: bitangent along y-axis
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      // Back face: bitangent along y-axis
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      // Right face: bitangent along y-axis
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      // Left face: bitangent along y-axis
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      // Top face: bitangent along z-axis (negative)
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      // Bottom face: bitangent along z-axis
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1
+    ];
+    return new Float32Array(bitangents);
+  }
+  static createMeshData(props = {}) {
+    let meshColors = props.colors;
+    if (props.material && !meshColors) {
+      const { baseColor } = props.material;
+      meshColors = [baseColor.x, baseColor.y, baseColor.z];
+    }
+    return {
+      vertices: this.vertices,
+      indices: this.indices,
+      normals: this.normals,
+      texCoords: this.texCoords,
+      colors: this.generateColors(meshColors),
+      tangents: this.generateTangents(),
+      bitangents: this.generateBitangents()
+    };
+  }
+  static create(props = {}) {
+    if (!props.material && props.colors) {
+      let baseColor;
+      if (Array.isArray(props.colors[0])) {
+        const firstColor = props.colors[0];
+        baseColor = v3(firstColor[0], firstColor[1], firstColor[2]);
+      } else {
+        const singleColor = props.colors;
+        baseColor = v3(singleColor[0], singleColor[1], singleColor[2]);
+      }
+      props = __spreadProps(__spreadValues({}, props), {
+        material: new Material({
+          baseColor,
+          roughness: 0.5,
+          metallic: 0,
+          ambientOcclusion: 1,
+          emissive: v3(0, 0, 0)
+        })
+      });
+    }
+    const meshData = this.createMeshData(props);
+    const sceneObject = this.createSceneObject(meshData, props);
+    return sceneObject;
+  }
+};
+Cube.vertices = new Float32Array([
+  // Front face
+  -0.5,
+  -0.5,
+  0.5,
+  // 0
+  0.5,
+  -0.5,
+  0.5,
+  // 1
+  0.5,
+  0.5,
+  0.5,
+  // 2
+  -0.5,
+  0.5,
+  0.5,
+  // 3
+  // Back face
+  -0.5,
+  -0.5,
+  -0.5,
+  // 4
+  0.5,
+  -0.5,
+  -0.5,
+  // 5
+  0.5,
+  0.5,
+  -0.5,
+  // 6
+  -0.5,
+  0.5,
+  -0.5,
+  // 7
+  // Right face
+  0.5,
+  -0.5,
+  0.5,
+  // 8 (1)
+  0.5,
+  -0.5,
+  -0.5,
+  // 9 (5)
+  0.5,
+  0.5,
+  -0.5,
+  // 10 (6)
+  0.5,
+  0.5,
+  0.5,
+  // 11 (2)
+  // Left face
+  -0.5,
+  -0.5,
+  -0.5,
+  // 12 (4)
+  -0.5,
+  -0.5,
+  0.5,
+  // 13 (0)
+  -0.5,
+  0.5,
+  0.5,
+  // 14 (3)
+  -0.5,
+  0.5,
+  -0.5,
+  // 15 (7)
+  // Top face
+  -0.5,
+  0.5,
+  0.5,
+  // 16 (3)
+  0.5,
+  0.5,
+  0.5,
+  // 17 (2)
+  0.5,
+  0.5,
+  -0.5,
+  // 18 (6)
+  -0.5,
+  0.5,
+  -0.5,
+  // 19 (7)
+  // Bottom face
+  -0.5,
+  -0.5,
+  -0.5,
+  // 20 (4)
+  0.5,
+  -0.5,
+  -0.5,
+  // 21 (5)
+  0.5,
+  -0.5,
+  0.5,
+  // 22 (1)
+  -0.5,
+  -0.5,
+  0.5
+  // 23 (0)
+]);
+Cube.indices = new Uint16Array([
+  // Front
+  0,
+  1,
+  2,
+  2,
+  3,
+  0,
+  // Back (reversed order)
+  4,
+  6,
+  5,
+  6,
+  4,
+  7,
+  // Right
+  8,
+  9,
+  10,
+  10,
+  11,
+  8,
+  // Left
+  12,
+  13,
+  14,
+  14,
+  15,
+  12,
+  // Top
+  16,
+  17,
+  18,
+  18,
+  19,
+  16,
+  // Bottom
+  20,
+  21,
+  22,
+  22,
+  23,
+  20
+]);
+Cube.normals = new Float32Array([
+  // Front face
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  // Back face
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  // Right face
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  // Left face
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  // Top face
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  // Bottom face
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0
+]);
+Cube.texCoords = new Float32Array([
+  // Front
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  0,
+  1,
+  // Back
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  // Right
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  0,
+  1,
+  // Left
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  // Top
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  0,
+  1,
+  // Bottom
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1
+]);
+
+// ts/classes/webgl2/meshes/plane.ts
+var PlaneMesh = class extends BaseMesh {
+  static generateIndices(flipNormal) {
+    return new Uint16Array(
+      flipNormal ? [0, 1, 2, 2, 3, 0] : [0, 2, 1, 0, 3, 2]
+      // counter-clockwise winding for top visibility
+    );
+  }
+  static generateNormals(flipNormal) {
+    const normalY = flipNormal ? -1 : 1;
+    return new Float32Array([
+      0,
+      normalY,
+      0,
+      0,
+      normalY,
+      0,
+      0,
+      normalY,
+      0,
+      0,
+      normalY,
+      0
+    ]);
+  }
+  // Generate tangents for normal mapping
+  static generateTangents() {
+    return new Float32Array([
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0
+    ]);
+  }
+  // Generate bitangents for normal mapping
+  static generateBitangents(flipNormal) {
+    const bitangentZ = flipNormal ? -1 : 1;
+    return new Float32Array([
+      0,
+      0,
+      bitangentZ,
+      0,
+      0,
+      bitangentZ,
+      0,
+      0,
+      bitangentZ,
+      0,
+      0,
+      bitangentZ
+    ]);
+  }
+  static generateColors(material) {
+    const defaultColor = vec3_exports.fromValues(0.8, 0.8, 0.8);
+    const color = material ? material.baseColor.vec : defaultColor;
+    return new Float32Array([
+      color[0],
+      color[1],
+      color[2],
+      color[0],
+      color[1],
+      color[2],
+      color[0],
+      color[1],
+      color[2],
+      color[0],
+      color[1],
+      color[2]
+    ]);
+  }
+  static createMeshData(props = {}) {
+    const flipNormal = props.flipNormal || false;
+    return {
+      vertices: this.vertices,
+      indices: this.generateIndices(flipNormal),
+      normals: this.generateNormals(flipNormal),
+      texCoords: this.texCoords,
+      colors: this.generateColors(props.material),
+      tangents: this.generateTangents(),
+      bitangents: this.generateBitangents(flipNormal)
+    };
+  }
+  static create(props = {}) {
+    var _a, _b, _c, _d;
+    if (!props.material && !props.texture) {
+      props.material = new Material();
+    }
+    const meshData = this.createMeshData(props);
+    const sceneObject = this.createSceneObject(meshData, __spreadProps(__spreadValues({}, props), { scale: v3((_b = (_a = props.scale) == null ? void 0 : _a.x) != null ? _b : 1, 1, (_d = (_c = props.scale) == null ? void 0 : _c.y) != null ? _d : 1) }));
+    return sceneObject;
+  }
+};
+PlaneMesh.vertices = new Float32Array([
+  // Single face (square)
+  -0.5,
+  0,
+  -0.5,
+  // bottom-left
+  0.5,
+  0,
+  -0.5,
+  // bottom-right
+  0.5,
+  0,
+  0.5,
+  // top-right
+  -0.5,
+  0,
+  0.5
+  // top-left
+]);
+PlaneMesh.texCoords = new Float32Array([
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  0,
+  1
+]);
+
+// ts/classes/collision/collisionManager.ts
+var CollisionManager = class {
+  constructor() {
+    this.colliders = [];
+    // Small buffer to prevent objects from continuously colliding
+    this.collisionBuffer = 1e-3;
+  }
+  /**
+   * Add an object to the collision system
+   * @param object The scene object to add
+   * @param type Whether the object is static or dynamic
+   * @param size Optional custom bounding box size (uses object's scale if not provided)
+   */
+  addObject(object, type, size) {
+    const collider = {
+      object,
+      type,
+      size: size || object.transform.getLocalScale(),
+      lastPosition: object.transform.getWorldPosition().clone()
+    };
+    this.colliders.push(collider);
+  }
+  /**
+   * Remove an object from the collision system
+   */
+  removeObject(object) {
+    const index = this.colliders.findIndex((c) => c.object === object);
+    if (index !== -1) {
+      this.colliders.splice(index, 1);
+    }
+  }
+  /**
+   * Get vertices of a cuboid in world space
+   */
+  getWorldVertices(collider) {
+    const object = collider.object;
+    const size = collider.size;
+    const halfExtents = size.scale(0.5);
+    const localVertices = [
+      v3(-halfExtents.x, -halfExtents.y, -halfExtents.z),
+      v3(halfExtents.x, -halfExtents.y, -halfExtents.z),
+      v3(halfExtents.x, -halfExtents.y, halfExtents.z),
+      v3(-halfExtents.x, -halfExtents.y, halfExtents.z),
+      v3(-halfExtents.x, halfExtents.y, -halfExtents.z),
+      v3(halfExtents.x, halfExtents.y, -halfExtents.z),
+      v3(halfExtents.x, halfExtents.y, halfExtents.z),
+      v3(-halfExtents.x, halfExtents.y, halfExtents.z)
+    ];
+    const worldMatrix = object.transform.getWorldMatrix();
+    return localVertices.map((vertex) => {
+      const x = worldMatrix.mat4[0] * vertex.x + worldMatrix.mat4[4] * vertex.y + worldMatrix.mat4[8] * vertex.z + worldMatrix.mat4[12];
+      const y = worldMatrix.mat4[1] * vertex.x + worldMatrix.mat4[5] * vertex.y + worldMatrix.mat4[9] * vertex.z + worldMatrix.mat4[13];
+      const z = worldMatrix.mat4[2] * vertex.x + worldMatrix.mat4[6] * vertex.y + worldMatrix.mat4[10] * vertex.z + worldMatrix.mat4[14];
+      return v3(x, y, z);
+    });
+  }
+  /**
+   * Get axes for Separating Axis Theorem
+   */
+  getAxes(vertices1, vertices2) {
+    const axes = [];
+    axes.push(vertices1[1].subtract(vertices1[0]).normalize());
+    axes.push(vertices1[4].subtract(vertices1[0]).normalize());
+    axes.push(vertices1[3].subtract(vertices1[0]).normalize());
+    axes.push(vertices2[1].subtract(vertices2[0]).normalize());
+    axes.push(vertices2[4].subtract(vertices2[0]).normalize());
+    axes.push(vertices2[3].subtract(vertices2[0]).normalize());
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        const crossProduct = axes[i].cross(axes[3 + j]);
+        if (crossProduct.magnitude() > 1e-3) {
+          axes.push(crossProduct.normalize());
+        }
+      }
+    }
+    return axes;
+  }
+  /**
+   * Project vertices onto an axis
+   */
+  projectVertices(vertices, axis) {
+    let min2 = vertices[0].dot(axis);
+    let max2 = min2;
+    for (let i = 1; i < vertices.length; i++) {
+      const projection = vertices[i].dot(axis);
+      min2 = Math.min(min2, projection);
+      max2 = Math.max(max2, projection);
+    }
+    return { min: min2, max: max2 };
+  }
+  /**
+   * Check if two colliders intersect using Separating Axis Theorem
+   */
+  testCollision(collider1, collider2) {
+    const vertices1 = this.getWorldVertices(collider1);
+    const vertices2 = this.getWorldVertices(collider2);
+    const axes = this.getAxes(vertices1, vertices2);
+    let minOverlap = Infinity;
+    let minAxis = v3(0);
+    for (const axis of axes) {
+      const proj1 = this.projectVertices(vertices1, axis);
+      const proj2 = this.projectVertices(vertices2, axis);
+      const overlap = Math.min(proj1.max, proj2.max) - Math.max(proj1.min, proj2.min);
+      if (overlap < 0) {
+        return { collision: false };
+      }
+      if (overlap < minOverlap) {
+        minOverlap = overlap;
+        minAxis = axis;
+        const center1 = vertices1.reduce((sum, v) => sum.add(v), v3(0)).scale(1 / vertices1.length);
+        const center2 = vertices2.reduce((sum, v) => sum.add(v), v3(0)).scale(1 / vertices2.length);
+        if (center1.subtract(center2).dot(minAxis) > 0) {
+          minAxis = minAxis.scale(-1);
+        }
+      }
+    }
+    return {
+      collision: true,
+      mtv: minAxis.scale(minOverlap)
+    };
+  }
+  /**
+   * Perform axis-aligned box check (faster than SAT)
+   */
+  testAABB(collider1, collider2) {
+    const vertices1 = this.getWorldVertices(collider1);
+    const vertices2 = this.getWorldVertices(collider2);
+    let min1 = vertices1[0].clone();
+    let max1 = vertices1[0].clone();
+    let min2 = vertices2[0].clone();
+    let max2 = vertices2[0].clone();
+    for (let i = 1; i < 8; i++) {
+      min1.x = Math.min(min1.x, vertices1[i].x);
+      min1.y = Math.min(min1.y, vertices1[i].y);
+      min1.z = Math.min(min1.z, vertices1[i].z);
+      max1.x = Math.max(max1.x, vertices1[i].x);
+      max1.y = Math.max(max1.y, vertices1[i].y);
+      max1.z = Math.max(max1.z, vertices1[i].z);
+      min2.x = Math.min(min2.x, vertices2[i].x);
+      min2.y = Math.min(min2.y, vertices2[i].y);
+      min2.z = Math.min(min2.z, vertices2[i].z);
+      max2.x = Math.max(max2.x, vertices2[i].x);
+      max2.y = Math.max(max2.y, vertices2[i].y);
+      max2.z = Math.max(max2.z, vertices2[i].z);
+    }
+    return min1.x <= max2.x && max1.x >= min2.x && min1.y <= max2.y && max1.y >= min2.y && min1.z <= max2.z && max1.z >= min2.z;
+  }
+  /**
+   * Update the collision system
+   */
+  update() {
+    for (const collider of this.colliders) {
+      collider.lastPosition = collider.object.transform.getWorldPosition().clone();
+    }
+    for (let i = 0; i < this.colliders.length; i++) {
+      const collider1 = this.colliders[i];
+      for (let j = i + 1; j < this.colliders.length; j++) {
+        const collider2 = this.colliders[j];
+        if (collider1.type === 0 /* STATIC */ && collider2.type === 0 /* STATIC */) {
+          continue;
+        }
+        if (!this.testAABB(collider1, collider2)) {
+          continue;
+        }
+        const result = this.testCollision(collider1, collider2);
+        if (result.collision && result.mtv) {
+          this.resolveCollision(collider1, collider2, result.mtv);
+        }
+      }
+    }
+  }
+  /**
+   * Resolve collision between two objects
+   */
+  resolveCollision(collider1, collider2, mtv) {
+    const bufferedMtv = mtv.scale(1 + this.collisionBuffer);
+    if (collider1.type === 1 /* DYNAMIC */ && collider2.type === 1 /* DYNAMIC */) {
+      const worldPos1 = collider1.object.transform.getWorldPosition();
+      const worldPos2 = collider2.object.transform.getWorldPosition();
+      collider1.object.transform.setPosition(worldPos1.add(bufferedMtv.scale(0.5)));
+      collider2.object.transform.setPosition(worldPos2.subtract(bufferedMtv.scale(0.5)));
+    } else if (collider1.type === 1 /* DYNAMIC */ && collider2.type === 0 /* STATIC */) {
+      const worldPos = collider1.object.transform.getWorldPosition();
+      collider1.object.transform.setPosition(worldPos.subtract(bufferedMtv));
+    } else if (collider1.type === 0 /* STATIC */ && collider2.type === 1 /* DYNAMIC */) {
+      const worldPos = collider2.object.transform.getWorldPosition();
+      collider2.object.transform.setPosition(worldPos.add(bufferedMtv));
+    }
+  }
+};
+
 // ts/classes/physicstest/physicsLevel.ts
 var PhysicsTestLevel = class extends Scene {
   constructor() {
-    super(new Camera({ position: v3(0, 100, 200), target: v3(0, 0, 0), fov: 40 }), {
-      ambientLightColor: v3(0.4, 0.8, 0.9),
-      ambientLightIntensity: 0.7
-      // Very subtle ambient lighting,
+    super(new Camera({ position: v3(2, 4, 3), target: v3(2, 1, 0), fov: 60 }), {
+      ambientLightColor: v3(1, 1, 1),
+      ambientLightIntensity: 0.5
     });
     this.clearColor = [0.2, 0.3, 0.5, 1];
     // Match sky color
     this.ui = new UI();
+    this.collisionManager = new CollisionManager();
+    this.add(this.floor = PlaneMesh.create({
+      position: v3(0, 0, 0),
+      scale: v2(100, 100),
+      material: new Material({
+        baseColor: v3(1, 0, 0)
+      })
+    }));
+    this.add(this.cube = Cube.create({
+      position: v3(0, 2, 0),
+      scale: v3(1, 1, 1),
+      material: new Material({
+        baseColor: v3(0, 1, 0)
+      })
+    }));
+    this.add(this.wall = Cube.create({
+      position: v3(3, 1.5, 0),
+      scale: v3(1, 1, 1),
+      material: new Material({
+        baseColor: v3(0, 0, 1)
+      })
+    }));
+    this.collisionManager.addObject(this.floor, 0 /* STATIC */);
+    this.collisionManager.addObject(this.wall, 0 /* STATIC */);
+    this.collisionManager.addObject(this.cube, 1 /* DYNAMIC */);
     this.ui.add(this.fpsData = UI.data({ label: "FPS", size: v2(400, 100) }), "bottom");
-    this.ui.expanded = false;
+    this.ui.add(this.positionData = UI.data({ label: "Cube Position", size: v2(400, 100) }), "bottom");
   }
   tick(obj) {
     super.tick(obj);
     this.fpsData.change(obj.frameRate.toFixed(2));
+    this.positionData.change(this.cube.transform.getWorldPosition().vec.toString());
+    this.cube.transform.move(v3(5e-3, -5e-3, 0));
+    this.collisionManager.update();
   }
 };
 
