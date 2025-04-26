@@ -12,6 +12,7 @@ import { EnvironmentMap, EnvironmentMapLoader } from './environmentMap';
 import { Skybox } from './skybox';
 import { ContainerObject } from './meshes/containerObject';
 import { InputMap } from '../input/input';
+import { UI } from '../elements/UI';
 
 export interface SceneOptions {
     ambientLightColor?: Vector3;
@@ -25,12 +26,12 @@ export class Scene extends ContainerObject {
     protected clearColor: [number, number, number, number] = [0, 0, 0, 1];
     protected lightManager: LightManager;
     private _ambientLight: AmbientLight;
-    protected showColorPicking: boolean = true; // Debug flag to show color picking
-    // Picking framebuffer setup
+    protected showColorPicking: boolean = true;
     private pickingFramebuffer: WebGLFramebuffer | null = null;
     private pickingTexture: WebGLTexture | null = null;
     private pickingDepthBuffer: WebGLRenderbuffer | null = null;
-    inputMap: InputMap;
+    public inputMap: InputMap;
+    public ui: UI;
     protected get ambientLight(): AmbientLight {
         return this._ambientLight;
     }

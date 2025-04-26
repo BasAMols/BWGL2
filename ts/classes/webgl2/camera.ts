@@ -9,12 +9,33 @@ export class Camera {
     private viewMatrix: Matrix4;
     private projectionMatrix: Matrix4;
 
-    private fov: number;
-    private near: number;
-    private far: number;
+    private _fov: number;
+    public get fov(): number {
+        return this._fov;
+    }
+    public set fov(value: number) {
+        this._fov = value;
+        this.updateProjectionMatrix();
+    }
+    private _near: number;
+    public get near(): number {
+        return this._near;
+    }
+    public set near(value: number) {
+        this._near = value;
+        this.updateProjectionMatrix();
+    }
+    private _far: number;
+    public get far(): number {
+        return this._far;
+    }
+    public set far(value: number) {
+        this._far = value;
+        this.updateProjectionMatrix();
+    }
 
     constructor(
-        { position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 30, near = 100, far = 170000 }: { position?: Vector3; target?: Vector3; fov?: number; near?: number; far?: number; } = {}) {
+        { position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 30, near = 100, far = 100000 }: { position?: Vector3; target?: Vector3; fov?: number; near?: number; far?: number; } = {}) {
         this.position = position;
         this.target = target;
 

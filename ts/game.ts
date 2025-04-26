@@ -79,24 +79,7 @@ export class Game {
 
         this.ticker = new Ticker();
         this.ticker.add(this.tick.bind(this));
-
-        this.test2d = document.createElement('div');
-        this.test2d.style.cssText = `
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100px;
-            background-color: #ff0000cc;
-            margin-left: -50px;
-            text-align: center;
-            font-size: 20px;
-            color: white;
-            z-index: 9;
-            pointer-events: none;
-        `;
         
-        document.body.appendChild(this.test2d);
-
         this.addLevel('test', new TestLevel());
         if (this.waitCount === 0) {
             this.start();
@@ -111,9 +94,9 @@ export class Game {
 
     protected addLevel(s: string, level: Scene) {
         this.levels[s] = level;
-        // if (level.interface) {
-        //     document.body.appendChild(level.interface.dom)
-        // }
+        if (level.ui) {
+            document.body.appendChild(level.ui.dom)
+        }
         this.active = level;
         glob.input = this.active.inputMap;
     }

@@ -9586,8 +9586,6 @@ var Scene = class extends ContainerObject {
     super();
     this.clearColor = [0, 0, 0, 1];
     this.showColorPicking = true;
-    // Debug flag to show color picking
-    // Picking framebuffer setup
     this.pickingFramebuffer = null;
     this.pickingTexture = null;
     this.pickingDepthBuffer = null;
@@ -9835,7 +9833,28 @@ var Scene = class extends ContainerObject {
 
 // ts/classes/webgl2/camera.ts
 var Camera = class {
-  constructor({ position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 30, near = 100, far = 17e4 } = {}) {
+  get fov() {
+    return this._fov;
+  }
+  set fov(value) {
+    this._fov = value;
+    this.updateProjectionMatrix();
+  }
+  get near() {
+    return this._near;
+  }
+  set near(value) {
+    this._near = value;
+    this.updateProjectionMatrix();
+  }
+  get far() {
+    return this._far;
+  }
+  set far(value) {
+    this._far = value;
+    this.updateProjectionMatrix();
+  }
+  constructor({ position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 30, near = 100, far = 1e5 } = {}) {
     this.position = position;
     this.target = target;
     this.fov = fov;
@@ -9971,7 +9990,7 @@ var PlaneController = class extends Controller {
 // ts/classes/level/freeCam/camera.ts
 var PlaneCamera = class extends Camera {
   constructor(scene, parent) {
-    super({ position: v3(0, 100, 200), target: v3(0, 0, 0), fov: 40 });
+    super({ position: v3(0, 100, 200), target: v3(0, 0, 0), fov: 40, near: 10, far: 1e4 });
     this.scene = scene;
     this.parent = parent;
     this.offset = v3(1e3, 600, 0);
@@ -10746,9 +10765,117 @@ var KeyboardAxisReader = class extends InputReader {
   }
 };
 
+// ts/classes/elements/UI.ts
+var UI = class extends DomElement {
+  constructor(attr = {}) {
+    super("div", attr);
+    this._expanded = false;
+    this.dom.classList.add("ui_container");
+    this.collapseDiv = document.createElement("div");
+    this.collapseDiv.classList.add("ui_collapse_div");
+    this.dom.appendChild(this.collapseDiv);
+    const collapseButton = document.createElement("div");
+    collapseButton.classList.add("ui_collapse_button");
+    collapseButton.addEventListener("click", () => {
+      this.expanded = !this.expanded;
+    });
+    this.collapseDiv.appendChild(collapseButton);
+    this.bottomDiv = document.createElement("div");
+    this.bottomDiv.classList.add("ui_bottom_div");
+    this.dom.appendChild(this.bottomDiv);
+    this.touchControls = document.createElement("div");
+    this.dom.appendChild(this.touchControls);
+  }
+  get expanded() {
+    return this._expanded;
+  }
+  set expanded(value) {
+    this._expanded = value;
+    this.collapseDiv.classList.toggle("ui_collapse_div_expanded", value);
+  }
+  add(element, location2 = "collapse") {
+    if (location2 === "collapse") {
+      this.collapseDiv.appendChild(element.dom);
+    } else {
+      this.bottomDiv.appendChild(element.dom);
+    }
+  }
+  static slider(data) {
+    var _a, _b, _c, _d, _e, _f;
+    const wrapper = document.createElement("div");
+    wrapper.classList.add("ui_slider_wrap");
+    if (data.position) {
+      wrapper.style.position = "absolute";
+      wrapper.style[data.position.anchor.includes("top") ? "top" : "bottom"] = "".concat(data.position.y, "px");
+      wrapper.style[data.position.anchor.includes("left") ? "left" : "right"] = "".concat(data.position.x, "px");
+    }
+    const valueDiv = document.createElement("input");
+    valueDiv.type = "number";
+    valueDiv.value = (_b = (_a = data.value) == null ? void 0 : _a.toString()) != null ? _b : data.min.toString();
+    valueDiv.style.maxWidth = data.max.toString().length * 15 + 6 + "px";
+    valueDiv.addEventListener("input", (e) => {
+      data.onChange(Number(valueDiv.value));
+    });
+    wrapper.appendChild(valueDiv);
+    valueDiv.classList.add("ui_slider_value");
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.setAttribute("min", data.min.toString());
+    slider.setAttribute("max", data.max.toString());
+    slider.setAttribute("value", (_d = (_c = data.value) == null ? void 0 : _c.toString()) != null ? _d : data.min.toString());
+    slider.addEventListener("input", (e) => {
+      data.onChange(Number(slider.value));
+      valueDiv.value = slider.value;
+    });
+    slider.style.width = (_f = (_e = data.width) == null ? void 0 : _e.toString()) != null ? _f : "100px";
+    slider.classList.add("ui_slider_input");
+    if (data.label) {
+      const label = document.createElement("div");
+      label.textContent = data.label;
+      label.classList.add("ui_slider_label");
+      wrapper.appendChild(label);
+    }
+    wrapper.appendChild(slider);
+    return {
+      dom: wrapper,
+      change: (value) => {
+        slider.value = value.toString();
+        valueDiv.value = value.toString();
+      }
+    };
+  }
+  static data(data) {
+    var _a, _b, _c, _d, _e, _f, _g;
+    const wrapper = document.createElement("div");
+    wrapper.classList.add("ui_data_wrap");
+    wrapper.style.width = (_c = (_b = (_a = data.size) == null ? void 0 : _a.x) == null ? void 0 : _b.toString()) != null ? _c : "100px";
+    wrapper.style.height = (_f = (_e = (_d = data.size) == null ? void 0 : _d.y) == null ? void 0 : _e.toString()) != null ? _f : "100px";
+    if (data.position) {
+      wrapper.style.position = "absolute";
+      wrapper.style[data.position.anchor.includes("top") ? "top" : "bottom"] = "".concat(data.position.y, "px");
+      wrapper.style[data.position.anchor.includes("left") ? "left" : "right"] = "".concat(data.position.x, "px");
+    }
+    if (data.label) {
+      const label = document.createElement("div");
+      label.textContent = data.label;
+      label.classList.add("ui_data_label");
+      wrapper.appendChild(label);
+    }
+    const valueDiv = document.createElement("div");
+    valueDiv.textContent = (_g = data.value) != null ? _g : "";
+    wrapper.appendChild(valueDiv);
+    valueDiv.classList.add("ui_data_value");
+    return {
+      dom: wrapper,
+      change: (value) => {
+        valueDiv.textContent = value;
+      }
+    };
+  }
+};
+
 // ts/classes/level/testLevel.ts
 var TestLevel = class extends Scene {
-  // Match sky color
   constructor() {
     super(new Camera({ position: v3(0, 100, 200), target: v3(0, 0, 0), fov: 40 }), {
       ambientLightColor: v3(0.4, 0.8, 0.9),
@@ -10766,13 +10893,42 @@ var TestLevel = class extends Scene {
       )
     });
     this.clearColor = [0.2, 0.3, 0.5, 1];
+    // Match sky color
+    this.ui = new UI();
     this.add(new Ocean());
     this.add(new Island());
     this.add(new Sky(this));
-    this.add(new Plane());
+    this.add(this.plane = new Plane());
+    const data = UI.data({ value: "0", label: "precision", size: v2(400, 100) });
+    this.ui.add(UI.slider({ value: this.camera.near, label: "Near", min: 0, max: 100, onChange: (value) => {
+      this.nearPlane = Math.max(value, 0.1);
+      data.change((this.camera.far / this.camera.near).toString());
+    }, width: 600 }));
+    this.ui.add(UI.slider({ value: this.camera.far, label: "Far ", min: 0, max: 1e5, onChange: (value) => {
+      this.farPlane = Math.max(value, 0.1);
+      data.change((this.camera.far / this.camera.near).toString());
+    }, width: 600 }));
+    this.ui.add(data);
+    this.ui.add(UI.slider({ value: this.camera.fov, label: "FOV ", min: 1, max: 100, onChange: (value) => {
+      this.fov = value;
+    }, width: 600 }));
+    this.ui.add(this.positionData = UI.data({ value: "0", label: "transform", size: v2(400, 100) }));
+    this.ui.expanded = false;
+  }
+  set nearPlane(value) {
+    this.camera.near = value;
+  }
+  set farPlane(value) {
+    this.camera.far = value;
+  }
+  set fov(value) {
+    this.camera.fov = value;
   }
   tick(obj) {
     super.tick(obj);
+    this.positionData.change(
+      this.plane.transform.getWorldPosition().array.map((v) => v.toFixed(0)).join(", ") + "\n" + this.plane.camera.getAngle().array.map((v) => v.toFixed(2)).join(", ")
+    );
   }
 };
 
@@ -10940,9 +11096,6 @@ var Game = class {
     this.renderer.addChild(this.loader);
     this.ticker = new Ticker();
     this.ticker.add(this.tick.bind(this));
-    this.test2d = document.createElement("div");
-    this.test2d.style.cssText = "\n            position: absolute;\n            top: 0;\n            left: 0;\n            width: 100px;\n            background-color: #ff0000cc;\n            margin-left: -50px;\n            text-align: center;\n            font-size: 20px;\n            color: white;\n            z-index: 9;\n            pointer-events: none;\n        ";
-    document.body.appendChild(this.test2d);
     this.addLevel("test", new TestLevel());
     if (this.waitCount === 0) {
       this.start();
@@ -10955,6 +11108,9 @@ var Game = class {
   }
   addLevel(s, level) {
     this.levels[s] = level;
+    if (level.ui) {
+      document.body.appendChild(level.ui.dom);
+    }
     this.active = level;
     glob.input = this.active.inputMap;
   }
