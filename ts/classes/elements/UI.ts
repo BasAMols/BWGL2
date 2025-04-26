@@ -62,7 +62,8 @@ export class UI extends DomElement<'div'> {
             y: number;
             anchor: 'topleft' | 'topright' | 'bottomleft' | 'bottomright';
         },
-        value?:number
+        value?:number,
+        step?:number,
         width?: number,
         label?: string,
 
@@ -79,6 +80,7 @@ export class UI extends DomElement<'div'> {
         const valueDiv = document.createElement('input');
         valueDiv.type = 'number';
         valueDiv.value = data.value?.toString()??data.min.toString();
+        valueDiv.step = data.step?.toString()??'1';
         valueDiv.style.maxWidth = (data.max.toString().length*15+6) + 'px';
         valueDiv.addEventListener('input', (e) => {
             data.onChange(Number(valueDiv.value));
@@ -88,9 +90,10 @@ export class UI extends DomElement<'div'> {
         
         const slider = document.createElement('input') as HTMLInputElement;
         slider.type = 'range';
-        slider.setAttribute('min', data.min.toString());
-        slider.setAttribute('max', data.max.toString());
-        slider.setAttribute('value', data.value?.toString()??data.min.toString());
+        slider.min = data.min.toString();
+        slider.max = data.max.toString();
+        slider.value = data.value?.toString()??data.min.toString();
+        slider.step = data.step?.toString()??'1';
         slider.addEventListener('input', (e) => {
             data.onChange(Number(slider.value));
             valueDiv.value = slider.value;

@@ -10801,7 +10801,7 @@ var UI = class extends DomElement {
     }
   }
   static slider(data) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
     const wrapper = document.createElement("div");
     wrapper.classList.add("ui_slider_wrap");
     if (data.position) {
@@ -10812,6 +10812,7 @@ var UI = class extends DomElement {
     const valueDiv = document.createElement("input");
     valueDiv.type = "number";
     valueDiv.value = (_b = (_a = data.value) == null ? void 0 : _a.toString()) != null ? _b : data.min.toString();
+    valueDiv.step = (_d = (_c = data.step) == null ? void 0 : _c.toString()) != null ? _d : "1";
     valueDiv.style.maxWidth = data.max.toString().length * 15 + 6 + "px";
     valueDiv.addEventListener("input", (e) => {
       data.onChange(Number(valueDiv.value));
@@ -10820,14 +10821,15 @@ var UI = class extends DomElement {
     valueDiv.classList.add("ui_slider_value");
     const slider = document.createElement("input");
     slider.type = "range";
-    slider.setAttribute("min", data.min.toString());
-    slider.setAttribute("max", data.max.toString());
-    slider.setAttribute("value", (_d = (_c = data.value) == null ? void 0 : _c.toString()) != null ? _d : data.min.toString());
+    slider.min = data.min.toString();
+    slider.max = data.max.toString();
+    slider.value = (_f = (_e = data.value) == null ? void 0 : _e.toString()) != null ? _f : data.min.toString();
+    slider.step = (_h = (_g = data.step) == null ? void 0 : _g.toString()) != null ? _h : "1";
     slider.addEventListener("input", (e) => {
       data.onChange(Number(slider.value));
       valueDiv.value = slider.value;
     });
-    slider.style.width = (_f = (_e = data.width) == null ? void 0 : _e.toString()) != null ? _f : "100px";
+    slider.style.width = (_j = (_i = data.width) == null ? void 0 : _i.toString()) != null ? _j : "100px";
     slider.classList.add("ui_slider_input");
     if (data.label) {
       const label = document.createElement("div");
@@ -10900,11 +10902,11 @@ var TestLevel = class extends Scene {
     this.add(new Sky(this));
     this.add(this.plane = new Plane());
     const data = UI.data({ value: "0", label: "precision", size: v2(400, 100) });
-    this.ui.add(UI.slider({ value: this.camera.near, label: "Near", min: 0, max: 100, onChange: (value) => {
+    this.ui.add(UI.slider({ value: this.camera.near, step: 1, label: "Near", min: 0, max: 100, onChange: (value) => {
       this.nearPlane = Math.max(value, 0.1);
       data.change((this.camera.far / this.camera.near).toString());
     }, width: 600 }));
-    this.ui.add(UI.slider({ value: this.camera.far, label: "Far ", min: 0, max: 1e5, onChange: (value) => {
+    this.ui.add(UI.slider({ value: this.camera.far, step: 100, label: "Far ", min: 0, max: 1e5, onChange: (value) => {
       this.farPlane = Math.max(value, 0.1);
       data.change((this.camera.far / this.camera.near).toString());
     }, width: 600 }));
@@ -10912,7 +10914,9 @@ var TestLevel = class extends Scene {
     this.ui.add(UI.slider({ value: this.camera.fov, label: "FOV ", min: 1, max: 100, onChange: (value) => {
       this.fov = value;
     }, width: 600 }));
-    this.ui.add(this.positionData = UI.data({ value: "0", label: "transform", size: v2(400, 100) }));
+    this.ui.add(this.positionData = UI.data({ label: "P", size: v2(400, 100) }), "bottom");
+    this.ui.add(this.rotationData = UI.data({ label: "R", size: v2(400, 100) }), "bottom");
+    this.ui.add(this.fpsData = UI.data({ label: "FPS", size: v2(400, 100) }), "bottom");
     this.ui.expanded = false;
   }
   set nearPlane(value) {
@@ -10927,8 +10931,12 @@ var TestLevel = class extends Scene {
   tick(obj) {
     super.tick(obj);
     this.positionData.change(
-      this.plane.transform.getWorldPosition().array.map((v) => v.toFixed(0)).join(", ") + "\n" + this.plane.camera.getAngle().array.map((v) => v.toFixed(2)).join(", ")
+      this.plane.transform.getWorldPosition().array.map((v) => v.toFixed(0)).join("m, ") + "m"
     );
+    this.rotationData.change(
+      this.plane.camera.getAngle().array.map((v) => v.toFixed(2)).join(", ")
+    );
+    this.fpsData.change(obj.frameRate.toFixed(2));
   }
 };
 

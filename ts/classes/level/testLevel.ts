@@ -16,6 +16,8 @@ export class TestLevel extends Scene {
     public ui: UI = new UI();
     positionData: import("c:/Users/basm/Documents/Development/BWGL2/ts/classes/elements/UI").UIElement<string>;
     plane: Plane;
+    fpsData: import("c:/Users/basm/Documents/Development/BWGL2/ts/classes/elements/UI").UIElement<string>;
+    rotationData: import("c:/Users/basm/Documents/Development/BWGL2/ts/classes/elements/UI").UIElement<string>;
 
 
     private set nearPlane(value: number) {
@@ -51,14 +53,13 @@ export class TestLevel extends Scene {
         this.add(new Island());
         this.add(new Sky(this));
         this.add(this.plane = new Plane());
-
         const data = UI.data({ value: '0', label: 'precision', size: v2(400, 100) });
 
-        this.ui.add(UI.slider({ value: this.camera.near, label: 'Near', min: 0, max: 100, onChange: (value) => {
+        this.ui.add(UI.slider({ value: this.camera.near, step: 1,  label: 'Near', min: 0, max: 100, onChange: (value) => {
             this.nearPlane = Math.max(value, 0.1)
             data.change((this.camera.far / this.camera.near).toString())
         }, width: 600 }));
-        this.ui.add(UI.slider({ value: this.camera.far, label: 'Far ', min: 0, max: 100000, onChange: (value) => {
+        this.ui.add(UI.slider({ value: this.camera.far,step: 100, label: 'Far ', min: 0, max: 100000, onChange: (value) => {
             this.farPlane = Math.max(value, 0.1)
             data.change((this.camera.far / this.camera.near).toString())
         }, width: 600   }));
@@ -69,7 +70,9 @@ export class TestLevel extends Scene {
             this.fov = value
         }, width: 600 }));
 
-        this.ui.add((this.positionData = UI.data({ value: '0', label: 'transform', size: v2(400, 100) })));
+        this.ui.add((this.positionData = UI.data({ label: 'P', size: v2(400, 100) })), 'bottom');
+        this.ui.add((this.rotationData = UI.data({ label: 'R', size: v2(400, 100) })), 'bottom');
+        this.ui.add((this.fpsData = UI.data({  label: 'FPS', size: v2(400, 100) })), 'bottom');
         this.ui.expanded = false;
 
     }
@@ -78,9 +81,11 @@ export class TestLevel extends Scene {
     tick(obj: TickerReturnData) {
         super.tick(obj);
         this.positionData.change(
-            this.plane.transform.getWorldPosition().array.map(v => v.toFixed(0)).join(', ') +
-            '\n' +
+            this.plane.transform.getWorldPosition().array.map(v => v.toFixed(0)).join('m, ') + 'm'
+        );
+        this.rotationData.change(
             this.plane.camera.getAngle().array.map(v => v.toFixed(2)).join(', ')
         );
+        this.fpsData.change(obj.frameRate.toFixed(2));
     }
 }

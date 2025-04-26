@@ -23,7 +23,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    background: #00000061;
+    background: #00000018;
     position: relative;
     transition: left 0.2s;
     left: -400px;
@@ -37,7 +37,7 @@ body {
     position: absolute;
     right: -60px;
     top: 0;
-    background: #00000061;
+    background: #00000018;
     width: 60px;
     height: 60px;
     display: block;
@@ -64,6 +64,7 @@ body {
     font-family: monospace;
     margin-left: 15px;
     color: white;
+    text-shadow: 2px 2px black;
 }
 
 .ui_slider_label::after {
@@ -100,6 +101,7 @@ input.ui_slider_input {
     font-family: monospace;
     margin-right: 15px;
     color: white;
+    text-shadow: 2px 2px black;
 }
 
 .ui_data_label::after {
@@ -114,4 +116,14 @@ input.ui_data_input {
     font-family: monospace;
     font-size: 20px;
     white-space: pre-wrap;
+    text-shadow: 2px 2px black;
+}
+
+.ui_bottom_div {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    width: 100%;
+    justify-content: center;
 }
