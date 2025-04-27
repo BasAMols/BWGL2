@@ -27,6 +27,11 @@ export class Actor extends ContainerObject {
             this.addController(controller);
         });
     }
+    public build(): void {
+        this.controllers.forEach((controller) => {
+            controller.build?.();
+        });
+    }
     addController(controller: Controller) {
         this.controllers.push(controller);
         controller.register(this);

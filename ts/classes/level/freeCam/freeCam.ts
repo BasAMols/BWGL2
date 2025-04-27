@@ -16,6 +16,7 @@ export class Plane extends Actor {
         });
     }
     public build(): void {
+        super.build();
         this.add(IcoSphere.create({
             scale: v3(1, 1, 1),
             subdivisions: 4,

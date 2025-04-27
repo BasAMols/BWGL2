@@ -2,7 +2,7 @@ import { Renderer } from './classes/elements/renderer';
 import { PadManager } from './classes/input/gamepadManager';
 import { InputMap } from './classes/input/input';
 import { InputDevices } from './classes/input/inputDevices';
-import { PhysicsTestLevel } from './classes/physicstest/physicsLevel';
+import { TestLevel } from './classes/level/testLevel';
 import { Ticker, TickerReturnData } from './classes/ticker';
 import { Events } from './classes/util/event';
 import { Loader } from './classes/util/loader';
@@ -81,7 +81,7 @@ export class Game {
         this.ticker.add(this.tick.bind(this));
         
         // this.addLevel('test', new TestLevel());
-        this.addLevel('physics', new PhysicsTestLevel());
+        this.addLevel('test', new TestLevel());
         if (this.waitCount === 0) {
             this.start();
         } else {

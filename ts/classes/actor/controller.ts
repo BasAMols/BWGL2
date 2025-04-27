@@ -23,4 +23,7 @@ export class Controller {
     tick(obj: TickerReturnData) {
 
     }
+    build() {
+
+    }
 }

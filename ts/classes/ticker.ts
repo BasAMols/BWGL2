@@ -1,7 +1,7 @@
 import { glob } from '../game';
 
 export type TickerReturnData = {
-    interval: number, intervalS3: number, intervalS10: number, intervalS20: number, total: number, frameRate: number, frame: number; 
+    interval: number, intervalS3: number, intervalS10: number, intervalS20: number, total: number, frameRate: number, frame: number, maxRate: number; 
 };
 export type TickerCallback = (obj: TickerReturnData) => void;
 export class Ticker {
@@ -10,6 +10,7 @@ export class Ticker {
     private pauzedTime: number = 0;
     private intervalKeeper:number[] = []
     private id: number;
+    private maxRate: number = 0;
     public get running(): boolean {
         return this._running;
     }
@@ -60,9 +61,10 @@ export class Ticker {
             while(this.intervalKeeper.length<20){
                 this.intervalKeeper.push(this.intervalKeeper[0]);
             }
-
+            
             this.pTime = timeStamp;
             this.frameN++;
+            this.maxRate = Math.max(this.maxRate, 1000 / interval);
             glob.frame = this.frameN;
             const o = {
                 interval,
@@ -72,6 +74,7 @@ export class Ticker {
                 intervalS3: this.averagedInterval(3, interval),
                 intervalS10: this.averagedInterval(5, interval),
                 intervalS20: this.averagedInterval(20, interval),
+                maxRate: this.maxRate
             };
 
             this.callbacks.forEach((c) => {

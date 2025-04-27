@@ -8,16 +8,16 @@ import { Island } from './world/island';
 import { Sky } from './world/sky';
 import { InputMap } from '../input/input';
 import { KeyboardAxisReader, KeyboardJoyStickReader } from '../input/keyboardReader';
-import { UI } from '../elements/UI';
+import { UI, UIElement } from '../elements/UI';
 import { v2 } from '../util/math/vector2';
 
 export class TestLevel extends Scene {
     protected clearColor: [number, number, number, number] = [0.2, 0.3, 0.5, 1.0];  // Match sky color
     public ui: UI = new UI();
-    positionData: import("c:/Users/basm/Documents/Development/BWGL2/ts/classes/elements/UI").UIElement<string>;
+    positionData: UIElement<string>;
     plane: Plane;
-    fpsData: import("c:/Users/basm/Documents/Development/BWGL2/ts/classes/elements/UI").UIElement<string>;
-    rotationData: import("c:/Users/basm/Documents/Development/BWGL2/ts/classes/elements/UI").UIElement<string>;
+    fpsData: UIElement<string>;
+    rotationData: UIElement<string>;
 
 
     private set nearPlane(value: number) {
@@ -86,6 +86,6 @@ export class TestLevel extends Scene {
         this.rotationData.change(
             this.plane.camera.getAngle().array.map(v => v.toFixed(2)).join(', ')
         );
-        this.fpsData.change(obj.frameRate.toFixed(2));
+        this.fpsData.change(obj.frameRate.toFixed(2) + '/' + obj.maxRate.toFixed(2));
     }
 }

@@ -6,10 +6,10 @@ import { SceneObject } from '../../webgl2/meshes/sceneObject';
 import { Scene } from '../../webgl2/scene';
 
 export class PlaneCamera extends Camera {
-    offset: Vector3 = v3(1000, 600, 0);
+    offset: Vector3 = v3(1000, 100, 0);
     angle: number = 0;
     constructor(public scene: Scene, public parent: SceneObject) {
-        super({ position: v3(0, 100, 200), target: v3(0, 0, 0), fov: 40, near: 10, far: 10000 });
+        super({ position: v3(0, 20, 20), target: v3(0, 0, 0), fov: 50, near: 10, far: 10000 });
     }   
 
     tick(obj: TickerReturnData) {
