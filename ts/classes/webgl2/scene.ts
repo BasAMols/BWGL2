@@ -53,7 +53,7 @@ export class Scene extends ContainerObject {
         picking: boolean;
         render: boolean;
     } = {
-            shadow: false,
+            shadow: true,
             picking: false,
             render: true,
         };

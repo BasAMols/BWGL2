@@ -57,6 +57,10 @@ export class Transform {
         this._isDirty = true;
     }
 
+    public rotate(rotation: Quaternion): void {
+        this.setRotation(this._localRotation.multiply(rotation));
+    }
+
     public getLocalRotation(): Quaternion {
         return this._localRotation.clone();
     }

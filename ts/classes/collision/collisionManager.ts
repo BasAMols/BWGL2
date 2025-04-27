@@ -6,10 +6,17 @@ export enum ColliderType {
     DYNAMIC
 }
 
+export enum ColliderShape {
+    CUBOID,
+    SPHERE
+}
+
 export interface Collider {
     object: SceneObject;
     type: ColliderType;
+    shape: ColliderShape;
     size: Vector3;
+    radius?: number;
     lastPosition: Vector3;
 }
 
@@ -25,12 +32,24 @@ export class CollisionManager {
      * @param object The scene object to add
      * @param type Whether the object is static or dynamic
      * @param size Optional custom bounding box size (uses object's scale if not provided)
+     * @param shape The shape of the collider (CUBOID or SPHERE)
+     * @param radius Optional radius for sphere colliders (uses max of object's scale components if not provided)
      */
-    public addObject(object: SceneObject, type: ColliderType, size?: Vector3): void {
+    public addObject(object: SceneObject, type: ColliderType, size?: Vector3, shape: ColliderShape = ColliderShape.CUBOID, radius?: number): void {
+        const objectSize = size || object.transform.getLocalScale();
+        
+        // If shape is sphere and no radius provided, use the max scale component
+        let sphereRadius = radius;
+        if (shape === ColliderShape.SPHERE && !sphereRadius) {
+            sphereRadius = Math.max(objectSize.x, objectSize.y, objectSize.z) / 2;
+        }
+        
         const collider: Collider = {
             object,
             type,
-            size: size || object.transform.getLocalScale(),
+            shape,
+            size: objectSize,
+            radius: sphereRadius,
             lastPosition: object.transform.getWorldPosition().clone()
         };
         
@@ -128,9 +147,9 @@ export class CollisionManager {
     }
     
     /**
-     * Check if two colliders intersect using Separating Axis Theorem
+     * Check if two cuboids intersect using Separating Axis Theorem
      */
-    private testCollision(collider1: Collider, collider2: Collider): { collision: boolean, mtv?: Vector3 } {
+    private testCuboidCollision(collider1: Collider, collider2: Collider): { collision: boolean, mtv?: Vector3 } {
         // Get vertices in world space
         const vertices1 = this.getWorldVertices(collider1);
         const vertices2 = this.getWorldVertices(collider2);
@@ -177,10 +196,203 @@ export class CollisionManager {
     }
     
     /**
+     * Test collision between two sphere colliders
+     */
+    private testSphereCollision(collider1: Collider, collider2: Collider): { collision: boolean, mtv?: Vector3 } {
+        const center1 = collider1.object.transform.getWorldPosition();
+        const center2 = collider2.object.transform.getWorldPosition();
+        
+        const radius1 = collider1.radius || 0.5;
+        const radius2 = collider2.radius || 0.5;
+        
+        // Calculate distance between centers
+        const distanceVector = center2.subtract(center1);
+        const distance = distanceVector.magnitude();
+        
+        // Combined radius
+        const combinedRadius = radius1 + radius2;
+        
+        // Check for collision
+        if (distance < combinedRadius) {
+            // Create MTV that points from center1 to center2
+            const direction = distance > 0.001 ? distanceVector.scale(1/distance) : v3(1, 0, 0);
+            const penetration = combinedRadius - distance;
+            
+            return {
+                collision: true,
+                mtv: direction.scale(penetration) // Note the negative scale to move away from collision
+            };
+        }
+        
+        return { collision: false };
+    }
+    
+    /**
+     * Test collision between a sphere and a cuboid
+     */
+    private testSphereCuboidCollision(sphereCollider: Collider, cuboidCollider: Collider): { collision: boolean, mtv?: Vector3 } {
+        const sphereCenter = sphereCollider.object.transform.getWorldPosition();
+        const sphereRadius = sphereCollider.radius || 0.5;
+        
+        // Get cuboid vertices
+        const cuboidVertices = this.getWorldVertices(cuboidCollider);
+        
+        // Calculate cuboid center
+        const cuboidCenter = cuboidVertices.reduce((sum, v) => sum.add(v), v3(0)).scale(1/cuboidVertices.length);
+        
+        // Direction from cuboid to sphere
+        const toSphere = sphereCenter.subtract(cuboidCenter);
+        
+        // Find closest point on cuboid to sphere
+        let closestPoint = sphereCenter.clone();
+        let minDistance = Infinity;
+        
+        // For each face of the cuboid
+        for (let i = 0; i < 6; i++) {
+            let faceIndices: number[];
+            
+            // Define indices for each face (0-7 are vertices indices)
+            switch(i) {
+                case 0: faceIndices = [0, 1, 2, 3]; break; // Bottom
+                case 1: faceIndices = [4, 5, 6, 7]; break; // Top
+                case 2: faceIndices = [0, 1, 5, 4]; break; // Front
+                case 3: faceIndices = [2, 3, 7, 6]; break; // Back
+                case 4: faceIndices = [0, 3, 7, 4]; break; // Left
+                case 5: faceIndices = [1, 2, 6, 5]; break; // Right
+                default: faceIndices = [0, 1, 2, 3]; // Default to bottom face
+            }
+            
+            // Get face vertices
+            const v1 = cuboidVertices[faceIndices[0]];
+            const v2 = cuboidVertices[faceIndices[1]];
+            const v3 = cuboidVertices[faceIndices[2]];
+            
+            // Calculate face normal
+            const edge1 = v2.subtract(v1);
+            const edge2 = v3.subtract(v1);
+            const normal = edge1.cross(edge2).normalize();
+            
+            // Project sphere center onto face plane
+            const distToPlane = v1.subtract(sphereCenter).dot(normal);
+            
+            // Check if sphere intersects this face
+            if (Math.abs(distToPlane) < sphereRadius) {
+                // Calculate closest point on face to sphere center
+                const projected = sphereCenter.add(normal.scale(distToPlane));
+                
+                // Check if this point is inside the face
+                if (this.pointInFace(projected, [v1, v2, v3, cuboidVertices[faceIndices[3]]])) {
+                    if (Math.abs(distToPlane) < minDistance) {
+                        minDistance = Math.abs(distToPlane);
+                        closestPoint = projected;
+                    }
+                }
+            }
+        }
+        
+        // If we found a collision
+        if (minDistance < sphereRadius) {
+            // Direction from closest point to sphere center
+            const mtv = sphereCenter.subtract(closestPoint);
+            const distance = mtv.magnitude();
+            
+            if (distance < 0.001) {
+                // Handle case where sphere center is on the cuboid
+                const sphereToCuboid = cuboidCenter.subtract(sphereCenter).normalize();
+                return {
+                    collision: true,
+                    mtv: sphereToCuboid.scale(-(sphereRadius - minDistance)) // Move sphere away from cuboid
+                };
+            }
+            
+            // Normalize direction and scale by penetration depth
+            return {
+                collision: true,
+                mtv: mtv.scale((sphereRadius - distance) / distance) // Move sphere away from cuboid
+            };
+        }
+        
+        return { collision: false };
+    }
+    
+    /**
+     * Check if a point is inside a quadrilateral face
+     */
+    private pointInFace(point: Vector3, faceVertices: Vector3[]): boolean {
+        // Simplified check - calculate if point is inside the bounding box of the face
+        const min = v3(
+            Math.min(...faceVertices.map(v => v.x)),
+            Math.min(...faceVertices.map(v => v.y)),
+            Math.min(...faceVertices.map(v => v.z))
+        );
+        
+        const max = v3(
+            Math.max(...faceVertices.map(v => v.x)),
+            Math.max(...faceVertices.map(v => v.y)),
+            Math.max(...faceVertices.map(v => v.z))
+        );
+        
+        return (
+            point.x >= min.x && point.x <= max.x &&
+            point.y >= min.y && point.y <= max.y &&
+            point.z >= min.z && point.z <= max.z
+        );
+    }
+    
+    /**
      * Perform axis-aligned box check (faster than SAT)
      */
     private testAABB(collider1: Collider, collider2: Collider): boolean {
-        // Get world transforms
+        // Special case for sphere colliders
+        if (collider1.shape === ColliderShape.SPHERE || collider2.shape === ColliderShape.SPHERE) {
+            // For sphere-sphere, we'll do a quick distance check
+            if (collider1.shape === ColliderShape.SPHERE && collider2.shape === ColliderShape.SPHERE) {
+                const center1 = collider1.object.transform.getWorldPosition();
+                const center2 = collider2.object.transform.getWorldPosition();
+                const radius1 = collider1.radius || 0.5;
+                const radius2 = collider2.radius || 0.5;
+                
+                const maxDistance = radius1 + radius2;
+                const actualDistance = center1.subtract(center2).magnitude();
+                
+                return actualDistance < maxDistance;
+            }
+            
+            // For sphere-cuboid, we'll use the AABB of the cuboid and expand it by the sphere radius
+            const sphereCollider = collider1.shape === ColliderShape.SPHERE ? collider1 : collider2;
+            const cuboidCollider = collider1.shape === ColliderShape.CUBOID ? collider1 : collider2;
+            
+            const sphereCenter = sphereCollider.object.transform.getWorldPosition();
+            const sphereRadius = sphereCollider.radius || 0.5;
+            
+            const vertices = this.getWorldVertices(cuboidCollider);
+            
+            let min = vertices[0].clone();
+            let max = vertices[0].clone();
+            
+            for (let i = 1; i < 8; i++) {
+                min.x = Math.min(min.x, vertices[i].x);
+                min.y = Math.min(min.y, vertices[i].y);
+                min.z = Math.min(min.z, vertices[i].z);
+                
+                max.x = Math.max(max.x, vertices[i].x);
+                max.y = Math.max(max.y, vertices[i].y);
+                max.z = Math.max(max.z, vertices[i].z);
+            }
+            
+            // Expand AABB by sphere radius
+            min = min.subtract(v3(sphereRadius, sphereRadius, sphereRadius));
+            max = max.add(v3(sphereRadius, sphereRadius, sphereRadius));
+            
+            // Check if sphere center is inside expanded AABB
+            return (
+                sphereCenter.x >= min.x && sphereCenter.x <= max.x &&
+                sphereCenter.y >= min.y && sphereCenter.y <= max.y &&
+                sphereCenter.z >= min.z && sphereCenter.z <= max.z
+            );
+        }
+        
+        // Standard AABB check for cuboid-cuboid
         const vertices1 = this.getWorldVertices(collider1);
         const vertices2 = this.getWorldVertices(collider2);
         
@@ -217,6 +429,28 @@ export class CollisionManager {
     }
     
     /**
+     * Test collision between any two collider shapes
+     */
+    private testCollision(collider1: Collider, collider2: Collider): { collision: boolean, mtv?: Vector3 } {
+        // Handle different shape combinations
+        if (collider1.shape === ColliderShape.SPHERE && collider2.shape === ColliderShape.SPHERE) {
+            // Sphere-Sphere collision
+            return this.testSphereCollision(collider1, collider2);
+        } 
+        else if (collider1.shape === ColliderShape.CUBOID && collider2.shape === ColliderShape.CUBOID) {
+            // Cuboid-Cuboid collision using SAT
+            return this.testCuboidCollision(collider1, collider2);
+        }
+        else {
+            // Sphere-Cuboid collision
+            const sphereCollider = collider1.shape === ColliderShape.SPHERE ? collider1 : collider2;
+            const cuboidCollider = collider1.shape === ColliderShape.CUBOID ? collider1 : collider2;
+            
+            return this.testSphereCuboidCollision(sphereCollider, cuboidCollider);
+        }
+    }
+    
+    /**
      * Update the collision system
      */
     public update(): void {
@@ -242,7 +476,7 @@ export class CollisionManager {
                     continue;
                 }
                 
-                // Perform detailed collision check with SAT
+                // Perform detailed collision check based on shapes
                 const result = this.testCollision(collider1, collider2);
                 
                 if (result.collision && result.mtv) {
@@ -265,8 +499,8 @@ export class CollisionManager {
             const worldPos2 = collider2.object.transform.getWorldPosition();
             
             // Move each object half the mtv
-            collider1.object.transform.setPosition(worldPos1.add(bufferedMtv.scale(0.5)));
-            collider2.object.transform.setPosition(worldPos2.subtract(bufferedMtv.scale(0.5)));
+            collider1.object.transform.setPosition(worldPos1.subtract(bufferedMtv.scale(0.5)));
+            collider2.object.transform.setPosition(worldPos2.add(bufferedMtv.scale(0.5)));
         } 
         // First is dynamic, second is static
         else if (collider1.type === ColliderType.DYNAMIC && collider2.type === ColliderType.STATIC) {

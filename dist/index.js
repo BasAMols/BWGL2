@@ -3346,6 +3346,9 @@ var Transform = class {
     this._localRotation = rotation;
     this._isDirty = true;
   }
+  rotate(rotation) {
+    this.setRotation(this._localRotation.multiply(rotation));
+  }
   getLocalRotation() {
     return this._localRotation.clone();
   }
@@ -3809,6 +3812,469 @@ _Material._materials = {
 };
 var Material = _Material;
 
+// ts/classes/webgl2/meshes/cone.ts
+var Cone = class extends BaseMesh {
+  static generateMeshData(sides = 32, smoothShading = true, colors) {
+    const vertices = [];
+    const indices = [];
+    const normals = [];
+    const generatedColors = [];
+    const texCoords = [];
+    const defaultColors = [
+      [0.8, 0.2, 0.2],
+      // sides
+      [0.2, 0.2, 0.8]
+      // bottom
+    ];
+    let [sideColor, bottomColor] = defaultColors;
+    if (colors) {
+      if (Array.isArray(colors[0])) {
+        [sideColor, bottomColor] = colors;
+      } else {
+        sideColor = bottomColor = colors;
+      }
+    }
+    if (smoothShading) {
+      vertices.push(0, 0.5, 0);
+      normals.push(0, 1, 0);
+      generatedColors.push(...sideColor);
+      texCoords.push(0.5, 1);
+      for (let i = 0; i <= sides; i++) {
+        const angle2 = i * Math.PI * 2 / sides;
+        const x = Math.cos(angle2);
+        const z = Math.sin(angle2);
+        vertices.push(x * 0.5, -0.5, z * 0.5);
+        const dx = x * 0.5;
+        const dy = -0.5;
+        const dz = z * 0.5;
+        const length2 = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        normals.push(dx / length2, dy / length2, dz / length2);
+        generatedColors.push(...sideColor);
+        texCoords.push(i / sides, 0);
+      }
+      for (let i = 0; i < sides; i++) {
+        indices.push(
+          0,
+          // apex
+          i + 2,
+          // next base vertex
+          i + 1
+          // current base vertex
+        );
+      }
+    } else {
+      for (let i = 0; i < sides; i++) {
+        const angle1 = i * Math.PI * 2 / sides;
+        const angle2 = (i + 1) * Math.PI * 2 / sides;
+        const x1 = Math.cos(angle1) * 0.5;
+        const z1 = Math.sin(angle1) * 0.5;
+        const x2 = Math.cos(angle2) * 0.5;
+        const z2 = Math.sin(angle2) * 0.5;
+        vertices.push(
+          0,
+          0.5,
+          0,
+          // apex
+          x1,
+          -0.5,
+          z1,
+          // base point 1
+          x2,
+          -0.5,
+          z2
+          // base point 2
+        );
+        const v1x = x1;
+        const v1y = -1;
+        const v1z = z1;
+        const v2x = x2;
+        const v2y = -1;
+        const v2z = z2;
+        const nx = v2y * v1z - v2z * v1y;
+        const ny = v2z * v1x - v2x * v1z;
+        const nz = v2x * v1y - v2y * v1x;
+        const length2 = Math.sqrt(nx * nx + ny * ny + nz * nz);
+        const normalX = nx / length2;
+        const normalY = ny / length2;
+        const normalZ = nz / length2;
+        for (let j = 0; j < 3; j++) {
+          normals.push(normalX, normalY, normalZ);
+          generatedColors.push(...sideColor);
+        }
+        texCoords.push(
+          0.5,
+          1,
+          i / sides,
+          0,
+          (i + 1) / sides,
+          0
+        );
+        const baseIndex = i * 3;
+        indices.push(baseIndex, baseIndex + 2, baseIndex + 1);
+      }
+    }
+    const baseVertexCount = vertices.length / 3;
+    vertices.push(0, -0.5, 0);
+    normals.push(0, -1, 0);
+    generatedColors.push(...bottomColor);
+    texCoords.push(0.5, 0.5);
+    for (let i = 0; i < sides; i++) {
+      const angle1 = i * Math.PI * 2 / sides;
+      const angle2 = (i + 1) * Math.PI * 2 / sides;
+      const x1 = Math.cos(angle1) * 0.5;
+      const z1 = Math.sin(angle1) * 0.5;
+      const x2 = Math.cos(angle2) * 0.5;
+      const z2 = Math.sin(angle2) * 0.5;
+      vertices.push(
+        x1,
+        -0.5,
+        z1,
+        x2,
+        -0.5,
+        z2
+      );
+      normals.push(0, -1, 0, 0, -1, 0);
+      generatedColors.push(...bottomColor, ...bottomColor);
+      texCoords.push(
+        x1 + 0.5,
+        z1 + 0.5,
+        x2 + 0.5,
+        z2 + 0.5
+      );
+      const offset = baseVertexCount + 1 + i * 2;
+      indices.push(
+        baseVertexCount,
+        // center
+        offset,
+        // current point
+        offset + 1
+        // next point
+      );
+    }
+    return {
+      vertices: new Float32Array(vertices),
+      indices: new Uint16Array(indices),
+      normals: new Float32Array(normals),
+      colors: new Float32Array(generatedColors),
+      texCoords: new Float32Array(texCoords)
+    };
+  }
+  static create(props = {}) {
+    var _a;
+    if (!props.material && props.colors) {
+      let baseColor;
+      if (Array.isArray(props.colors) && Array.isArray(props.colors[0])) {
+        const firstColor = props.colors[0];
+        baseColor = v3(firstColor[0], firstColor[1], firstColor[2]);
+      } else {
+        const singleColor = props.colors;
+        baseColor = v3(singleColor[0], singleColor[1], singleColor[2]);
+      }
+      props = __spreadProps(__spreadValues({}, props), {
+        material: new Material({
+          baseColor,
+          roughness: 0.5,
+          metallic: 0,
+          ambientOcclusion: 1,
+          emissive: v3(0, 0, 0)
+        })
+      });
+    }
+    const meshData = this.generateMeshData(
+      props.sides || 32,
+      (_a = props.smoothShading) != null ? _a : true,
+      props.colors
+    );
+    return this.createSceneObject(meshData, props);
+  }
+};
+
+// ts/classes/webgl2/meshes/cylinder.ts
+var Cylinder = class extends BaseMesh {
+  static generateMeshData(sides = 32, smoothShading = true, colors) {
+    const vertices = [];
+    const indices = [];
+    const normals = [];
+    const generatedColors = [];
+    const texCoords = [];
+    const tangents = [];
+    const bitangents = [];
+    const defaultColors = [
+      [0.8, 0.2, 0.2],
+      // sides
+      [0.2, 0.2, 0.8],
+      // top
+      [0.8, 0.8, 0.2]
+      // bottom
+    ];
+    let [sideColor, topColor, bottomColor] = defaultColors;
+    if (colors) {
+      if (Array.isArray(colors[0])) {
+        [sideColor, topColor, bottomColor] = colors;
+      } else {
+        sideColor = topColor = bottomColor = colors;
+      }
+    }
+    if (smoothShading) {
+      for (let i = 0; i <= sides; i++) {
+        const angle2 = i * Math.PI * 2 / sides;
+        const x = Math.cos(angle2);
+        const z = Math.sin(angle2);
+        vertices.push(x * 0.5, 0.5, z * 0.5);
+        vertices.push(x * 0.5, -0.5, z * 0.5);
+        normals.push(x, 0, z);
+        normals.push(x, 0, z);
+        generatedColors.push(...sideColor);
+        generatedColors.push(...sideColor);
+        texCoords.push(i / sides, 1);
+        texCoords.push(i / sides, 0);
+        const tx = -z;
+        const tz = x;
+        tangents.push(tx, 0, tz);
+        tangents.push(tx, 0, tz);
+        bitangents.push(0, 1, 0);
+        bitangents.push(0, 1, 0);
+      }
+      for (let i = 0; i < sides; i++) {
+        const topFirst = i * 2;
+        const bottomFirst = topFirst + 1;
+        const topSecond = (i + 1) * 2;
+        const bottomSecond = topSecond + 1;
+        indices.push(topFirst, topSecond, bottomFirst);
+        indices.push(bottomFirst, topSecond, bottomSecond);
+      }
+    } else {
+      for (let i = 0; i < sides; i++) {
+        const angle1 = i * Math.PI * 2 / sides;
+        const angle2 = (i + 1) * Math.PI * 2 / sides;
+        const x1 = Math.cos(angle1);
+        const z1 = Math.sin(angle1);
+        const x2 = Math.cos(angle2);
+        const z2 = Math.sin(angle2);
+        const baseIndex = vertices.length / 3;
+        vertices.push(
+          x1 * 0.5,
+          0.5,
+          z1 * 0.5,
+          // top-left
+          x2 * 0.5,
+          0.5,
+          z2 * 0.5,
+          // top-right
+          x1 * 0.5,
+          -0.5,
+          z1 * 0.5,
+          // bottom-left
+          x1 * 0.5,
+          -0.5,
+          z1 * 0.5,
+          // bottom-left
+          x2 * 0.5,
+          0.5,
+          z2 * 0.5,
+          // top-right
+          x2 * 0.5,
+          -0.5,
+          z2 * 0.5
+          // bottom-right
+        );
+        const nx = (x1 + x2) / 2;
+        const nz = (z1 + z2) / 2;
+        const length2 = Math.sqrt(nx * nx + nz * nz);
+        const normalX = nx / length2;
+        const normalZ = nz / length2;
+        for (let j = 0; j < 6; j++) {
+          normals.push(normalX, 0, normalZ);
+          generatedColors.push(...sideColor);
+        }
+        texCoords.push(
+          i / sides,
+          1,
+          (i + 1) / sides,
+          1,
+          i / sides,
+          0,
+          i / sides,
+          0,
+          (i + 1) / sides,
+          1,
+          (i + 1) / sides,
+          0
+        );
+        const tangentX = -normalZ;
+        const tangentZ = normalX;
+        for (let j = 0; j < 6; j++) {
+          tangents.push(tangentX, 0, tangentZ);
+          bitangents.push(0, 1, 0);
+        }
+        indices.push(
+          baseIndex,
+          baseIndex + 1,
+          baseIndex + 2,
+          baseIndex + 3,
+          baseIndex + 4,
+          baseIndex + 5
+        );
+      }
+    }
+    const sideVertexCount = vertices.length / 3;
+    const topCenterIndex = vertices.length / 3;
+    vertices.push(0, 0.5, 0);
+    normals.push(0, 1, 0);
+    generatedColors.push(...topColor);
+    texCoords.push(0.5, 0.5);
+    tangents.push(1, 0, 0);
+    bitangents.push(0, 0, -1);
+    for (let i = 0; i <= sides; i++) {
+      const angle2 = i * Math.PI * 2 / sides;
+      const x = Math.cos(-angle2) * 0.5;
+      const z = Math.sin(-angle2) * 0.5;
+      vertices.push(x, 0.5, z);
+      normals.push(0, 1, 0);
+      generatedColors.push(...topColor);
+      texCoords.push(x + 0.5, z + 0.5);
+      tangents.push(1, 0, 0);
+      bitangents.push(0, 0, -1);
+      if (i > 0) {
+        indices.push(
+          topCenterIndex,
+          // Center
+          topCenterIndex + i,
+          // Current point
+          topCenterIndex + i + 1
+          // Next point
+        );
+      }
+    }
+    const bottomCenterIndex = vertices.length / 3;
+    vertices.push(0, -0.5, 0);
+    normals.push(0, -1, 0);
+    generatedColors.push(...bottomColor);
+    texCoords.push(0.5, 0.5);
+    tangents.push(1, 0, 0);
+    bitangents.push(0, 0, 1);
+    for (let i = 0; i <= sides; i++) {
+      const angle2 = i * Math.PI * 2 / sides;
+      const x = Math.cos(angle2) * 0.5;
+      const z = Math.sin(angle2) * 0.5;
+      vertices.push(x, -0.5, z);
+      normals.push(0, -1, 0);
+      generatedColors.push(...bottomColor);
+      texCoords.push(x + 0.5, z + 0.5);
+      tangents.push(1, 0, 0);
+      bitangents.push(0, 0, 1);
+      if (i > 0) {
+        indices.push(
+          bottomCenterIndex,
+          // Center
+          bottomCenterIndex + i + 1,
+          // Next point
+          bottomCenterIndex + i
+          // Current point
+        );
+      }
+    }
+    return {
+      vertices: new Float32Array(vertices),
+      indices: new Uint16Array(indices),
+      normals: new Float32Array(normals),
+      colors: new Float32Array(generatedColors),
+      texCoords: new Float32Array(texCoords),
+      tangents: new Float32Array(tangents),
+      bitangents: new Float32Array(bitangents)
+    };
+  }
+  static create(props = {}) {
+    var _a;
+    if (!props.material && props.colors) {
+      let baseColor;
+      if (Array.isArray(props.colors) && Array.isArray(props.colors[0])) {
+        const firstColor = props.colors[0];
+        baseColor = v3(firstColor[0], firstColor[1], firstColor[2]);
+      } else {
+        const singleColor = props.colors;
+        baseColor = v3(singleColor[0], singleColor[1], singleColor[2]);
+      }
+      props = __spreadProps(__spreadValues({}, props), {
+        material: new Material({
+          baseColor,
+          roughness: 0.5,
+          metallic: 0,
+          ambientOcclusion: 1,
+          emissive: v3(0, 0, 0)
+        })
+      });
+    }
+    const meshData = this.generateMeshData(props.sides || 32, (_a = props.smoothShading) != null ? _a : true, props.colors);
+    return this.createSceneObject(meshData, props);
+  }
+};
+
+// ts/classes/webgl2/meshes/arrow.ts
+var Arrow = class extends ContainerObject {
+  constructor(scene, props = {}) {
+    super(props);
+    this.props = __spreadValues({
+      position: v3(0, 0, 0),
+      shaftRadius: 0.5,
+      headLength: 0.5,
+      headRadius: 2,
+      sides: 4,
+      smoothShading: false,
+      shaftColor: [1, 1, 1],
+      headColor: [1, 1, 1]
+    }, props);
+    if (props.parent) {
+      this.transform.setParent(props.parent.transform);
+    }
+    const shaftLength = this.props.length - this.props.headLength;
+    scene.add(this.shaft = Cylinder.create({
+      position: v3(0, shaftLength / 2, 0),
+      scale: v3(this.props.shaftRadius, shaftLength, this.props.shaftRadius),
+      colors: this.props.shaftColor,
+      sides: this.props.sides,
+      smoothShading: this.props.smoothShading,
+      parent: this,
+      ignoreLighting: this.props.ignoreLighting,
+      pickColor: this.props.pickColor
+    }));
+    scene.add(this.head = Cone.create({
+      position: v3(0, shaftLength + this.props.headLength / 2, 0),
+      scale: v3(this.props.headRadius, this.props.headLength, this.props.headRadius),
+      colors: this.props.headColor,
+      smoothShading: this.props.smoothShading,
+      sides: this.props.sides,
+      parent: this,
+      ignoreLighting: this.props.ignoreLighting,
+      pickColor: this.props.pickColor
+    }));
+    this.setLength(this.props.length);
+    if (this.props.lookAt) {
+      this.lookAt(this.props.lookAt);
+    }
+  }
+  setLength(length2) {
+    let shaftLength = length2 - this.props.headLength;
+    let headLength = this.props.headLength;
+    if (shaftLength < 0) {
+      headLength = length2;
+      shaftLength = 0;
+    }
+    this.shaft.transform.setPosition(v3(0, shaftLength / 2, 0));
+    this.shaft.transform.setScale(v3(this.props.shaftRadius, shaftLength, this.props.shaftRadius));
+    this.head.transform.setPosition(v3(0, shaftLength + headLength / 2, 0));
+    this.head.transform.setScale(v3(this.props.headRadius, headLength, this.props.headRadius));
+  }
+  lookAt(target) {
+    const position = this.transform.getWorldPosition();
+    const direction = target.subtract(position).normalize();
+    const defaultDir = v3(0, 1, 0);
+    const rotationAxis = defaultDir.cross(direction).scale(-1).normalize();
+    const angle2 = Math.acos(defaultDir.y * direction.y + defaultDir.x * direction.x + defaultDir.z * direction.z);
+    this.transform.setRotation(new Quaternion().setAxisAngle(rotationAxis, angle2));
+  }
+};
+
 // ts/classes/webgl2/meshes/icoSphere.ts
 var _IcoSphere = class _IcoSphere extends BaseMesh {
   static normalize(v) {
@@ -4249,6 +4715,99 @@ var PointLight = class extends Light {
   }
   getShadowMap() {
     return this.shadowMap;
+  }
+};
+var SpotLight = class extends PointLight {
+  constructor({
+    position = v3(0, 0, 0),
+    direction = v3(0, -1, 0),
+    color = v3(1, 1, 1),
+    intensity = 8,
+    // Increased intensity for PBR
+    cutOff = Math.cos(Math.PI / 6),
+    // 30 degrees
+    outerCutOff = Math.cos(Math.PI / 4),
+    // 45 degrees
+    meshContainer,
+    enabled = true,
+    lookAt: lookAt2
+  } = {}) {
+    super({
+      position,
+      color,
+      intensity,
+      attenuation: {
+        constant: 1,
+        linear: 0.22,
+        quadratic: 0.2
+      },
+      meshContainer,
+      enabled
+    });
+    this.rotation = new Quaternion();
+    this.cutOff = cutOff;
+    this.outerCutOff = outerCutOff;
+    this.type = 3 /* SPOT */;
+    if (this.mesh) {
+      this.arrow = new Arrow(meshContainer, {
+        shaftColor: [color.x * 0.8, color.y * 0.8, color.z * 0.8],
+        headColor: [color.x, color.y, color.z],
+        length: 0.5,
+        shaftRadius: 0.05,
+        headLength: 0.15,
+        headRadius: 0.12,
+        sides: 8,
+        position: this.position,
+        rotation: this.rotation,
+        lookAt: v3(0, 0, 0),
+        ignoreLighting: true,
+        pickColor: -1
+      });
+    }
+    if (direction && !lookAt2) {
+      this.lookAt(position.add(direction));
+    }
+    if (lookAt2) {
+      this.lookAt(lookAt2);
+    }
+  }
+  getData() {
+    const defaultDir = v3(0, -1, 0);
+    const direction = defaultDir.applyQuaternion(this.rotation);
+    return __spreadProps(__spreadValues({}, super.getData()), {
+      direction,
+      cutOff: this.cutOff,
+      outerCutOff: this.outerCutOff
+    });
+  }
+  lookAt(target) {
+    const direction = target.subtract(this.position).normalize();
+    const defaultDir = v3(0, -1, 0);
+    const rotationAxis = defaultDir.cross(direction).normalize();
+    const angle2 = Math.acos(defaultDir.y * direction.y + defaultDir.x * direction.x + defaultDir.z * direction.z);
+    this.rotation = new Quaternion().setAxisAngle(rotationAxis, angle2);
+    if (this.arrow) {
+      this.arrow.lookAt(target);
+    }
+  }
+  setPosition(x, y, z) {
+    if (typeof x === "number") {
+      super.setPosition(v3(x, y, z));
+    } else {
+      super.setPosition(x);
+    }
+    if (this.arrow) {
+      this.arrow.transform.setPosition(super.getPosition());
+    }
+  }
+  getPosition() {
+    return this.position;
+  }
+  getRotation() {
+    return this.rotation.clone();
+  }
+  setRotation(rotation) {
+    this.rotation = rotation;
   }
 };
 
@@ -4776,7 +5335,7 @@ var Scene = class extends ContainerObject {
     this.debugLightIndex = 0;
     this.fullScreenQuadVAO = null;
     this.passes = {
-      shadow: false,
+      shadow: true,
       picking: false,
       render: true
     };
@@ -5867,12 +6426,21 @@ var CollisionManager = class {
    * @param object The scene object to add
    * @param type Whether the object is static or dynamic
    * @param size Optional custom bounding box size (uses object's scale if not provided)
+   * @param shape The shape of the collider (CUBOID or SPHERE)
+   * @param radius Optional radius for sphere colliders (uses max of object's scale components if not provided)
    */
-  addObject(object, type, size) {
+  addObject(object, type, size, shape = 0 /* CUBOID */, radius) {
+    const objectSize = size || object.transform.getLocalScale();
+    let sphereRadius = radius;
+    if (shape === 1 /* SPHERE */ && !sphereRadius) {
+      sphereRadius = Math.max(objectSize.x, objectSize.y, objectSize.z) / 2;
+    }
     const collider = {
       object,
       type,
-      size: size || object.transform.getLocalScale(),
+      shape,
+      size: objectSize,
+      radius: sphereRadius,
       lastPosition: object.transform.getWorldPosition().clone()
     };
     this.colliders.push(collider);
@@ -5946,9 +6514,9 @@ var CollisionManager = class {
     return { min: min2, max: max2 };
   }
   /**
-   * Check if two colliders intersect using Separating Axis Theorem
+   * Check if two cuboids intersect using Separating Axis Theorem
    */
-  testCollision(collider1, collider2) {
+  testCuboidCollision(collider1, collider2) {
     const vertices1 = this.getWorldVertices(collider1);
     const vertices2 = this.getWorldVertices(collider2);
     const axes = this.getAxes(vertices1, vertices2);
@@ -5977,9 +6545,147 @@ var CollisionManager = class {
     };
   }
   /**
+   * Test collision between two sphere colliders
+   */
+  testSphereCollision(collider1, collider2) {
+    const center1 = collider1.object.transform.getWorldPosition();
+    const center2 = collider2.object.transform.getWorldPosition();
+    const radius1 = collider1.radius || 0.5;
+    const radius2 = collider2.radius || 0.5;
+    const distanceVector = center2.subtract(center1);
+    const distance2 = distanceVector.magnitude();
+    const combinedRadius = radius1 + radius2;
+    if (distance2 < combinedRadius) {
+      const direction = distance2 > 1e-3 ? distanceVector.scale(1 / distance2) : v3(1, 0, 0);
+      const penetration = combinedRadius - distance2;
+      return {
+        collision: true,
+        mtv: direction.scale(penetration)
+        // Note the negative scale to move away from collision
+      };
+    }
+    return { collision: false };
+  }
+  /**
+   * Test collision between a sphere and a cuboid
+   */
+  testSphereCuboidCollision(sphereCollider, cuboidCollider) {
+    const sphereCenter = sphereCollider.object.transform.getWorldPosition();
+    const sphereRadius = sphereCollider.radius || 0.5;
+    const cuboidVertices = this.getWorldVertices(cuboidCollider);
+    const cuboidCenter = cuboidVertices.reduce((sum, v) => sum.add(v), v3(0)).scale(1 / cuboidVertices.length);
+    const toSphere = sphereCenter.subtract(cuboidCenter);
+    let closestPoint = sphereCenter.clone();
+    let minDistance = Infinity;
+    for (let i = 0; i < 6; i++) {
+      let faceIndices;
+      switch (i) {
+        case 0:
+          faceIndices = [0, 1, 2, 3];
+          break;
+        case 1:
+          faceIndices = [4, 5, 6, 7];
+          break;
+        case 2:
+          faceIndices = [0, 1, 5, 4];
+          break;
+        case 3:
+          faceIndices = [2, 3, 7, 6];
+          break;
+        case 4:
+          faceIndices = [0, 3, 7, 4];
+          break;
+        case 5:
+          faceIndices = [1, 2, 6, 5];
+          break;
+        default:
+          faceIndices = [0, 1, 2, 3];
+      }
+      const v1 = cuboidVertices[faceIndices[0]];
+      const v22 = cuboidVertices[faceIndices[1]];
+      const v32 = cuboidVertices[faceIndices[2]];
+      const edge1 = v22.subtract(v1);
+      const edge2 = v32.subtract(v1);
+      const normal = edge1.cross(edge2).normalize();
+      const distToPlane = v1.subtract(sphereCenter).dot(normal);
+      if (Math.abs(distToPlane) < sphereRadius) {
+        const projected = sphereCenter.add(normal.scale(distToPlane));
+        if (this.pointInFace(projected, [v1, v22, v32, cuboidVertices[faceIndices[3]]])) {
+          if (Math.abs(distToPlane) < minDistance) {
+            minDistance = Math.abs(distToPlane);
+            closestPoint = projected;
+          }
+        }
+      }
+    }
+    if (minDistance < sphereRadius) {
+      const mtv = sphereCenter.subtract(closestPoint);
+      const distance2 = mtv.magnitude();
+      if (distance2 < 1e-3) {
+        const sphereToCuboid = cuboidCenter.subtract(sphereCenter).normalize();
+        return {
+          collision: true,
+          mtv: sphereToCuboid.scale(-(sphereRadius - minDistance))
+          // Move sphere away from cuboid
+        };
+      }
+      return {
+        collision: true,
+        mtv: mtv.scale((sphereRadius - distance2) / distance2)
+        // Move sphere away from cuboid
+      };
+    }
+    return { collision: false };
+  }
+  /**
+   * Check if a point is inside a quadrilateral face
+   */
+  pointInFace(point, faceVertices) {
+    const min2 = v3(
+      Math.min(...faceVertices.map((v) => v.x)),
+      Math.min(...faceVertices.map((v) => v.y)),
+      Math.min(...faceVertices.map((v) => v.z))
+    );
+    const max2 = v3(
+      Math.max(...faceVertices.map((v) => v.x)),
+      Math.max(...faceVertices.map((v) => v.y)),
+      Math.max(...faceVertices.map((v) => v.z))
+    );
+    return point.x >= min2.x && point.x <= max2.x && point.y >= min2.y && point.y <= max2.y && point.z >= min2.z && point.z <= max2.z;
+  }
+  /**
    * Perform axis-aligned box check (faster than SAT)
    */
   testAABB(collider1, collider2) {
+    if (collider1.shape === 1 /* SPHERE */ || collider2.shape === 1 /* SPHERE */) {
+      if (collider1.shape === 1 /* SPHERE */ && collider2.shape === 1 /* SPHERE */) {
+        const center1 = collider1.object.transform.getWorldPosition();
+        const center2 = collider2.object.transform.getWorldPosition();
+        const radius1 = collider1.radius || 0.5;
+        const radius2 = collider2.radius || 0.5;
+        const maxDistance = radius1 + radius2;
+        const actualDistance = center1.subtract(center2).magnitude();
+        return actualDistance < maxDistance;
+      }
+      const sphereCollider = collider1.shape === 1 /* SPHERE */ ? collider1 : collider2;
+      const cuboidCollider = collider1.shape === 0 /* CUBOID */ ? collider1 : collider2;
+      const sphereCenter = sphereCollider.object.transform.getWorldPosition();
+      const sphereRadius = sphereCollider.radius || 0.5;
+      const vertices = this.getWorldVertices(cuboidCollider);
+      let min3 = vertices[0].clone();
+      let max3 = vertices[0].clone();
+      for (let i = 1; i < 8; i++) {
+        min3.x = Math.min(min3.x, vertices[i].x);
+        min3.y = Math.min(min3.y, vertices[i].y);
+        min3.z = Math.min(min3.z, vertices[i].z);
+        max3.x = Math.max(max3.x, vertices[i].x);
+        max3.y = Math.max(max3.y, vertices[i].y);
+        max3.z = Math.max(max3.z, vertices[i].z);
+      }
+      min3 = min3.subtract(v3(sphereRadius, sphereRadius, sphereRadius));
+      max3 = max3.add(v3(sphereRadius, sphereRadius, sphereRadius));
+      return sphereCenter.x >= min3.x && sphereCenter.x <= max3.x && sphereCenter.y >= min3.y && sphereCenter.y <= max3.y && sphereCenter.z >= min3.z && sphereCenter.z <= max3.z;
+    }
     const vertices1 = this.getWorldVertices(collider1);
     const vertices2 = this.getWorldVertices(collider2);
     let min1 = vertices1[0].clone();
@@ -6001,6 +6707,20 @@ var CollisionManager = class {
       max2.z = Math.max(max2.z, vertices2[i].z);
     }
     return min1.x <= max2.x && max1.x >= min2.x && min1.y <= max2.y && max1.y >= min2.y && min1.z <= max2.z && max1.z >= min2.z;
+  }
+  /**
+   * Test collision between any two collider shapes
+   */
+  testCollision(collider1, collider2) {
+    if (collider1.shape === 1 /* SPHERE */ && collider2.shape === 1 /* SPHERE */) {
+      return this.testSphereCollision(collider1, collider2);
+    } else if (collider1.shape === 0 /* CUBOID */ && collider2.shape === 0 /* CUBOID */) {
+      return this.testCuboidCollision(collider1, collider2);
+    } else {
+      const sphereCollider = collider1.shape === 1 /* SPHERE */ ? collider1 : collider2;
+      const cuboidCollider = collider1.shape === 0 /* CUBOID */ ? collider1 : collider2;
+      return this.testSphereCuboidCollision(sphereCollider, cuboidCollider);
+    }
   }
   /**
    * Update the collision system
@@ -6034,8 +6754,8 @@ var CollisionManager = class {
     if (collider1.type === 1 /* DYNAMIC */ && collider2.type === 1 /* DYNAMIC */) {
       const worldPos1 = collider1.object.transform.getWorldPosition();
       const worldPos2 = collider2.object.transform.getWorldPosition();
-      collider1.object.transform.setPosition(worldPos1.add(bufferedMtv.scale(0.5)));
-      collider2.object.transform.setPosition(worldPos2.subtract(bufferedMtv.scale(0.5)));
+      collider1.object.transform.setPosition(worldPos1.subtract(bufferedMtv.scale(0.5)));
+      collider2.object.transform.setPosition(worldPos2.add(bufferedMtv.scale(0.5)));
     } else if (collider1.type === 1 /* DYNAMIC */ && collider2.type === 0 /* STATIC */) {
       const worldPos = collider1.object.transform.getWorldPosition();
       collider1.object.transform.setPosition(worldPos.subtract(bufferedMtv));
@@ -6049,7 +6769,7 @@ var CollisionManager = class {
 // ts/classes/physicstest/physicsLevel.ts
 var PhysicsTestLevel = class extends Scene {
   constructor() {
-    super(new Camera({ position: v3(2, 4, 3), target: v3(2, 1, 0), fov: 60 }), {
+    super(new Camera({ position: v3(2, 6, 1), target: v3(2, 1, 0), fov: 60 }), {
       ambientLightColor: v3(1, 1, 1),
       ambientLightIntensity: 0.5
     });
@@ -6065,30 +6785,50 @@ var PhysicsTestLevel = class extends Scene {
       })
     }));
     this.add(this.cube = Cube.create({
-      position: v3(0, 2, 0),
+      position: v3(0, 6, 0),
       scale: v3(1, 1, 1),
       material: new Material({
         baseColor: v3(0, 1, 0)
       })
     }));
+    this.add(this.ball = IcoSphere.create({
+      position: v3(0, 2, 0),
+      subdivisions: 4,
+      scale: v3(0.8, 0.8, 0.8),
+      material: new Material({
+        baseColor: v3(0, 1, 1),
+        roughness: 0.1,
+        metallic: 0.9
+      })
+    }));
     this.add(this.wall = Cube.create({
-      position: v3(3, 1.5, 0),
+      position: v3(3, 2, 0),
       scale: v3(1, 1, 1),
       material: new Material({
         baseColor: v3(0, 0, 1)
       })
     }));
+    this.addLight(new SpotLight({
+      position: v3(0, 3, 4),
+      lookAt: v3(2, 1, 0),
+      color: v3(1, 1, 1),
+      intensity: 10,
+      cutOff: 0.9,
+      outerCutOff: 0.89
+    }));
     this.collisionManager.addObject(this.floor, 0 /* STATIC */);
-    this.collisionManager.addObject(this.wall, 0 /* STATIC */);
+    this.collisionManager.addObject(this.wall, 0 /* STATIC */, void 0, 0 /* CUBOID */);
     this.collisionManager.addObject(this.cube, 1 /* DYNAMIC */);
+    this.collisionManager.addObject(this.ball, 1 /* DYNAMIC */, void 0, 1 /* SPHERE */);
+    this.wall.transform.rotate(Quaternion.fromEuler(0, -0.06, 0));
     this.ui.add(this.fpsData = UI.data({ label: "FPS", size: v2(400, 100) }), "bottom");
-    this.ui.add(this.positionData = UI.data({ label: "Cube Position", size: v2(400, 100) }), "bottom");
+    this.ui.add(this.positionData = UI.data({ label: "Positions", size: v2(600, 100) }), "bottom");
   }
   tick(obj) {
     super.tick(obj);
     this.fpsData.change(obj.frameRate.toFixed(2));
-    this.positionData.change(this.cube.transform.getWorldPosition().vec.toString());
-    this.cube.transform.move(v3(5e-3, -5e-3, 0));
+    this.positionData.change("Cube: ".concat(this.cube.transform.getWorldPosition().x.toFixed(2), ", Ball: ").concat(this.ball.transform.getWorldPosition().x.toFixed(2)));
+    this.ball.transform.move(v3(8e-3, 0, 0));
     this.collisionManager.update();
   }
 };
