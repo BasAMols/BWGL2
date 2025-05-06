@@ -108,14 +108,11 @@ export class WebGL2Initializer {
         this.shaderManager.setUniform('u_prefilterMap', 13);
         this.shaderManager.setUniform('u_brdfLUT', 14);
 
-        // Set default camera position for better lighting
-        this.shaderManager.setUniform('u_viewPos', new Float32Array([0.0, 1.0, 6.0]));
-
-        // Enable depth testing, backface culling and proper blending
         this.ctx.enable(this.ctx.DEPTH_TEST);
-        this.ctx.enable(this.ctx.CULL_FACE);
-        this.ctx.blendFunc(this.ctx.SRC_ALPHA, this.ctx.ONE_MINUS_SRC_ALPHA);
+        // this.ctx.enable(this.ctx.CULL_FACE); // temperary disable culling
         this.ctx.enable(this.ctx.BLEND);
+        this.ctx.blendFunc(this.ctx.SRC_ALPHA, this.ctx.ONE_MINUS_SRC_ALPHA);
+        
     }
 
     private initializeWebGL2(): WebGL2RenderingContext {

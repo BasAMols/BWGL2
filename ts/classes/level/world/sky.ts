@@ -16,7 +16,7 @@ export class Sky extends ContainerObject{
         level.addLight(new DirectionalLight({
             direction: v3(-0.2, -0.5, 1.3).rotateXZ(-0.70).normalize(),  // Match sun position in skybox
             color: v3(0.95, 0.98, 1),  // Slightly blue skylight
-            intensity: 0.2,  // Increased intensity
+            intensity: 0.3,  // Increased intensity
             enabled: true,
         }));
     }

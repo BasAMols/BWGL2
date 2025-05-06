@@ -443,7 +443,7 @@ export class FBXLoader extends BaseMesh {
             if (textureNode) {
                 const textureName = textureNode.nodes.find(n => n.name === 'TextureName')?.props[0] as string;
                 const relativeFilename = textureNode.nodes.find(n => n.name === 'RelativeFilename')?.props[0] as string;
-
+                    
                 if (relativeFilename) {
                     try {
                         const texture = await this.createTextureFromFile(relativeFilename);

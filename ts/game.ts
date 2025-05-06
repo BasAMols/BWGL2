@@ -91,6 +91,7 @@ export class Game {
 
     public tick(obj: TickerReturnData) {
         this.renderer.tick(obj);
+        glob.input.tick();
     }
 
     protected addLevel(s: string, level: Scene) {

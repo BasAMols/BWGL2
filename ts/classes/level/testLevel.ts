@@ -2,20 +2,21 @@ import { v3 } from '../util/math/vector3';
 import { TickerReturnData } from '../ticker';
 import { Scene } from '../webgl2/scene';
 import { Camera } from '../webgl2/camera';
-import { Plane } from './freeCam/freeCam';
+import { PlayerActor } from './freeCam/playerActor';
 import { Ocean } from './world/ocean';
 import { Island } from './world/island';
 import { Sky } from './world/sky';
 import { InputMap } from '../input/input';
-import { KeyboardAxisReader, KeyboardJoyStickReader } from '../input/keyboardReader';
+import { KeyboardJoyStickReader } from '../input/keyboardReader';
 import { UI, UIElement } from '../elements/UI';
 import { v2 } from '../util/math/vector2';
+import { MouseMoveReader } from '../input/mouseReader';
 
 export class TestLevel extends Scene {
     protected clearColor: [number, number, number, number] = [0.2, 0.3, 0.5, 1.0];  // Match sky color
     public ui: UI = new UI();
     positionData: UIElement<string>;
-    plane: Plane;
+    plane: PlayerActor;
     fpsData: UIElement<string>;
     rotationData: UIElement<string>;
 
@@ -40,11 +41,7 @@ export class TestLevel extends Scene {
             inputMap: new InputMap(
                 {
                     'movement': [new KeyboardJoyStickReader(['a', 'd', 's', 'w'])],
-                    'camera': [new KeyboardJoyStickReader(['4', '6', '8', '2'])],
-                },
-                {
-                    'cameraHeight': [new KeyboardAxisReader(['9', '3'])],
-                    'height': [new KeyboardAxisReader(['q', 'e'])],
+                    'camera': [new MouseMoveReader()],
                 }
             )
         });
@@ -52,17 +49,17 @@ export class TestLevel extends Scene {
         this.add(new Ocean());
         this.add(new Island());
         this.add(new Sky(this));
-        this.add(this.plane = new Plane());
+        this.add(this.plane = new PlayerActor());
         const data = UI.data({ value: '0', label: 'precision', size: v2(400, 100) });
-
-        this.ui.add(UI.slider({ value: this.camera.near, step: 1,  label: 'Near', min: 0, max: 100, onChange: (value) => {
-            this.nearPlane = Math.max(value, 0.1)
-            data.change((this.camera.far / this.camera.near).toString())
-        }, width: 600 }));
-        this.ui.add(UI.slider({ value: this.camera.far,step: 100, label: 'Far ', min: 0, max: 100000, onChange: (value) => {
-            this.farPlane = Math.max(value, 0.1)
-            data.change((this.camera.far / this.camera.near).toString())
-        }, width: 600   }));
+        
+        // this.ui.add(UI.slider({ value: this.camera.near, step: 1,  label: 'Near', min: 0, max: 100, onChange: (value) => {
+        //     this.nearPlane = Math.max(value, 0.1)
+        //     data.change((this.camera.far / this.camera.near).toString())
+        // }, width: 600 }));
+        // this.ui.add(UI.slider({ value: this.camera.far,step: 100, label: 'Far ', min: 0, max: 100000, onChange: (value) => {
+        //     this.farPlane = Math.max(value, 0.1)
+        //     data.change((this.camera.far / this.camera.near).toString())
+        // }, width: 600   }));
 
         this.ui.add(data);
 

@@ -5530,11 +5530,9 @@ var WebGL2Initializer = class {
     this.shaderManager.setUniform("u_irradianceMap", 12);
     this.shaderManager.setUniform("u_prefilterMap", 13);
     this.shaderManager.setUniform("u_brdfLUT", 14);
-    this.shaderManager.setUniform("u_viewPos", new Float32Array([0, 1, 6]));
     this.ctx.enable(this.ctx.DEPTH_TEST);
-    this.ctx.enable(this.ctx.CULL_FACE);
-    this.ctx.blendFunc(this.ctx.SRC_ALPHA, this.ctx.ONE_MINUS_SRC_ALPHA);
     this.ctx.enable(this.ctx.BLEND);
+    this.ctx.blendFunc(this.ctx.SRC_ALPHA, this.ctx.ONE_MINUS_SRC_ALPHA);
   }
   initializeWebGL2() {
     const ctx = this.canvas.getContext("webgl2");
@@ -5814,6 +5812,14 @@ var InputDevices = class {
     if (this.mobile) {
       this.locked = true;
     } else {
+      glob.renderer.dom.addEventListener("click", (e) => {
+        if (!this.locked) {
+          glob.renderer.dom.requestPointerLock();
+        }
+      });
+      document.addEventListener("pointerlockchange", () => {
+        this.locked = document.pointerLockElement === glob.renderer.dom;
+      });
       document.body.appendChild(this.overlay.dom);
     }
     this.keyboard.ready();
@@ -9016,7 +9022,7 @@ var PointLight = class extends Light {
       20,
       // bottom, top - doubled for wider coverage
       0.1,
-      200
+      2e3
       // near, far - increased far plane for deeper shadows
     );
     if (meshContainer) {
@@ -9839,6 +9845,22 @@ var Scene = class extends ContainerObject {
 
 // ts/classes/webgl2/camera.ts
 var Camera = class {
+  constructor({ position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 60, near = 0.01, far = 1e3 } = {}) {
+    // Store Euler angles for camera rotation
+    this.pitch = 0;
+    // rotation around X-axis (looking up/down)
+    this.yaw = 0;
+    this.position = position;
+    this.target = target;
+    this.fov = fov;
+    this.near = near;
+    this.far = far;
+    const direction = target.subtract(position).normalize();
+    this.yaw = Math.atan2(direction.x, direction.z);
+    this.pitch = -Math.asin(direction.y);
+    this.updateViewMatrix();
+    this.updateProjectionMatrix();
+  }
   get fov() {
     return this._fov;
   }
@@ -9860,15 +9882,6 @@ var Camera = class {
     this._far = value;
     this.updateProjectionMatrix();
   }
-  constructor({ position = v3(0, 0, 5), target = v3(0, 0, 0), fov = 60, near = 0.1, far = 1e3 } = {}) {
-    this.position = position;
-    this.target = target;
-    this.fov = fov;
-    this.near = near;
-    this.far = far;
-    this.updateViewMatrix();
-    this.updateProjectionMatrix();
-  }
   updateViewMatrix() {
     this.viewMatrix = Matrix4.lookAt(this.position, this.target);
   }
@@ -9881,10 +9894,46 @@ var Camera = class {
   }
   setPosition(position) {
     this.position = position;
+    this.updateTargetFromAngles();
     this.updateViewMatrix();
   }
   setTarget(target) {
     this.target = target;
+    const direction = target.subtract(this.position).normalize();
+    this.yaw = Math.atan2(direction.x, direction.z);
+    this.pitch = -Math.asin(direction.y);
+    this.updateViewMatrix();
+  }
+  /**
+   * Updates the target position based on current pitch and yaw angles
+   */
+  updateTargetFromAngles() {
+    const direction = v3(
+      Math.sin(this.yaw) * Math.cos(this.pitch),
+      Math.sin(this.pitch),
+      Math.cos(this.yaw) * Math.cos(this.pitch)
+    );
+    this.target = this.position.add(direction);
+  }
+  /**
+   * Sets the camera's rotation directly using pitch and yaw angles
+   * @param rotation Vector where x=pitch (up/down) and y=yaw (left/right) in radians
+   */
+  setRotation(rotation) {
+    this.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, rotation.x));
+    this.yaw = rotation.y;
+    this.updateTargetFromAngles();
+    this.updateViewMatrix();
+  }
+  /**
+   * Rotates the camera relative to its current orientation
+   * @param rotation Vector where x=pitch delta and y=yaw delta in radians
+   */
+  rotate(rotation) {
+    this.pitch += rotation.x;
+    this.yaw += rotation.y;
+    this.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.pitch));
+    this.updateTargetFromAngles();
     this.updateViewMatrix();
   }
   setFov(fov) {
@@ -9903,8 +9952,17 @@ var Camera = class {
   getTarget() {
     return this.target;
   }
+  /**
+   * Returns the normalized direction vector from position to target
+   */
   getAngle() {
     return this.target.subtract(this.position).normalize();
+  }
+  /**
+   * Get the current rotation angles (pitch, yaw)
+   */
+  getRotation() {
+    return v3(this.pitch, this.yaw, 0);
   }
   tick(obj) {
   }
@@ -9981,137 +10039,23 @@ var Controller = class {
   }
 };
 
-// ts/classes/elements/UI.ts
-var UI = class extends DomElement {
-  constructor(attr = {}) {
-    super("div", attr);
-    this._expanded = false;
-    this.dom.classList.add("ui_container");
-    this.collapseDiv = document.createElement("div");
-    this.collapseDiv.classList.add("ui_collapse_div");
-    this.dom.appendChild(this.collapseDiv);
-    const collapseButton = document.createElement("div");
-    collapseButton.classList.add("ui_collapse_button");
-    collapseButton.addEventListener("click", () => {
-      this.expanded = !this.expanded;
-    });
-    this.collapseDiv.appendChild(collapseButton);
-    this.bottomDiv = document.createElement("div");
-    this.bottomDiv.classList.add("ui_bottom_div");
-    this.dom.appendChild(this.bottomDiv);
-    this.touchControls = document.createElement("div");
-    this.dom.appendChild(this.touchControls);
-  }
-  get expanded() {
-    return this._expanded;
-  }
-  set expanded(value) {
-    this._expanded = value;
-    this.collapseDiv.classList.toggle("ui_collapse_div_expanded", value);
-  }
-  add(element, location2 = "collapse") {
-    if (location2 === "collapse") {
-      this.collapseDiv.appendChild(element.dom);
-    } else {
-      this.bottomDiv.appendChild(element.dom);
-    }
-  }
-  static slider(data) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
-    const wrapper = document.createElement("div");
-    wrapper.classList.add("ui_slider_wrap");
-    if (data.position) {
-      wrapper.style.position = "absolute";
-      wrapper.style[data.position.anchor.includes("top") ? "top" : "bottom"] = "".concat(data.position.y, "px");
-      wrapper.style[data.position.anchor.includes("left") ? "left" : "right"] = "".concat(data.position.x, "px");
-    }
-    const valueDiv = document.createElement("input");
-    valueDiv.type = "number";
-    valueDiv.value = (_b = (_a = data.value) == null ? void 0 : _a.toString()) != null ? _b : data.min.toString();
-    valueDiv.step = (_d = (_c = data.step) == null ? void 0 : _c.toString()) != null ? _d : "1";
-    valueDiv.style.maxWidth = data.max.toString().length * 15 + 6 + "px";
-    valueDiv.addEventListener("input", (e) => {
-      data.onChange(Number(valueDiv.value));
-    });
-    wrapper.appendChild(valueDiv);
-    valueDiv.classList.add("ui_slider_value");
-    const slider = document.createElement("input");
-    slider.type = "range";
-    slider.min = data.min.toString();
-    slider.max = data.max.toString();
-    slider.value = (_f = (_e = data.value) == null ? void 0 : _e.toString()) != null ? _f : data.min.toString();
-    slider.step = (_h = (_g = data.step) == null ? void 0 : _g.toString()) != null ? _h : "1";
-    slider.addEventListener("input", (e) => {
-      data.onChange(Number(slider.value));
-      valueDiv.value = slider.value;
-    });
-    slider.style.width = (_j = (_i = data.width) == null ? void 0 : _i.toString()) != null ? _j : "100px";
-    slider.classList.add("ui_slider_input");
-    if (data.label) {
-      const label = document.createElement("div");
-      label.textContent = data.label;
-      label.classList.add("ui_slider_label");
-      wrapper.appendChild(label);
-    }
-    wrapper.appendChild(slider);
-    return {
-      dom: wrapper,
-      change: (value) => {
-        slider.value = value.toString();
-        valueDiv.value = value.toString();
-      }
-    };
-  }
-  static data(data) {
-    var _a, _b, _c, _d, _e, _f, _g;
-    const wrapper = document.createElement("div");
-    wrapper.classList.add("ui_data_wrap");
-    wrapper.style.width = (_c = (_b = (_a = data.size) == null ? void 0 : _a.x) == null ? void 0 : _b.toString()) != null ? _c : "100px";
-    wrapper.style.height = (_f = (_e = (_d = data.size) == null ? void 0 : _d.y) == null ? void 0 : _e.toString()) != null ? _f : "100px";
-    if (data.position) {
-      wrapper.style.position = "absolute";
-      wrapper.style[data.position.anchor.includes("top") ? "top" : "bottom"] = "".concat(data.position.y, "px");
-      wrapper.style[data.position.anchor.includes("left") ? "left" : "right"] = "".concat(data.position.x, "px");
-    }
-    if (data.label) {
-      const label = document.createElement("div");
-      label.textContent = data.label;
-      label.classList.add("ui_data_label");
-      wrapper.appendChild(label);
-    }
-    const valueDiv = document.createElement("div");
-    valueDiv.textContent = (_g = data.value) != null ? _g : "";
-    wrapper.appendChild(valueDiv);
-    valueDiv.classList.add("ui_data_value");
-    return {
-      dom: wrapper,
-      change: (value) => {
-        valueDiv.textContent = value;
-      }
-    };
-  }
-};
-
-// ts/classes/level/freeCam/freeCamController.ts
-var PlaneController = class extends Controller {
+// ts/classes/level/freeCam/playerController.ts
+var PlayerController = class extends Controller {
   constructor() {
     super(...arguments);
     this.velocity = v3(0);
-    this.speed = 4;
+    this.speed = 0.02;
   }
   build() {
     super.build();
-    this.actor.scene.ui.add(UI.slider({ value: this.speed, step: 0.1, label: "Speed", min: 0.2, max: 10, onChange: (value) => {
-      this.speed = Math.max(value, 0.2);
-    }, width: 600 }));
   }
   tick(obj) {
     var _a, _b;
     this.velocity = v3(
       (_a = glob.input.axis("movement")) == null ? void 0 : _a.x,
-      glob.input.button("height"),
+      0,
       -((_b = glob.input.axis("movement")) == null ? void 0 : _b.y)
-    ).scale(this.speed).rotateXZ(this.actor.camera.angle - Math.PI / 2);
+    ).scale(this.speed).rotateXZ(-this.actor.camera.yaw - Math.PI);
     if (this.velocity.magnitude() > 0) {
       this.actor.transform.setRotation(Quaternion.fromEuler(0, this.velocity.xz.angle(), 0));
     }
@@ -10119,49 +10063,43 @@ var PlaneController = class extends Controller {
   }
 };
 
-// ts/classes/level/freeCam/camera.ts
-var PlaneCamera = class extends Camera {
+// ts/classes/level/freeCam/playerCamera.ts
+var PlayerCamera = class extends Camera {
   constructor(scene, parent) {
-    super({ position: v3(0, 20, 20), target: v3(0, 0, 0), fov: 50, near: 10, far: 1e4 });
+    super({ position: v3(0, 0, 0), target: v3(1, 0, 0), fov: 80, near: 0.1, far: 500 });
     this.scene = scene;
     this.parent = parent;
-    this.offset = v3(1e3, 100, 0);
-    this.angle = 0;
+    this.offset = v3(5, 1, 0);
+    this.rotation = v3(0, 0, 0);
+    this.smoothedRotation = v2(0, 0);
   }
   tick(obj) {
-    var _a, _b;
-    this.angle += ((_a = glob.input.axis("camera")) == null ? void 0 : _a.x) * 0.01;
-    this.offset.y += ((_b = glob.input.axis("camera")) == null ? void 0 : _b.y) * 2;
-    this.offset.x += glob.input.button("cameraHeight") * 2;
-    this.setPosition(this.parent.transform.getWorldPosition().add(this.offset.rotateXZ(this.angle)));
-    this.setTarget(this.parent.transform.getWorldPosition());
+    var _a;
+    if (glob.device.locked) {
+      const r = (_a = glob.input.axis("camera")) == null ? void 0 : _a.scale(0.5).scale(obj.intervalS10 / 1e3);
+      this.smoothedRotation = this.smoothedRotation.add(r);
+    }
+    if (obj.frame % 1 === 0) {
+      this.rotate(new Vector3(-this.smoothedRotation.y, -this.smoothedRotation.x, 0));
+      this.smoothedRotation = v2(0, 0);
+    }
+    this.setPosition(this.parent.transform.getWorldPosition());
   }
 };
 
-// ts/classes/level/freeCam/freeCam.ts
-var Plane = class extends Actor {
+// ts/classes/level/freeCam/playerActor.ts
+var PlayerActor = class extends Actor {
   constructor() {
     super({
-      position: v3(0, 200, 0),
+      position: v3(-10, 1.3, 0),
       controllers: [
-        new PlaneController()
+        new PlayerController()
       ]
     });
   }
   build() {
     super.build();
-    this.add(IcoSphere.create({
-      scale: v3(1, 1, 1),
-      subdivisions: 4,
-      smoothShading: true,
-      material: new Material({
-        baseColor: v3(1, 1, 1),
-        roughness: 1,
-        metallic: 0,
-        ambientOcclusion: 0
-      })
-    }));
-    this.camera = new PlaneCamera(this.scene, this);
+    this.camera = new PlayerCamera(this.scene, this);
     this.scene.camera = this.camera;
   }
   tick(obj) {
@@ -10303,27 +10241,27 @@ PlaneMesh.texCoords = new Float32Array([
 var Ocean = class extends Actor {
   constructor() {
     super();
-    this.add(this.waterPlane = PlaneMesh.create({
-      position: v3(0, 10, 0),
-      // Lower position for better sky reflections - world position affects reflection quality
+    this.add(this.dirtPlane = PlaneMesh.create({
+      position: v3(0, -0.1, 0),
+      // Slightly below water level
       material: {
-        baseColor: v3(0.4, 0.8, 0.9),
-        // Deep blue-green tint for ocean
-        roughness: 0.5,
-        // Smoother surface for calm water, but not perfectly reflective
-        metallic: 0.8,
-        // Good reflection without being too mirror-like
-        ambientOcclusion: 0.99,
-        emissive: v3(0.01, 0.03, 0.05)
-        // Subtle glow for depth
+        baseColor: v3(0.3, 0.2, 0.1),
+        // Brown dirt color
+        roughness: 0.95,
+        // Very rough for dirt texture
+        metallic: 0,
+        // Non-metallic material
+        ambientOcclusion: 0.7,
+        // Some ambient occlusion for depth
+        emissive: v3(0, 0, 0)
+        // No emission for dirt
       },
-      scale: v2(1e5, 1e5)
-      // Adjust scale to see more of the reflection
+      scale: v2(1e3, 1e3)
+      // Large scale for ground plane
     }));
   }
   tick(obj) {
     super.tick(obj);
-    this.waterPlane.transform.setPosition(v3(0, Math.sin(obj.total * 1e-3) * 15 + 10, 0));
   }
 };
 
@@ -10784,15 +10722,7 @@ var FBX = class _FBX extends ContainerObject {
 var Island = class extends Actor {
   constructor() {
     super();
-    this.add(FBX.create("fbx/island1.fbx", {
-      position: v3(0, 0, 0),
-      rotation: Quaternion.fromEuler(0, 0, 0)
-    }));
-    this.add(FBX.create("fbx/island2.fbx", {
-      position: v3(0, 0, 0),
-      rotation: Quaternion.fromEuler(0, 0, 0)
-    }));
-    this.add(FBX.create("fbx/island3.fbx", {
+    this.add(FBX.create("fbx/city.fbx", {
       position: v3(0, 0, 0),
       rotation: Quaternion.fromEuler(0, 0, 0)
     }));
@@ -10818,7 +10748,7 @@ var Sky = class extends ContainerObject {
       // Match sun position in skybox
       color: v3(0.95, 0.98, 1),
       // Slightly blue skylight
-      intensity: 0.2,
+      intensity: 0.3,
       // Increased intensity
       enabled: true
     }));
@@ -10863,38 +10793,135 @@ var KeyboardJoyStickReader = class extends InputReader {
     return this._frameFired[0] === glob.frame || this._frameFired[1] === glob.frame;
   }
 };
-var KeyboardAxisReader = class extends InputReader {
-  constructor(keys) {
-    super();
-    this._state = [false, false];
-    this._value = 0;
-    this._frameFired = [0, 0];
-    keys.forEach((k, i) => {
-      glob.device.keyboard.register(
-        k,
-        (frame) => {
-          if (!this._state[i]) {
-            this._frameFired[i] = frame;
-          }
-          this._state[i] = true;
-          this.setValue();
-        },
-        () => {
-          this._state[i] = false;
-          this._frameFired[i] = void 0;
-          this.setValue();
-        }
-      );
+
+// ts/classes/elements/UI.ts
+var UI = class extends DomElement {
+  constructor(attr = {}) {
+    super("div", attr);
+    this._expanded = false;
+    this.dom.classList.add("ui_container");
+    this.collapseDiv = document.createElement("div");
+    this.collapseDiv.classList.add("ui_collapse_div");
+    this.dom.appendChild(this.collapseDiv);
+    const collapseButton = document.createElement("div");
+    collapseButton.classList.add("ui_collapse_button");
+    collapseButton.addEventListener("click", () => {
+      this.expanded = !this.expanded;
     });
+    this.collapseDiv.appendChild(collapseButton);
+    this.bottomDiv = document.createElement("div");
+    this.bottomDiv.classList.add("ui_bottom_div");
+    this.dom.appendChild(this.bottomDiv);
+    this.touchControls = document.createElement("div");
+    this.dom.appendChild(this.touchControls);
   }
-  setValue() {
-    this._value = -this._state[0] + +this._state[1];
+  get expanded() {
+    return this._expanded;
+  }
+  set expanded(value) {
+    this._expanded = value;
+    this.collapseDiv.classList.toggle("ui_collapse_div_expanded", value);
+  }
+  add(element, location2 = "collapse") {
+    if (location2 === "collapse") {
+      this.collapseDiv.appendChild(element.dom);
+    } else {
+      this.bottomDiv.appendChild(element.dom);
+    }
+  }
+  static slider(data) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+    const wrapper = document.createElement("div");
+    wrapper.classList.add("ui_slider_wrap");
+    if (data.position) {
+      wrapper.style.position = "absolute";
+      wrapper.style[data.position.anchor.includes("top") ? "top" : "bottom"] = "".concat(data.position.y, "px");
+      wrapper.style[data.position.anchor.includes("left") ? "left" : "right"] = "".concat(data.position.x, "px");
+    }
+    const valueDiv = document.createElement("input");
+    valueDiv.type = "number";
+    valueDiv.value = (_b = (_a = data.value) == null ? void 0 : _a.toString()) != null ? _b : data.min.toString();
+    valueDiv.step = (_d = (_c = data.step) == null ? void 0 : _c.toString()) != null ? _d : "1";
+    valueDiv.style.maxWidth = data.max.toString().length * 15 + 6 + "px";
+    valueDiv.addEventListener("input", (e) => {
+      data.onChange(Number(valueDiv.value));
+    });
+    wrapper.appendChild(valueDiv);
+    valueDiv.classList.add("ui_slider_value");
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = data.min.toString();
+    slider.max = data.max.toString();
+    slider.value = (_f = (_e = data.value) == null ? void 0 : _e.toString()) != null ? _f : data.min.toString();
+    slider.step = (_h = (_g = data.step) == null ? void 0 : _g.toString()) != null ? _h : "1";
+    slider.addEventListener("input", (e) => {
+      data.onChange(Number(slider.value));
+      valueDiv.value = slider.value;
+    });
+    slider.style.width = (_j = (_i = data.width) == null ? void 0 : _i.toString()) != null ? _j : "100px";
+    slider.classList.add("ui_slider_input");
+    if (data.label) {
+      const label = document.createElement("div");
+      label.textContent = data.label;
+      label.classList.add("ui_slider_label");
+      wrapper.appendChild(label);
+    }
+    wrapper.appendChild(slider);
+    return {
+      dom: wrapper,
+      change: (value) => {
+        slider.value = value.toString();
+        valueDiv.value = value.toString();
+      }
+    };
+  }
+  static data(data) {
+    var _a, _b, _c, _d, _e, _f, _g;
+    const wrapper = document.createElement("div");
+    wrapper.classList.add("ui_data_wrap");
+    wrapper.style.width = (_c = (_b = (_a = data.size) == null ? void 0 : _a.x) == null ? void 0 : _b.toString()) != null ? _c : "100px";
+    wrapper.style.height = (_f = (_e = (_d = data.size) == null ? void 0 : _d.y) == null ? void 0 : _e.toString()) != null ? _f : "100px";
+    if (data.position) {
+      wrapper.style.position = "absolute";
+      wrapper.style[data.position.anchor.includes("top") ? "top" : "bottom"] = "".concat(data.position.y, "px");
+      wrapper.style[data.position.anchor.includes("left") ? "left" : "right"] = "".concat(data.position.x, "px");
+    }
+    if (data.label) {
+      const label = document.createElement("div");
+      label.textContent = data.label;
+      label.classList.add("ui_data_label");
+      wrapper.appendChild(label);
+    }
+    const valueDiv = document.createElement("div");
+    valueDiv.textContent = (_g = data.value) != null ? _g : "";
+    wrapper.appendChild(valueDiv);
+    valueDiv.classList.add("ui_data_value");
+    return {
+      dom: wrapper,
+      change: (value) => {
+        valueDiv.textContent = value;
+      }
+    };
+  }
+};
+
+// ts/classes/input/mouseReader.ts
+var MouseMoveReader = class extends InputReader {
+  constructor() {
+    super();
+    this._delta = v2(0);
+    if (!glob.mobile) {
+      glob.renderer.dom.addEventListener("mousemove", (e) => {
+        this._delta.x += e.movementX;
+        this._delta.y += e.movementY;
+      });
+    }
   }
   get value() {
-    return this._value;
+    return this._delta;
   }
-  get first() {
-    return this._frameFired[0] === glob.frame || this._frameFired[1] === glob.frame;
+  tick() {
+    this._delta = v2(0);
   }
 };
 
@@ -10908,11 +10935,7 @@ var TestLevel = class extends Scene {
       inputMap: new InputMap(
         {
           "movement": [new KeyboardJoyStickReader(["a", "d", "s", "w"])],
-          "camera": [new KeyboardJoyStickReader(["4", "6", "8", "2"])]
-        },
-        {
-          "cameraHeight": [new KeyboardAxisReader(["9", "3"])],
-          "height": [new KeyboardAxisReader(["q", "e"])]
+          "camera": [new MouseMoveReader()]
         }
       )
     });
@@ -10922,16 +10945,8 @@ var TestLevel = class extends Scene {
     this.add(new Ocean());
     this.add(new Island());
     this.add(new Sky(this));
-    this.add(this.plane = new Plane());
+    this.add(this.plane = new PlayerActor());
     const data = UI.data({ value: "0", label: "precision", size: v2(400, 100) });
-    this.ui.add(UI.slider({ value: this.camera.near, step: 1, label: "Near", min: 0, max: 100, onChange: (value) => {
-      this.nearPlane = Math.max(value, 0.1);
-      data.change((this.camera.far / this.camera.near).toString());
-    }, width: 600 }));
-    this.ui.add(UI.slider({ value: this.camera.far, step: 100, label: "Far ", min: 0, max: 1e5, onChange: (value) => {
-      this.farPlane = Math.max(value, 0.1);
-      data.change((this.camera.far / this.camera.near).toString());
-    }, width: 600 }));
     this.ui.add(data);
     this.ui.add(UI.slider({ value: this.camera.fov, label: "FOV ", min: 1, max: 100, onChange: (value) => {
       this.fov = value;
@@ -11138,6 +11153,7 @@ var Game = class {
   }
   tick(obj) {
     this.renderer.tick(obj);
+    glob.input.tick();
   }
   addLevel(s, level) {
     this.levels[s] = level;

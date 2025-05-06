@@ -210,7 +210,7 @@ export class PointLight extends Light {
         this.lightProjection = new Matrix4().ortho(
             -20, 20,    // left, right - doubled for wider coverage
             -20, 20,    // bottom, top - doubled for wider coverage
-            0.1, 200.0  // near, far - increased far plane for deeper shadows
+            0.1, 2000  // near, far - increased far plane for deeper shadows
         );
 
         if (meshContainer) {

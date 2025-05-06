@@ -8,18 +8,18 @@ export class Island extends Actor {
     constructor() {
         super();
  
-        this.add(FBXscene.create('fbx/island1.fbx', {
+        this.add(FBXscene.create('fbx/city.fbx', {
             position: v3(0, 0, 0),
             rotation: Quaternion.fromEuler(0, 0, 0),
         }));
-        this.add(FBXscene.create('fbx/island2.fbx', {
-            position: v3(0, 0, 0),
-            rotation: Quaternion.fromEuler(0, 0, 0),
-        }));
-        this.add(FBXscene.create('fbx/island3.fbx', {
-            position: v3(0, 0, 0),
-            rotation: Quaternion.fromEuler(0, 0, 0),
-        }));
+        // this.add(FBXscene.create('fbx/island2.fbx', {
+        //     position: v3(0, 0, 0),
+        //     rotation: Quaternion.fromEuler(0, 0, 0),
+        // }));
+        // this.add(FBXscene.create('fbx/island3.fbx', {
+        //     position: v3(0, 0, 0),
+        //     rotation: Quaternion.fromEuler(0, 0, 0),
+        // }));
 
     }
 }
