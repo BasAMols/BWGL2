@@ -38,6 +38,21 @@ export class Transform {
         this._isDirty = true;
     }
 
+    public setX(x: number): void {
+        this._localPosition.x = x;
+        this._isDirty = true;
+    }
+
+    public setY(y: number): void {
+        this._localPosition.y = y;
+        this._isDirty = true;
+    }
+
+    public setZ(z: number): void {
+        this._localPosition.z = z;
+        this._isDirty = true;
+    }
+
     public move(position: Vector3): void {
         this._localPosition = this._localPosition.add(position);
         this._isDirty = true;

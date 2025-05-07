@@ -44,6 +44,9 @@ export class JoyStick extends Input<Vector2> {
         });
         return total;
     }
+    public addReader(...reader: InputReader<Vector2>[]) {
+        this.readers.push(...reader);
+    }
 }
 export class Button extends Input<number> {
     protected _value: number;
@@ -54,6 +57,9 @@ export class Button extends Input<number> {
         });
         return total;
     }
+    public addReader(...reader: InputReader<number>[]) {
+        this.readers.push(...reader);
+    }
 }
 
 export class InputMap {
@@ -63,13 +69,10 @@ export class InputMap {
         joysticks: Record<string, InputReader<Vector2>[]> = {},
         buttons: Record<string, InputReader<number>[]> = {}
     ) {
-        Object.entries(joysticks).forEach(([key, readers]) => {
-            this.joysticks[key] = new JoyStick(readers);
-        });
-        Object.entries(buttons).forEach(([key, readers]) => {
-            this.buttons[key] = new Button(readers);
-        });
+        this.addJoystick(joysticks);
+        this.addButton(buttons);
     }
+
 
     public tick() {
         Object.values(this.joysticks).forEach((j) => {
@@ -86,5 +89,29 @@ export class InputMap {
 
     public button(key: string) {
         return this.buttons[key]?.value;
+    }
+
+    public addJoystick(...joysticks: (Record<string, InputReader<Vector2>[]>)[]) {
+        joysticks.forEach((joysticks) => {
+            Object.entries(joysticks).forEach(([key, readers]) => {
+                if (this.joysticks[key]) {
+                    this.joysticks[key].addReader(...readers);
+                } else {
+                    this.joysticks[key] = new JoyStick(readers);
+                }
+            });
+        });
+    }
+
+    public addButton(...buttons: Record<string, InputReader<number>[]>[]) {
+        buttons.forEach((buttons) => {
+            Object.entries(buttons).forEach(([key, readers]) => {
+                if (this.buttons[key]) {
+                    this.buttons[key].addReader(...readers);
+                } else {
+                    this.buttons[key] = new Button(readers);
+                }
+            });
+        });
     }
 }

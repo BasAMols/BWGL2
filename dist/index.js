@@ -5678,6 +5678,9 @@ var JoyStick = class extends Input {
     });
     return total;
   }
+  addReader(...reader) {
+    this.readers.push(...reader);
+  }
 };
 var Button = class extends Input {
   get value() {
@@ -5687,17 +5690,16 @@ var Button = class extends Input {
     });
     return total;
   }
+  addReader(...reader) {
+    this.readers.push(...reader);
+  }
 };
 var InputMap = class {
   constructor(joysticks = {}, buttons = {}) {
     this.joysticks = {};
     this.buttons = {};
-    Object.entries(joysticks).forEach(([key, readers]) => {
-      this.joysticks[key] = new JoyStick(readers);
-    });
-    Object.entries(buttons).forEach(([key, readers]) => {
-      this.buttons[key] = new Button(readers);
-    });
+    this.addJoystick(joysticks);
+    this.addButton(buttons);
   }
   tick() {
     Object.values(this.joysticks).forEach((j) => {
@@ -5714,6 +5716,28 @@ var InputMap = class {
   button(key) {
     var _a;
     return (_a = this.buttons[key]) == null ? void 0 : _a.value;
+  }
+  addJoystick(...joysticks) {
+    joysticks.forEach((joysticks2) => {
+      Object.entries(joysticks2).forEach(([key, readers]) => {
+        if (this.joysticks[key]) {
+          this.joysticks[key].addReader(...readers);
+        } else {
+          this.joysticks[key] = new JoyStick(readers);
+        }
+      });
+    });
+  }
+  addButton(...buttons) {
+    buttons.forEach((buttons2) => {
+      Object.entries(buttons2).forEach(([key, readers]) => {
+        if (this.buttons[key]) {
+          this.buttons[key].addReader(...readers);
+        } else {
+          this.buttons[key] = new Button(readers);
+        }
+      });
+    });
   }
 };
 
@@ -8105,6 +8129,18 @@ var Transform = class {
     this._localPosition = position;
     this._isDirty = true;
   }
+  setX(x) {
+    this._localPosition.x = x;
+    this._isDirty = true;
+  }
+  setY(y) {
+    this._localPosition.y = y;
+    this._isDirty = true;
+  }
+  setZ(z) {
+    this._localPosition.z = z;
+    this._isDirty = true;
+  }
   move(position) {
     this._localPosition = this._localPosition.add(position);
     this._isDirty = true;
@@ -9974,6 +10010,8 @@ var Actor = class extends ContainerObject {
     var _a;
     super(props);
     this.controllers = [];
+    this.joysticks = {};
+    this.buttons = {};
     this.controllerList = {
       preTick: [],
       postTick: [],
@@ -9989,6 +10027,8 @@ var Actor = class extends ContainerObject {
       var _a;
       (_a = controller.build) == null ? void 0 : _a.call(controller);
     });
+    this.scene.inputMap.addJoystick(this.joysticks);
+    this.scene.inputMap.addButton(this.buttons);
   }
   addController(controller) {
     this.controllers.push(controller);
@@ -10045,28 +10085,51 @@ var PlayerController = class extends Controller {
     super(...arguments);
     this.velocity = v3(0);
     this.speed = 0.02;
-  }
-  build() {
-    super.build();
+    this.onground = true;
+    this.jumpDuration = 0;
   }
   tick(obj) {
     var _a, _b;
     this.velocity = v3(
-      (_a = glob.input.axis("movement")) == null ? void 0 : _a.x,
-      0,
-      -((_b = glob.input.axis("movement")) == null ? void 0 : _b.y)
-    ).scale(this.speed).rotateXZ(-this.actor.camera.yaw - Math.PI);
+      ((_a = glob.input.axis("movement")) == null ? void 0 : _a.x) * this.speed,
+      this.velocity.y,
+      -((_b = glob.input.axis("movement")) == null ? void 0 : _b.y) * this.speed
+    ).rotateXZ(-this.actor.camera.yaw - Math.PI);
+    const GRAVITY = 9.81 / 2500;
+    const JUMP_VELOCITY = 5 / 500;
+    this.speed = Util.clamp(this.speed + glob.input.button("speed") * 1e-3, 0.01, 0.1);
+    if (glob.input.button("jump")) {
+      if (this.onground) {
+        this.jumpDuration = 0;
+        this.velocity.y = JUMP_VELOCITY;
+      } else {
+        if (this.jumpDuration < 250) {
+          this.jumpDuration += obj.intervalS10;
+          this.velocity.y += JUMP_VELOCITY * (1 - this.jumpDuration / 250);
+        }
+      }
+    }
+    if (!this.onground) {
+      this.velocity.y -= GRAVITY * obj.intervalS10 / 6;
+    }
     if (this.velocity.magnitude() > 0) {
       this.actor.transform.setRotation(Quaternion.fromEuler(0, this.velocity.xz.angle(), 0));
     }
     this.actor.transform.setPosition(this.actor.transform.getLocalPosition().add(this.velocity.scale(obj.intervalS10 / 6)));
+    if (this.actor.transform.getLocalPosition().y < 1.3) {
+      this.actor.transform.setY(1.3);
+      this.onground = true;
+      this.jumpDuration = 0;
+    } else {
+      this.onground = false;
+    }
   }
 };
 
 // ts/classes/level/freeCam/playerCamera.ts
 var PlayerCamera = class extends Camera {
   constructor(scene, parent) {
-    super({ position: v3(0, 0, 0), target: v3(1, 0, 0), fov: 80, near: 0.1, far: 500 });
+    super({ position: v3(0, 0, 0), fov: 90, near: 0.1, far: 500 });
     this.scene = scene;
     this.parent = parent;
     this.offset = v3(5, 1, 0);
@@ -10078,12 +10141,148 @@ var PlayerCamera = class extends Camera {
     if (glob.device.locked) {
       const r = (_a = glob.input.axis("camera")) == null ? void 0 : _a.scale(0.5).scale(obj.intervalS10 / 1e3);
       this.smoothedRotation = this.smoothedRotation.add(r);
+      this.fov = Util.clamp(this.fov + glob.input.button("zoom") * 0.05, 25, 120);
     }
     if (obj.frame % 1 === 0) {
       this.rotate(new Vector3(-this.smoothedRotation.y, -this.smoothedRotation.x, 0));
       this.smoothedRotation = v2(0, 0);
     }
     this.setPosition(this.parent.transform.getWorldPosition());
+  }
+};
+
+// ts/classes/input/mouseReader.ts
+var MouseMoveReader = class extends InputReader {
+  constructor() {
+    super();
+    this._delta = v2(0);
+    if (!glob.mobile) {
+      glob.renderer.dom.addEventListener("mousemove", (e) => {
+        this._delta.x += e.movementX;
+        this._delta.y += e.movementY;
+      });
+    }
+  }
+  get value() {
+    return this._delta;
+  }
+  tick() {
+    this._delta = v2(0);
+  }
+};
+var MouseScrollReader = class extends InputReader {
+  constructor() {
+    super();
+    this._delta = 0;
+    if (!glob.mobile) {
+      glob.renderer.dom.addEventListener("wheel", (e) => {
+        this._delta += e.deltaY;
+      });
+    }
+  }
+  get value() {
+    return this._delta;
+  }
+  tick() {
+    this._delta = 0;
+  }
+};
+
+// ts/classes/input/keyboardReader.ts
+var KeyboardReader = class extends InputReader {
+  constructor(key) {
+    super();
+    this._state = false;
+    this._frameFired = 0;
+    glob.device.keyboard.register(
+      key,
+      (frame) => {
+        if (!this._state) {
+          this._frameFired = frame;
+        }
+        this._state = true;
+      },
+      () => {
+        this._state = false;
+      }
+    );
+  }
+  get value() {
+    return Number(this._state);
+  }
+  get first() {
+    return this._frameFired === glob.frame;
+  }
+};
+var KeyboardJoyStickReader = class extends InputReader {
+  constructor(keys) {
+    super();
+    this._state = [[false, false], [false, false]];
+    this._vector = v2(0);
+    this._frameFired = [0, 0];
+    keys.forEach((k, i) => {
+      glob.device.keyboard.register(
+        k,
+        () => {
+          if (!this._state[Math.floor(i / 2)][i % 2]) {
+            this._frameFired[i] = glob.frame;
+          }
+          this._state[Math.floor(i / 2)][i % 2] = true;
+          this.setVector();
+        },
+        () => {
+          this._state[Math.floor(i / 2)][i % 2] = false;
+          this._frameFired[i] = void 0;
+          this.setVector();
+        }
+      );
+    });
+  }
+  setVector() {
+    this._vector = v2(
+      -this._state[0][0] + +this._state[0][1],
+      -this._state[1][0] + +this._state[1][1]
+    );
+  }
+  get value() {
+    return this._vector;
+  }
+  get first() {
+    return this._frameFired[0] === glob.frame || this._frameFired[1] === glob.frame;
+  }
+};
+var KeyboardAxisReader = class extends InputReader {
+  constructor(keys) {
+    super();
+    this._state = [false, false];
+    this._value = 0;
+    this._frameFired = [0, 0];
+    keys.forEach((k, i) => {
+      glob.device.keyboard.register(
+        k,
+        (frame) => {
+          if (!this._state[i]) {
+            this._frameFired[i] = frame;
+          }
+          this._state[i] = true;
+          this.setValue();
+        },
+        () => {
+          this._state[i] = false;
+          this._frameFired[i] = void 0;
+          this.setValue();
+        }
+      );
+    });
+  }
+  setValue() {
+    this._value = -this._state[0] + +this._state[1];
+  }
+  get value() {
+    return this._value;
+  }
+  get first() {
+    return this._frameFired[0] === glob.frame || this._frameFired[1] === glob.frame;
   }
 };
 
@@ -10096,6 +10295,15 @@ var PlayerActor = class extends Actor {
         new PlayerController()
       ]
     });
+    this.joysticks = {
+      "movement": [new KeyboardJoyStickReader(["a", "d", "s", "w"])],
+      "camera": [new MouseMoveReader()]
+    };
+    this.buttons = {
+      "jump": [new KeyboardReader(" ")],
+      "zoom": [new MouseScrollReader()],
+      "speed": [new KeyboardAxisReader(["q", "e"])]
+    };
   }
   build() {
     super.build();
@@ -10755,45 +10963,6 @@ var Sky = class extends ContainerObject {
   }
 };
 
-// ts/classes/input/keyboardReader.ts
-var KeyboardJoyStickReader = class extends InputReader {
-  constructor(keys) {
-    super();
-    this._state = [[false, false], [false, false]];
-    this._vector = v2(0);
-    this._frameFired = [0, 0];
-    keys.forEach((k, i) => {
-      glob.device.keyboard.register(
-        k,
-        () => {
-          if (!this._state[Math.floor(i / 2)][i % 2]) {
-            this._frameFired[i] = glob.frame;
-          }
-          this._state[Math.floor(i / 2)][i % 2] = true;
-          this.setVector();
-        },
-        () => {
-          this._state[Math.floor(i / 2)][i % 2] = false;
-          this._frameFired[i] = void 0;
-          this.setVector();
-        }
-      );
-    });
-  }
-  setVector() {
-    this._vector = v2(
-      -this._state[0][0] + +this._state[0][1],
-      -this._state[1][0] + +this._state[1][1]
-    );
-  }
-  get value() {
-    return this._vector;
-  }
-  get first() {
-    return this._frameFired[0] === glob.frame || this._frameFired[1] === glob.frame;
-  }
-};
-
 // ts/classes/elements/UI.ts
 var UI = class extends DomElement {
   constructor(attr = {}) {
@@ -10905,39 +11074,13 @@ var UI = class extends DomElement {
   }
 };
 
-// ts/classes/input/mouseReader.ts
-var MouseMoveReader = class extends InputReader {
-  constructor() {
-    super();
-    this._delta = v2(0);
-    if (!glob.mobile) {
-      glob.renderer.dom.addEventListener("mousemove", (e) => {
-        this._delta.x += e.movementX;
-        this._delta.y += e.movementY;
-      });
-    }
-  }
-  get value() {
-    return this._delta;
-  }
-  tick() {
-    this._delta = v2(0);
-  }
-};
-
 // ts/classes/level/testLevel.ts
 var TestLevel = class extends Scene {
   constructor() {
     super(new Camera({ position: v3(0, 100, 200), target: v3(0, 0, 0), fov: 40 }), {
       ambientLightColor: v3(0.4, 0.8, 0.9),
-      ambientLightIntensity: 0.7,
+      ambientLightIntensity: 0.7
       // Very subtle ambient lighting,
-      inputMap: new InputMap(
-        {
-          "movement": [new KeyboardJoyStickReader(["a", "d", "s", "w"])],
-          "camera": [new MouseMoveReader()]
-        }
-      )
     });
     this.clearColor = [0.2, 0.3, 0.5, 1];
     // Match sky color
@@ -10945,35 +11088,23 @@ var TestLevel = class extends Scene {
     this.add(new Ocean());
     this.add(new Island());
     this.add(new Sky(this));
-    this.add(this.plane = new PlayerActor());
-    const data = UI.data({ value: "0", label: "precision", size: v2(400, 100) });
-    this.ui.add(data);
-    this.ui.add(UI.slider({ value: this.camera.fov, label: "FOV ", min: 1, max: 100, onChange: (value) => {
-      this.fov = value;
-    }, width: 600 }));
+    this.add(this.player = new PlayerActor());
     this.ui.add(this.positionData = UI.data({ label: "P", size: v2(400, 100) }), "bottom");
     this.ui.add(this.rotationData = UI.data({ label: "R", size: v2(400, 100) }), "bottom");
     this.ui.add(this.fpsData = UI.data({ label: "FPS", size: v2(400, 100) }), "bottom");
+    this.ui.add(this.actorData = UI.data({ label: "Actor", size: v2(400, 100) }), "bottom");
     this.ui.expanded = false;
-  }
-  set nearPlane(value) {
-    this.camera.near = value;
-  }
-  set farPlane(value) {
-    this.camera.far = value;
-  }
-  set fov(value) {
-    this.camera.fov = value;
   }
   tick(obj) {
     super.tick(obj);
     this.positionData.change(
-      this.plane.transform.getWorldPosition().array.map((v) => v.toFixed(0)).join("m, ") + "m"
+      this.player.transform.getWorldPosition().array.map((v) => v.toFixed(2)).join("m, ") + "m"
     );
     this.rotationData.change(
-      this.plane.camera.getAngle().array.map((v) => v.toFixed(2)).join(", ")
+      this.player.camera.getAngle().array.map((v) => v.toFixed(2)).join(", ")
     );
     this.fpsData.change(obj.frameRate.toFixed(2) + "/" + obj.maxRate.toFixed(2));
+    this.actorData.change("fov: " + this.player.camera.fov.toFixed(0) + ", speed: " + (this.player.controllers[0].speed * 10).toFixed(1) + ", jumpDuration: " + this.player.controllers[0].jumpDuration.toFixed(1));
   }
 };
 
