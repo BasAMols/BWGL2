@@ -5531,6 +5531,7 @@ var WebGL2Initializer = class {
     this.shaderManager.setUniform("u_prefilterMap", 13);
     this.shaderManager.setUniform("u_brdfLUT", 14);
     this.ctx.enable(this.ctx.DEPTH_TEST);
+    this.ctx.enable(this.ctx.CULL_FACE);
     this.ctx.enable(this.ctx.BLEND);
     this.ctx.blendFunc(this.ctx.SRC_ALPHA, this.ctx.ONE_MINUS_SRC_ALPHA);
   }
@@ -10930,7 +10931,15 @@ var FBX = class _FBX extends ContainerObject {
 var Island = class extends Actor {
   constructor() {
     super();
-    this.add(FBX.create("fbx/city.fbx", {
+    this.add(FBX.create("fbx/City_placeholders.fbx", {
+      position: v3(0, 0, 0),
+      rotation: Quaternion.fromEuler(0, 0, 0)
+    }));
+    this.add(FBX.create("fbx/City_walls.fbx", {
+      position: v3(0, 0, 0),
+      rotation: Quaternion.fromEuler(0, 0, 0)
+    }));
+    this.add(FBX.create("fbx/City_houses.fbx", {
       position: v3(0, 0, 0),
       rotation: Quaternion.fromEuler(0, 0, 0)
     }));

@@ -109,7 +109,7 @@ export class WebGL2Initializer {
         this.shaderManager.setUniform('u_brdfLUT', 14);
 
         this.ctx.enable(this.ctx.DEPTH_TEST);
-        // this.ctx.enable(this.ctx.CULL_FACE); // temperary disable culling
+        this.ctx.enable(this.ctx.CULL_FACE); // temperary disable culling
         this.ctx.enable(this.ctx.BLEND);
         this.ctx.blendFunc(this.ctx.SRC_ALPHA, this.ctx.ONE_MINUS_SRC_ALPHA);
         
