@@ -1,5 +1,6 @@
 import { glob } from '../../../game';
 import { TickerReturnData } from '../../ticker';
+import { Ease } from '../../util/ease';
 import { v2, Vector2 } from '../../util/math/vector2';
 import { v3, Vector3 } from '../../util/math/vector3';
 import { Util } from '../../util/utils';
@@ -8,26 +9,37 @@ import { SceneObject } from '../../webgl2/meshes/sceneObject';
 import { Scene } from '../../webgl2/scene';
 
 export class PlayerCamera extends Camera {
-    offset: Vector3 = v3(5, 1, 0);
     rotation: Vector3 = v3(0, 0, 0);
     smoothedRotation: Vector2 = v2(0, 0);
+    zoom: number = 0;
+
+    static closeTransform: [Vector3, number] = [v3(4, 3, 5), 45];
+    static farTransform: [Vector3, number] = [v3(0, 15, 1), 70];
+
+    offset: Vector3 = v3(0, 0, 0);
+
     constructor(public scene: Scene, public parent: SceneObject) {
-        super({ position: v3(0, 0, 0), fov: 90, near: 0.1, far: 500 });
+        super({ position: v3(0, 2000, 0), target: v3(0, 1, 0), fov: 30, near: 0.1, far: 100 });
+
+        this.calculateZoom(0);
+
     }   
+
+    calculateZoom(zoom: number = this.zoom) {
+        this.zoom = zoom;
+        this.fov = Util.lerp(PlayerCamera.closeTransform[1], PlayerCamera.farTransform[1], zoom, {ease: Ease.easeInOutQuad});
+        this.offset = Util.lerp(PlayerCamera.closeTransform[0], PlayerCamera.farTransform[0], zoom, {ease: Ease.easeInOutQuad});
+    }
+    
 
     tick(obj: TickerReturnData) {
             
         if (glob.device.locked) {
-            const r = glob.input.axis('camera')?.scale(0.5).scale(obj.intervalS10 / 1000);
-            this.smoothedRotation = this.smoothedRotation.add(r);
-            this.fov = Util.clamp(this.fov + glob.input.button('zoom') * 0.05, 25, 120);
+            this.calculateZoom(Util.clamp(this.zoom + glob.input.button('zoom') * 0.0005, 0, 1));
         }
 
-        if (obj.frame % 1 === 0) {
-            this.rotate(new Vector3( -this.smoothedRotation.y, -this.smoothedRotation.x, 0));
-            this.smoothedRotation = v2(0, 0);
-        }
-
-        this.setPosition(this.parent.transform.getWorldPosition());
+        
+        this.setPosition(this.parent.transform.getWorldPosition().add(this.offset));
+        this.setTarget(this.parent.transform.getWorldPosition().add(v3(0, 1.5, 0)));
     }
 }

@@ -77,6 +77,8 @@ export class Ticker {
                 maxRate: this.maxRate
             };
 
+            glob.ticker = o;
+
             this.callbacks.forEach((c) => {
                 c(o);
             });

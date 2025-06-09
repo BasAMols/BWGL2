@@ -26,6 +26,7 @@ export var glob = new class {
     }
     public events: Record<string, Events<any>> = {};
     public input: InputMap = new InputMap();
+    public ticker: TickerReturnData;
 };
 
 export class Game {

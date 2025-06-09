@@ -104,9 +104,28 @@ export class Renderer extends DomElement<'canvas'> {
         if (this.lastClick) {
             glob.game.active?.click(this.lastClick);
         }
+        // First, complete all tick() calls across entire tree
         glob.game.active?.tick(obj);
-        glob.game.active?.afterTick(obj);
+        // Then, call afterTick() across entire tree
+        this.callAfterTickRecursively(glob.game.active, obj);
     }
+
+    private callAfterTickRecursively(element: any, obj: TickerReturnData) {
+        if (!element) return;
+        
+        // Call afterTick on this element
+        if (element.afterTick) {
+            element.afterTick(obj);
+        }
+        
+        // Recursively call afterTick on all children
+        if (element.children && element.children.length > 0) {
+            element.children.forEach((child: any) => {
+                this.callAfterTickRecursively(child, obj);
+            });
+        }
+    }
+
 }
 
 

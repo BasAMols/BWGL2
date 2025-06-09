@@ -8,7 +8,6 @@ import { Island } from './world/island';
 import { Sky } from './world/sky';
 import { UI, UIElement } from '../elements/UI';
 import { v2 } from '../util/math/vector2';
-import { PlayerController } from './freeCam/playerController';
 
 export class TestLevel extends Scene {
     protected clearColor: [number, number, number, number] = [0.2, 0.3, 0.5, 1.0];  // Match sky color
@@ -35,7 +34,7 @@ export class TestLevel extends Scene {
         this.ui.add((this.positionData = UI.data({ label: 'P', size: v2(400, 100) })), 'bottom');
         this.ui.add((this.rotationData = UI.data({ label: 'R', size: v2(400, 100) })), 'bottom');
         this.ui.add((this.fpsData = UI.data({  label: 'FPS', size: v2(400, 100) })), 'bottom');
-        this.ui.add((this.actorData = UI.data({  label: 'Actor', size: v2(400, 100) })), 'bottom');
+        this.ui.add((this.actorData = UI.data({  label: 'Speed', size: v2(400, 100) })), 'bottom');
         this.ui.expanded = false;
 
     }
@@ -50,6 +49,6 @@ export class TestLevel extends Scene {
             this.player.camera.getAngle().array.map(v => v.toFixed(2)).join(', ')
         );
         this.fpsData.change(obj.frameRate.toFixed(2) + '/' + obj.maxRate.toFixed(2));
-        this.actorData.change('fov: ' + this.player.camera.fov.toFixed(0) + ', speed: ' + ((this.player.controllers[0] as PlayerController).speed * 10).toFixed(1) + ', jumpDuration: ' + ((this.player.controllers[0] as PlayerController).jumpDuration).toFixed(1));
+        this.actorData.change(`${this.player.speed.toFixed(2)} km/h`);
     }
 }

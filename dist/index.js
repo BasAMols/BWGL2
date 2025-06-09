@@ -5615,14 +5615,26 @@ var Renderer = class extends DomElement {
     this.size.y = value;
   }
   tick(obj) {
-    var _a, _b, _c;
+    var _a, _b;
     super.tick(obj);
     this.tickerData = obj;
     if (this.lastClick) {
       (_a = glob.game.active) == null ? void 0 : _a.click(this.lastClick);
     }
     (_b = glob.game.active) == null ? void 0 : _b.tick(obj);
-    (_c = glob.game.active) == null ? void 0 : _c.afterTick(obj);
+    this.callAfterTickRecursively(glob.game.active, obj);
+  }
+  callAfterTickRecursively(element, obj) {
+    if (!element)
+      return;
+    if (element.afterTick) {
+      element.afterTick(obj);
+    }
+    if (element.children && element.children.length > 0) {
+      element.children.forEach((child) => {
+        this.callAfterTickRecursively(child, obj);
+      });
+    }
   }
 };
 
@@ -5848,412 +5860,6 @@ var InputDevices = class {
       document.body.appendChild(this.overlay.dom);
     }
     this.keyboard.ready();
-  }
-};
-
-// ts/classes/util/utils.ts
-var Util = class {
-  static clamp(value, min2, max2) {
-    return Math.max(Math.min(value, max2), min2);
-  }
-  static to0(value, tolerance = 0.1) {
-    return Math.abs(value) < tolerance ? 0 : value;
-  }
-  static chunk(array, size) {
-    const output = [];
-    for (let i = 0; i < array.length; i += size) {
-      output.push(array.slice(i, i + size));
-    }
-    return output;
-  }
-  static duplicate(array, size) {
-    const output = [];
-    array.forEach((v) => {
-      for (let i = 0; i < size; i++) {
-        output.push(v);
-      }
-    });
-    return output;
-  }
-  static padArray(ar, b, len2) {
-    return ar.concat(Array.from(Array(len2).fill(b))).slice(0, len2);
-  }
-  static addArrays(ar, br) {
-    return ar.map((a, i) => a + br[i]);
-  }
-  static subtractArrays(ar, br) {
-    return ar.map((a, i) => a - br[i]);
-  }
-  static multiplyArrays(ar, br) {
-    return ar.map((a, i) => a * br[i]);
-  }
-  static scaleArrays(ar, b) {
-    return ar.map((a, i) => a * b);
-  }
-  static radToDeg(r) {
-    return r * 180 / Math.PI;
-  }
-  static degToRad(d) {
-    return d * Math.PI / 180;
-  }
-  static closestVectorMagnitude(vectors, target) {
-    let current;
-    vectors.forEach((v) => {
-      if (current === void 0 || Math.abs(v.magnitude()) < Math.abs(current.magnitude()))
-        current = v;
-    });
-    return current;
-  }
-};
-
-// ts/classes/util/math/vector3.ts
-function v3(a, b, c) {
-  if (typeof a === "number") {
-    return Vector3.f(a, b, c);
-  } else if (typeof a === "undefined") {
-    return Vector3.f(0);
-  } else {
-    return Vector3.f(...a);
-  }
-}
-var Vector3 = class _Vector3 {
-  get pitch() {
-    return this.x;
-  }
-  set pitch(value) {
-    this.x = value;
-  }
-  get yaw() {
-    return this.y;
-  }
-  set yaw(value) {
-    this.y = value;
-  }
-  get roll() {
-    return this.z;
-  }
-  set roll(value) {
-    this.z = value;
-  }
-  get x() {
-    return this.vec[0];
-  }
-  set x(value) {
-    this.vec[0] = value;
-  }
-  get y() {
-    return this.vec[1];
-  }
-  set y(value) {
-    this.vec[1] = value;
-  }
-  get z() {
-    return this.vec[2];
-  }
-  set z(value) {
-    this.vec[2] = value;
-  }
-  get xy() {
-    return v2(this.x, this.y);
-  }
-  set xy(v) {
-    this.x = v.x;
-    this.y = v.y;
-  }
-  get xz() {
-    return v2(this.x, this.z);
-  }
-  set xz(v) {
-    this.x = v.x;
-    this.z = v.y;
-  }
-  get yx() {
-    return v2(this.y, this.x);
-  }
-  set yx(v) {
-    this.y = v.x;
-    this.x = v.y;
-  }
-  get yz() {
-    return v2(this.y, this.z);
-  }
-  set yz(v) {
-    this.y = v.x;
-    this.z = v.y;
-  }
-  get zx() {
-    return v2(this.z, this.x);
-  }
-  set zx(v) {
-    this.z = v.x;
-    this.x = v.y;
-  }
-  get zy() {
-    return v2(this.z, this.y);
-  }
-  set zy(v) {
-    this.z = v.x;
-    this.y = v.y;
-  }
-  get xzy() {
-    return v3(this.x, this.z, this.y);
-  }
-  set xzy(v) {
-    this.x = v.x;
-    this.z = v.y;
-    this.y = v.z;
-  }
-  get xyz() {
-    return v3(this.x, this.y, this.z);
-  }
-  set xyz(v) {
-    this.x = v.x;
-    this.y = v.y;
-    this.z = v.z;
-  }
-  get yxz() {
-    return v3(this.y, this.x, this.z);
-  }
-  set yxz(v) {
-    this.y = v.x;
-    this.x = v.y;
-    this.z = v.z;
-  }
-  get yzx() {
-    return v3(this.y, this.z, this.x);
-  }
-  set yzx(v) {
-    this.y = v.x;
-    this.z = v.y;
-    this.x = v.z;
-  }
-  get zxy() {
-    return v3(this.z, this.x, this.y);
-  }
-  set zxy(v) {
-    this.z = v.x;
-    this.x = v.y;
-    this.y = v.z;
-  }
-  get zyx() {
-    return v3(this.z, this.y, this.x);
-  }
-  set zyx(v) {
-    this.z = v.x;
-    this.y = v.y;
-    this.x = v.z;
-  }
-  get str() {
-    return this.vec.toString();
-  }
-  constructor(x = 0, y = 0, z = 0) {
-    this.vec = [x, y, z];
-  }
-  static from2(vector, z = 0) {
-    return new _Vector3(vector.x, vector.y, z);
-  }
-  static f(x = 0, y = x, z = x) {
-    return new _Vector3(x, y, z);
-  }
-  static get forwards() {
-    return new _Vector3(0, 0, 1);
-  }
-  static get backwards() {
-    return new _Vector3(0, 0, -1);
-  }
-  static get up() {
-    return new _Vector3(0, 1, 0);
-  }
-  static get down() {
-    return new _Vector3(0, -1, 0);
-  }
-  static get left() {
-    return new _Vector3(-1, 0, 0);
-  }
-  static get right() {
-    return new _Vector3(1, 0, 0);
-  }
-  static get PI() {
-    return new _Vector3(Math.PI, Math.PI, Math.PI);
-  }
-  static get TAU() {
-    return _Vector3.PI.scale(0.5);
-  }
-  get array() {
-    return [this.x, this.y, this.z];
-  }
-  set array(a) {
-    [this.x, this.y, this.z] = a;
-  }
-  forEach(callbackfn) {
-    this.array.forEach(callbackfn);
-  }
-  get c() {
-    return this.clone();
-  }
-  equals(vector) {
-    return this.x === vector.x && this.y === vector.y && this.z === vector.z;
-  }
-  clone() {
-    return new _Vector3(
-      this.x,
-      this.y,
-      this.z
-    );
-  }
-  add(...vectors) {
-    return new _Vector3(
-      this.x + vectors.reduce((a, b) => a + b.x, 0),
-      this.y + vectors.reduce((a, b) => a + b.y, 0),
-      this.z + vectors.reduce((a, b) => a + b.z, 0)
-    );
-  }
-  multiply(a, b, c) {
-    const [x, y, z] = typeof a === "number" ? [a, b, c] : a.array;
-    return new _Vector3(
-      this.x * x,
-      this.y * y,
-      this.z * z
-    );
-  }
-  subtract(...vectors) {
-    return new _Vector3(
-      this.x - vectors.reduce((a, b) => a + b.x, 0),
-      this.y - vectors.reduce((a, b) => a + b.y, 0),
-      this.z - vectors.reduce((a, b) => a + b.z, 0)
-    );
-  }
-  scale(...scalars) {
-    return new _Vector3(
-      this.x * scalars.reduce((a, b) => a * b, 1),
-      this.y * scalars.reduce((a, b) => a * b, 1),
-      this.z * scalars.reduce((a, b) => a * b, 1)
-    );
-  }
-  divide(...vectors) {
-    return new _Vector3(
-      this.x / vectors.reduce((a, b) => a * b.x, 1),
-      this.y / vectors.reduce((a, b) => a * b.y, 1),
-      this.z / vectors.reduce((a, b) => a * b.z, 1)
-    );
-  }
-  rotateXY(rad) {
-    const [a, b] = this.xy.rotate(rad).array;
-    return new _Vector3(
-      a,
-      b,
-      this.z
-    );
-  }
-  rotateXZ(rad) {
-    const [a, b] = this.xz.rotate(rad).array;
-    return new _Vector3(
-      a,
-      this.y,
-      b
-    );
-  }
-  rotateYZ(rad) {
-    const [a, b] = this.yz.rotate(rad).array;
-    return new _Vector3(
-      this.x,
-      a,
-      b
-    );
-  }
-  magnitude() {
-    return Math.sqrt(this.magnitudeSqr());
-  }
-  magnitudeSqr() {
-    return this.x * this.x + this.y * this.y + this.z * this.z;
-  }
-  mod(max2) {
-    return new _Vector3(
-      this.x % max2.x,
-      this.y % max2.y,
-      this.z % max2.z
-    );
-  }
-  clamp(min2, max2) {
-    return new _Vector3(
-      Util.clamp(this.x, min2.x, max2.x),
-      Util.clamp(this.y, min2.y, max2.y),
-      Util.clamp(this.z, min2.z, max2.z)
-    );
-  }
-  normalize() {
-    let len2 = this.x * this.x + this.y * this.y + this.z * this.z;
-    if (len2 > 0) {
-      len2 = 1 / Math.sqrt(len2);
-    }
-    return v3(
-      this.x * len2,
-      this.y * len2,
-      this.z * len2
-    );
-  }
-  applyQuaternion(q) {
-    const x = this.x;
-    const y = this.y;
-    const z = this.z;
-    const qx = q.x;
-    const qy = q.y;
-    const qz = q.z;
-    const qw = q.w;
-    const ix = qw * x + qy * z - qz * y;
-    const iy = qw * y + qz * x - qx * z;
-    const iz = qw * z + qx * y - qy * x;
-    const iw = -qx * x - qy * y - qz * z;
-    return new _Vector3(
-      ix * qw + iw * -qx + iy * -qz - iz * -qy,
-      iy * qw + iw * -qy + iz * -qx - ix * -qz,
-      iz * qw + iw * -qz + ix * -qy - iy * -qx
-    );
-  }
-  cross(other) {
-    return new _Vector3(
-      this.y * other.z - this.z * other.y,
-      this.z * other.x - this.x * other.z,
-      this.x * other.y - this.y * other.x
-    );
-  }
-  dot(other) {
-    return this.x * other.x + this.y * other.y + this.z * other.z;
-  }
-  /**
-   * Converts a screen space coordinate to a world position on a plane
-   * @param screenPos Screen position in normalized coordinates (0-1)
-   * @param camera Camera used for the projection
-   * @param planeNormal Normal vector of the plane (must be normalized)
-   * @param planeCoordinate The world coordinate value where the plane intersects the axis defined by the normal
-   * @returns World position where the ray intersects the plane, or null if ray is parallel to plane
-   */
-  static screenToWorldPlane(screenPos, camera, planeNormal, planeCoordinate) {
-    const ndcX = screenPos.x * 2 - 1;
-    const ndcY = (1 - screenPos.y) * 2 - 1;
-    const projMatrix = camera.getProjectionMatrix();
-    const viewMatrix = camera.getViewMatrix();
-    const invProj = projMatrix.clone().invert();
-    const invView = viewMatrix.clone().invert();
-    const nearPoint = v3(ndcX, ndcY, -1);
-    const rayDir = v3(
-      invProj.mat4[0] * nearPoint.x + invProj.mat4[4] * nearPoint.y + invProj.mat4[8] * nearPoint.z + invProj.mat4[12],
-      invProj.mat4[1] * nearPoint.x + invProj.mat4[5] * nearPoint.y + invProj.mat4[9] * nearPoint.z + invProj.mat4[13],
-      invProj.mat4[2] * nearPoint.x + invProj.mat4[6] * nearPoint.y + invProj.mat4[10] * nearPoint.z + invProj.mat4[14]
-    ).normalize();
-    const worldRayDir = v3(
-      invView.mat4[0] * rayDir.x + invView.mat4[4] * rayDir.y + invView.mat4[8] * rayDir.z,
-      invView.mat4[1] * rayDir.x + invView.mat4[5] * rayDir.y + invView.mat4[9] * rayDir.z,
-      invView.mat4[2] * rayDir.x + invView.mat4[6] * rayDir.y + invView.mat4[10] * rayDir.z
-    ).normalize();
-    const rayOrigin = camera.getPosition();
-    const denom = worldRayDir.dot(planeNormal);
-    if (Math.abs(denom) < 1e-6) {
-      return null;
-    }
-    const planePoint = planeNormal.scale(planeCoordinate);
-    const t = planePoint.subtract(rayOrigin).dot(planeNormal) / denom;
-    return rayOrigin.add(worldRayDir.scale(t));
   }
 };
 
@@ -8108,7 +7714,460 @@ var Quaternion = class _Quaternion {
     const x = Math.atan2(2 * (this.w * this.x + this.y * this.z), 1 - 2 * (this.x * this.x + this.y * this.y));
     const y = Math.asin(2 * (this.w * this.y - this.z * this.x));
     const z = Math.atan2(2 * (this.w * this.z + this.x * this.y), 1 - 2 * (this.y * this.y + this.z * this.z));
-    return new Vector3(x, y, z);
+    return new Vector32(x, y, z);
+  }
+};
+
+// ts/classes/util/utils.ts
+var Util = class {
+  static clamp(value, min2, max2) {
+    return Math.max(Math.min(value, max2), min2);
+  }
+  static to0(value, tolerance = 0.1) {
+    return Math.abs(value) < tolerance ? 0 : value;
+  }
+  static chunk(array, size) {
+    const output = [];
+    for (let i = 0; i < array.length; i += size) {
+      output.push(array.slice(i, i + size));
+    }
+    return output;
+  }
+  static duplicate(array, size) {
+    const output = [];
+    array.forEach((v) => {
+      for (let i = 0; i < size; i++) {
+        output.push(v);
+      }
+    });
+    return output;
+  }
+  static padArray(ar, b, len2) {
+    return ar.concat(Array.from(Array(len2).fill(b))).slice(0, len2);
+  }
+  static addArrays(ar, br) {
+    return ar.map((a, i) => a + br[i]);
+  }
+  static subtractArrays(ar, br) {
+    return ar.map((a, i) => a - br[i]);
+  }
+  static multiplyArrays(ar, br) {
+    return ar.map((a, i) => a * br[i]);
+  }
+  static scaleArrays(ar, b) {
+    return ar.map((a, i) => a * b);
+  }
+  static radToDeg(r) {
+    return r * 180 / Math.PI;
+  }
+  static degToRad(d) {
+    return d * Math.PI / 180;
+  }
+  static closestVectorMagnitude(vectors, target) {
+    let current;
+    vectors.forEach((v) => {
+      if (current === void 0 || Math.abs(v.magnitude()) < Math.abs(current.magnitude()))
+        current = v;
+    });
+    return current;
+  }
+  static lerp(from, to, t, options) {
+    const { scale: scale3, ease, clamp } = options || {};
+    if (ease) {
+      t = ease(t);
+    }
+    if (clamp === true || clamp !== false && !ease) {
+      t = this.clamp(t, 0, 1);
+    }
+    if (typeof from === "number" && typeof to === "number") {
+      const result = from + (to - from) * t;
+      return scale3 !== void 0 ? result * scale3 : result;
+    }
+    if (from instanceof Vector2 && to instanceof Vector2) {
+      const result = new Vector2(
+        from.x + (to.x - from.x) * t,
+        from.y + (to.y - from.y) * t
+      );
+      return scale3 !== void 0 ? result.scale(scale3) : result;
+    }
+    if (from instanceof Vector32 && to instanceof Vector32) {
+      const result = new Vector32(
+        from.x + (to.x - from.x) * t,
+        from.y + (to.y - from.y) * t,
+        from.z + (to.z - from.z) * t
+      );
+      return scale3 !== void 0 ? result.scale(scale3) : result;
+    }
+    if (from instanceof Quaternion && to instanceof Quaternion) {
+      const dot2 = from.x * to.x + from.y * to.y + from.z * to.z + from.w * to.w;
+      const toQuat = dot2 < 0 ? new Quaternion(-to.x, -to.y, -to.z, -to.w) : to;
+      const result = new Quaternion(
+        from.x + (toQuat.x - from.x) * t,
+        from.y + (toQuat.y - from.y) * t,
+        from.z + (toQuat.z - from.z) * t,
+        from.w + (toQuat.w - from.w) * t
+      );
+      const magnitude = Math.sqrt(result.x * result.x + result.y * result.y + result.z * result.z + result.w * result.w);
+      if (magnitude > 0) {
+        result.x /= magnitude;
+        result.y /= magnitude;
+        result.z /= magnitude;
+        result.w /= magnitude;
+      }
+      return result;
+    }
+    throw new Error("Unsupported types for lerp operation");
+  }
+};
+
+// ts/classes/util/math/vector3.ts
+function v3(a, b, c) {
+  if (typeof a === "number") {
+    return Vector32.f(a, b, c);
+  } else if (typeof a === "undefined") {
+    return Vector32.f(0);
+  } else {
+    return Vector32.f(...a);
+  }
+}
+var Vector32 = class _Vector3 {
+  get pitch() {
+    return this.x;
+  }
+  set pitch(value) {
+    this.x = value;
+  }
+  get yaw() {
+    return this.y;
+  }
+  set yaw(value) {
+    this.y = value;
+  }
+  get roll() {
+    return this.z;
+  }
+  set roll(value) {
+    this.z = value;
+  }
+  get x() {
+    return this.vec[0];
+  }
+  set x(value) {
+    this.vec[0] = value;
+  }
+  get y() {
+    return this.vec[1];
+  }
+  set y(value) {
+    this.vec[1] = value;
+  }
+  get z() {
+    return this.vec[2];
+  }
+  set z(value) {
+    this.vec[2] = value;
+  }
+  get xy() {
+    return v2(this.x, this.y);
+  }
+  set xy(v) {
+    this.x = v.x;
+    this.y = v.y;
+  }
+  get xz() {
+    return v2(this.x, this.z);
+  }
+  set xz(v) {
+    this.x = v.x;
+    this.z = v.y;
+  }
+  get yx() {
+    return v2(this.y, this.x);
+  }
+  set yx(v) {
+    this.y = v.x;
+    this.x = v.y;
+  }
+  get yz() {
+    return v2(this.y, this.z);
+  }
+  set yz(v) {
+    this.y = v.x;
+    this.z = v.y;
+  }
+  get zx() {
+    return v2(this.z, this.x);
+  }
+  set zx(v) {
+    this.z = v.x;
+    this.x = v.y;
+  }
+  get zy() {
+    return v2(this.z, this.y);
+  }
+  set zy(v) {
+    this.z = v.x;
+    this.y = v.y;
+  }
+  get xzy() {
+    return v3(this.x, this.z, this.y);
+  }
+  set xzy(v) {
+    this.x = v.x;
+    this.z = v.y;
+    this.y = v.z;
+  }
+  get xyz() {
+    return v3(this.x, this.y, this.z);
+  }
+  set xyz(v) {
+    this.x = v.x;
+    this.y = v.y;
+    this.z = v.z;
+  }
+  get yxz() {
+    return v3(this.y, this.x, this.z);
+  }
+  set yxz(v) {
+    this.y = v.x;
+    this.x = v.y;
+    this.z = v.z;
+  }
+  get yzx() {
+    return v3(this.y, this.z, this.x);
+  }
+  set yzx(v) {
+    this.y = v.x;
+    this.z = v.y;
+    this.x = v.z;
+  }
+  get zxy() {
+    return v3(this.z, this.x, this.y);
+  }
+  set zxy(v) {
+    this.z = v.x;
+    this.x = v.y;
+    this.y = v.z;
+  }
+  get zyx() {
+    return v3(this.z, this.y, this.x);
+  }
+  set zyx(v) {
+    this.z = v.x;
+    this.y = v.y;
+    this.x = v.z;
+  }
+  get str() {
+    return this.vec.toString();
+  }
+  constructor(x = 0, y = 0, z = 0) {
+    this.vec = [x, y, z];
+  }
+  static from2(vector, z = 0) {
+    return new _Vector3(vector.x, vector.y, z);
+  }
+  static f(x = 0, y = x, z = x) {
+    return new _Vector3(x, y, z);
+  }
+  static get forwards() {
+    return new _Vector3(0, 0, 1);
+  }
+  static get backwards() {
+    return new _Vector3(0, 0, -1);
+  }
+  static get up() {
+    return new _Vector3(0, 1, 0);
+  }
+  static get down() {
+    return new _Vector3(0, -1, 0);
+  }
+  static get left() {
+    return new _Vector3(-1, 0, 0);
+  }
+  static get right() {
+    return new _Vector3(1, 0, 0);
+  }
+  static get PI() {
+    return new _Vector3(Math.PI, Math.PI, Math.PI);
+  }
+  static get TAU() {
+    return _Vector3.PI.scale(0.5);
+  }
+  get array() {
+    return [this.x, this.y, this.z];
+  }
+  set array(a) {
+    [this.x, this.y, this.z] = a;
+  }
+  forEach(callbackfn) {
+    this.array.forEach(callbackfn);
+  }
+  get c() {
+    return this.clone();
+  }
+  equals(vector) {
+    return this.x === vector.x && this.y === vector.y && this.z === vector.z;
+  }
+  clone() {
+    return new _Vector3(
+      this.x,
+      this.y,
+      this.z
+    );
+  }
+  add(...vectors) {
+    return new _Vector3(
+      this.x + vectors.reduce((a, b) => a + b.x, 0),
+      this.y + vectors.reduce((a, b) => a + b.y, 0),
+      this.z + vectors.reduce((a, b) => a + b.z, 0)
+    );
+  }
+  multiply(a, b, c) {
+    const [x, y, z] = typeof a === "number" ? [a, b, c] : a.array;
+    return new _Vector3(
+      this.x * x,
+      this.y * y,
+      this.z * z
+    );
+  }
+  subtract(...vectors) {
+    return new _Vector3(
+      this.x - vectors.reduce((a, b) => a + b.x, 0),
+      this.y - vectors.reduce((a, b) => a + b.y, 0),
+      this.z - vectors.reduce((a, b) => a + b.z, 0)
+    );
+  }
+  scale(...scalars) {
+    return new _Vector3(
+      this.x * scalars.reduce((a, b) => a * b, 1),
+      this.y * scalars.reduce((a, b) => a * b, 1),
+      this.z * scalars.reduce((a, b) => a * b, 1)
+    );
+  }
+  divide(...vectors) {
+    return new _Vector3(
+      this.x / vectors.reduce((a, b) => a * b.x, 1),
+      this.y / vectors.reduce((a, b) => a * b.y, 1),
+      this.z / vectors.reduce((a, b) => a * b.z, 1)
+    );
+  }
+  rotateXY(rad) {
+    const [a, b] = this.xy.rotate(rad).array;
+    return new _Vector3(
+      a,
+      b,
+      this.z
+    );
+  }
+  rotateXZ(rad) {
+    const [a, b] = this.xz.rotate(rad).array;
+    return new _Vector3(
+      a,
+      this.y,
+      b
+    );
+  }
+  rotateYZ(rad) {
+    const [a, b] = this.yz.rotate(rad).array;
+    return new _Vector3(
+      this.x,
+      a,
+      b
+    );
+  }
+  magnitude() {
+    return Math.sqrt(this.magnitudeSqr());
+  }
+  magnitudeSqr() {
+    return this.x * this.x + this.y * this.y + this.z * this.z;
+  }
+  mod(max2) {
+    return new _Vector3(
+      this.x % max2.x,
+      this.y % max2.y,
+      this.z % max2.z
+    );
+  }
+  clamp(min2, max2) {
+    return new _Vector3(
+      Util.clamp(this.x, min2.x, max2.x),
+      Util.clamp(this.y, min2.y, max2.y),
+      Util.clamp(this.z, min2.z, max2.z)
+    );
+  }
+  normalize() {
+    let len2 = this.x * this.x + this.y * this.y + this.z * this.z;
+    if (len2 > 0) {
+      len2 = 1 / Math.sqrt(len2);
+    }
+    return v3(
+      this.x * len2,
+      this.y * len2,
+      this.z * len2
+    );
+  }
+  applyQuaternion(q) {
+    const x = this.x;
+    const y = this.y;
+    const z = this.z;
+    const qx = q.x;
+    const qy = q.y;
+    const qz = q.z;
+    const qw = q.w;
+    const ix = qw * x + qy * z - qz * y;
+    const iy = qw * y + qz * x - qx * z;
+    const iz = qw * z + qx * y - qy * x;
+    const iw = -qx * x - qy * y - qz * z;
+    return new _Vector3(
+      ix * qw + iw * -qx + iy * -qz - iz * -qy,
+      iy * qw + iw * -qy + iz * -qx - ix * -qz,
+      iz * qw + iw * -qz + ix * -qy - iy * -qx
+    );
+  }
+  cross(other) {
+    return new _Vector3(
+      this.y * other.z - this.z * other.y,
+      this.z * other.x - this.x * other.z,
+      this.x * other.y - this.y * other.x
+    );
+  }
+  dot(other) {
+    return this.x * other.x + this.y * other.y + this.z * other.z;
+  }
+  /**
+   * Converts a screen space coordinate to a world position on a plane
+   * @param screenPos Screen position in normalized coordinates (0-1)
+   * @param camera Camera used for the projection
+   * @param planeNormal Normal vector of the plane (must be normalized)
+   * @param planeCoordinate The world coordinate value where the plane intersects the axis defined by the normal
+   * @returns World position where the ray intersects the plane, or null if ray is parallel to plane
+   */
+  static screenToWorldPlane(screenPos, camera, planeNormal, planeCoordinate) {
+    const ndcX = screenPos.x * 2 - 1;
+    const ndcY = (1 - screenPos.y) * 2 - 1;
+    const projMatrix = camera.getProjectionMatrix();
+    const viewMatrix = camera.getViewMatrix();
+    const invProj = projMatrix.clone().invert();
+    const invView = viewMatrix.clone().invert();
+    const nearPoint = v3(ndcX, ndcY, -1);
+    const rayDir = v3(
+      invProj.mat4[0] * nearPoint.x + invProj.mat4[4] * nearPoint.y + invProj.mat4[8] * nearPoint.z + invProj.mat4[12],
+      invProj.mat4[1] * nearPoint.x + invProj.mat4[5] * nearPoint.y + invProj.mat4[9] * nearPoint.z + invProj.mat4[13],
+      invProj.mat4[2] * nearPoint.x + invProj.mat4[6] * nearPoint.y + invProj.mat4[10] * nearPoint.z + invProj.mat4[14]
+    ).normalize();
+    const worldRayDir = v3(
+      invView.mat4[0] * rayDir.x + invView.mat4[4] * rayDir.y + invView.mat4[8] * rayDir.z,
+      invView.mat4[1] * rayDir.x + invView.mat4[5] * rayDir.y + invView.mat4[9] * rayDir.z,
+      invView.mat4[2] * rayDir.x + invView.mat4[6] * rayDir.y + invView.mat4[10] * rayDir.z
+    ).normalize();
+    const rayOrigin = camera.getPosition();
+    const denom = worldRayDir.dot(planeNormal);
+    if (Math.abs(denom) < 1e-6) {
+      return null;
+    }
+    const planePoint = planeNormal.scale(planeCoordinate);
+    const t = planePoint.subtract(rayOrigin).dot(planeNormal) / denom;
+    return rayOrigin.add(worldRayDir.scale(t));
   }
 };
 
@@ -10019,6 +10078,16 @@ var Actor = class extends ContainerObject {
       preRender: [],
       postRender: []
     };
+    this.dynamic = {
+      velocity() {
+        var _a;
+        return ((_a = this._data) == null ? void 0 : _a.velocity) || v3(0);
+      },
+      kph() {
+        var _a;
+        return ((_a = this._data) == null ? void 0 : _a.speed) || 0;
+      }
+    };
     (_a = props.controllers) == null ? void 0 : _a.forEach((controller) => {
       this.addController(controller);
     });
@@ -10059,6 +10128,36 @@ var Actor = class extends ContainerObject {
   }
   tick(obj) {
   }
+  afterTick(obj) {
+    if (!this.dynamic._data) {
+      this.dynamic._data = {
+        parent: this,
+        ticker: obj,
+        lastPosition: this.transform.getWorldPosition(),
+        lastRotation: this.transform.getWorldRotation(),
+        velocity: v3(0),
+        speed: 0
+      };
+      return;
+    }
+    const currentPosition = this.transform.getWorldPosition();
+    const displacement = currentPosition.subtract(this.dynamic._data.lastPosition);
+    const velocity = displacement.scale(1e3 / obj.intervalS10);
+    const speed = velocity.magnitude() * 3.6;
+    this.dynamic._data = {
+      parent: this,
+      ticker: obj,
+      lastPosition: currentPosition,
+      lastRotation: this.transform.getWorldRotation(),
+      velocity,
+      speed
+    };
+  }
+  endTick(obj) {
+  }
+  get speed() {
+    return this.dynamic.kph();
+  }
 };
 
 // ts/classes/actor/controller.ts
@@ -10080,45 +10179,149 @@ var Controller = class {
   }
 };
 
-// ts/classes/level/freeCam/playerController.ts
-var PlayerController = class extends Controller {
-  constructor() {
-    super(...arguments);
-    this.velocity = v3(0);
-    this.speed = 0.02;
-    this.onground = true;
-    this.jumpDuration = 0;
+// ts/classes/level/freeCam/movementController.ts
+var MovementController = class extends Controller {
+  constructor(props = {}) {
+    var _a, _b, _c, _d, _e;
+    super();
+    this.movement = {
+      maxSpeed: 30,
+      // Maximum speed in km/h
+      acceleration: 0.8,
+      // Default acceleration
+      deceleration: 1.2,
+      // Default deceleration
+      brakeDeceleration: 2.5,
+      // Default brake deceleration
+      currentVelocity: v3(0)
+      // Current horizontal velocity
+    };
+    this._speedFactor = 0.2;
+    // Current speed factor (0.0 to 1.0)
+    this.rotateToMovement = true;
+    this.movement.maxSpeed = (_a = props.maxSpeed) != null ? _a : this.movement.maxSpeed;
+    this.movement.acceleration = (_b = props.acceleration) != null ? _b : this.movement.acceleration;
+    this.movement.deceleration = (_c = props.deceleration) != null ? _c : this.movement.deceleration;
+    this.movement.brakeDeceleration = (_d = props.brakeDeceleration) != null ? _d : this.movement.brakeDeceleration;
+    this.rotateToMovement = (_e = props.rotateToMovement) != null ? _e : this.rotateToMovement;
   }
   tick(obj) {
     var _a, _b;
-    this.velocity = v3(
-      ((_a = glob.input.axis("movement")) == null ? void 0 : _a.x) * this.speed,
-      this.velocity.y,
-      -((_b = glob.input.axis("movement")) == null ? void 0 : _b.y) * this.speed
-    ).rotateXZ(-this.actor.camera.yaw - Math.PI);
-    const GRAVITY = 9.81 / 2500;
-    const JUMP_VELOCITY = 5 / 500;
-    this.speed = Util.clamp(this.speed + glob.input.button("speed") * 1e-3, 0.01, 0.1);
+    const inputX = ((_a = glob.input.axis("movement")) == null ? void 0 : _a.x) || 0;
+    const inputZ = -((_b = glob.input.axis("movement")) == null ? void 0 : _b.y) || 0;
+    const inputDirection = v3(inputX, 0, inputZ);
+    const inputMagnitude = inputDirection.magnitude();
+    let targetVelocity = v3(0);
+    if (inputMagnitude > 1e-3) {
+      const normalizedInput = inputDirection.scale(1 / inputMagnitude);
+      const effectiveSpeedKmh = this.movement.maxSpeed * this._speedFactor;
+      const effectiveSpeedInternal = effectiveSpeedKmh / 30;
+      targetVelocity = normalizedInput.scale(effectiveSpeedInternal);
+    }
+    if (this.actor.camera) {
+      targetVelocity = targetVelocity.rotateXZ(-this.actor.camera.yaw - Math.PI);
+    }
+    const currentSpeed = this.movement.currentVelocity.magnitude();
+    const targetSpeed = targetVelocity.magnitude();
+    let changeRate;
+    if (inputMagnitude > 1e-3 && currentSpeed > 1e-3) {
+      const currentDirection = this.movement.currentVelocity.scale(1 / currentSpeed);
+      const targetDirection = targetVelocity.scale(1 / targetSpeed);
+      const alignment = currentDirection.dot(targetDirection);
+      if (alignment < -0.1) {
+        changeRate = this.movement.brakeDeceleration;
+      } else if (targetSpeed > currentSpeed) {
+        changeRate = this.movement.acceleration;
+      } else {
+        changeRate = this.movement.deceleration;
+      }
+    } else if (targetSpeed > currentSpeed) {
+      changeRate = this.movement.acceleration;
+    } else {
+      changeRate = this.movement.deceleration;
+    }
+    const velocityDelta = targetVelocity.subtract(this.movement.currentVelocity);
+    const deltaDistance = velocityDelta.magnitude();
+    if (deltaDistance > 1e-3) {
+      const frameTime = obj.intervalS10 / 1e3;
+      const maxChange = changeRate * frameTime;
+      const changeAmount = Math.min(deltaDistance, maxChange);
+      const changeDirection = velocityDelta.scale(1 / deltaDistance);
+      this.movement.currentVelocity = this.movement.currentVelocity.add(
+        changeDirection.scale(changeAmount)
+      );
+    }
+    if (this.rotateToMovement && this.movement.currentVelocity.magnitude() > 1e-3) {
+      const movementDirection = this.movement.currentVelocity.xz;
+      this.actor.transform.setRotation(Quaternion.fromEuler(0, movementDirection.angle(), 0));
+    }
+    const horizontalMovement = this.movement.currentVelocity.scale(obj.intervalS10 / 120);
+    const currentPosition = this.actor.transform.getLocalPosition();
+    this.actor.transform.setPosition(currentPosition.add(v3(horizontalMovement.x, 0, horizontalMovement.z)));
+  }
+  get speedFactor() {
+    return this._speedFactor;
+  }
+  set speedFactor(factor) {
+    this._speedFactor = Math.max(0, Math.min(1, factor));
+  }
+  // Clamp 0-1
+  // Getters for accessing movement properties
+  getMaxSpeed() {
+    return this.movement.maxSpeed;
+  }
+  getEffectiveSpeed() {
+    return this.movement.maxSpeed * this._speedFactor;
+  }
+  // Returns km/h
+  getCurrentSpeed() {
+    return this.movement.currentVelocity.magnitude();
+  }
+  getCurrentVelocity() {
+    return v3(this.movement.currentVelocity.x, this.movement.currentVelocity.y, this.movement.currentVelocity.z);
+  }
+  // Setters for runtime adjustment
+  setMaxSpeed(speed) {
+    this.movement.maxSpeed = speed;
+  }
+  setAcceleration(accel) {
+    this.movement.acceleration = accel;
+  }
+  setDeceleration(decel) {
+    this.movement.deceleration = decel;
+  }
+  setBrakeDeceleration(brake) {
+    this.movement.brakeDeceleration = brake;
+  }
+};
+
+// ts/classes/level/freeCam/playerController.ts
+var _JumpController = class _JumpController extends MovementController {
+  constructor() {
+    super(...arguments);
+    this.onground = true;
+    this.jumpDuration = 0;
+  }
+  // m/s
+  tick(obj) {
+    super.tick(obj);
+    this.speedFactor = Util.clamp(this.speedFactor + glob.input.button("speed") * 0.01, 0.1, 1);
     if (glob.input.button("jump")) {
       if (this.onground) {
         this.jumpDuration = 0;
-        this.velocity.y = JUMP_VELOCITY;
+        this.movement.currentVelocity.y = _JumpController.JUMP_VELOCITY;
       } else {
         if (this.jumpDuration < 250) {
           this.jumpDuration += obj.intervalS10;
-          this.velocity.y += JUMP_VELOCITY * (1 - this.jumpDuration / 250);
+          this.movement.currentVelocity.y += _JumpController.JUMP_VELOCITY * (1 - this.jumpDuration / 250);
         }
       }
     }
     if (!this.onground) {
-      this.velocity.y -= GRAVITY * obj.intervalS10 / 6;
+      this.movement.currentVelocity.y -= _JumpController.GRAVITY * obj.intervalS10 / 6;
     }
-    if (this.velocity.magnitude() > 0) {
-      this.actor.transform.setRotation(Quaternion.fromEuler(0, this.velocity.xz.angle(), 0));
-    }
-    this.actor.transform.setPosition(this.actor.transform.getLocalPosition().add(this.velocity.scale(obj.intervalS10 / 6)));
-    if (this.actor.transform.getLocalPosition().y < 1.3) {
-      this.actor.transform.setY(1.3);
+    if (this.actor.transform.getLocalPosition().y < 0) {
+      this.actor.transform.setY(0);
       this.onground = true;
       this.jumpDuration = 0;
     } else {
@@ -10126,51 +10329,120 @@ var PlayerController = class extends Controller {
     }
   }
 };
+_JumpController.GRAVITY = 9.81 / 2500;
+// m/s^2
+_JumpController.JUMP_VELOCITY = 5 / 500;
+var JumpController = _JumpController;
+
+// ts/classes/util/ease.ts
+var Ease = class {
+  static linear(x) {
+    return x;
+  }
+  static easeInQuad(x) {
+    return x * x;
+  }
+  static easeOutQuad(x) {
+    return 1 - (1 - x) * (1 - x);
+  }
+  static easeInOutQuad(x) {
+    return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+  }
+  static easeInCubic(x) {
+    return x * x * x;
+  }
+  static easeOutCubic(x) {
+    return 1 - Math.pow(1 - x, 3);
+  }
+  static easeInOutCubic(x) {
+    return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  }
+  static easeInQuart(x) {
+    return x * x * x * x;
+  }
+  static easeOutQuart(x) {
+    return 1 - Math.pow(1 - x, 4);
+  }
+  static easeInOutQuart(x) {
+    return x < 0.5 ? 8 * x * x * x * x : 1 - Math.pow(-2 * x + 2, 4) / 2;
+  }
+  static easeInQuint(x) {
+    return x * x * x * x * x;
+  }
+  static easeOutQuint(x) {
+    return 1 - Math.pow(1 - x, 5);
+  }
+  static easeInOutQuint(x) {
+    return x < 0.5 ? 16 * x * x * x * x * x : 1 - Math.pow(-2 * x + 2, 5) / 2;
+  }
+  static easeInSine(x) {
+    return 1 - Math.cos(x * Math.PI / 2);
+  }
+  static easeOutSine(x) {
+    return Math.sin(x * Math.PI / 2);
+  }
+  static easeInOutSine(x) {
+    return -(Math.cos(Math.PI * x) - 1) / 2;
+  }
+  static easeInExpo(x) {
+    return x === 0 ? 0 : Math.pow(2, 10 * x - 10);
+  }
+  static easeOutExpo(x) {
+    return x === 1 ? 1 : 1 - Math.pow(2, -10 * x);
+  }
+  static easeInOutExpo(x) {
+    return x === 0 ? 0 : x === 1 ? 1 : x < 0.5 ? Math.pow(2, 20 * x - 10) / 2 : (2 - Math.pow(2, -20 * x + 10)) / 2;
+  }
+  static easeInCirc(x) {
+    return 1 - Math.sqrt(1 - Math.pow(x, 2));
+  }
+  static easeOutCirc(x) {
+    return Math.sqrt(1 - Math.pow(x - 1, 2));
+  }
+  static easeInOutCirc(x) {
+    return x < 0.5 ? (1 - Math.sqrt(1 - Math.pow(2 * x, 2))) / 2 : (Math.sqrt(1 - Math.pow(-2 * x + 2, 2)) + 1) / 2;
+  }
+  static easeInBack(x) {
+    return 2.70158 * x * x * x - 1.70158 * x * x;
+  }
+  static easeOutBack(x) {
+    return 1 + 2.70158 * Math.pow(x - 1, 3) + 1.70158 * Math.pow(x - 1, 2);
+  }
+  static easeInOutBack(x) {
+    return x < 0.5 ? Math.pow(2 * x, 2) * (7.18982 * x - 2.59491) / 2 : (Math.pow(2 * x - 2, 2) * (3.59491 * (x * 2 - 2) + 2.59491) + 2) / 2;
+  }
+};
 
 // ts/classes/level/freeCam/playerCamera.ts
-var PlayerCamera = class extends Camera {
+var _PlayerCamera = class _PlayerCamera extends Camera {
   constructor(scene, parent) {
-    super({ position: v3(0, 0, 0), fov: 90, near: 0.1, far: 500 });
+    super({ position: v3(0, 2e3, 0), target: v3(0, 1, 0), fov: 30, near: 0.1, far: 100 });
     this.scene = scene;
     this.parent = parent;
-    this.offset = v3(5, 1, 0);
     this.rotation = v3(0, 0, 0);
     this.smoothedRotation = v2(0, 0);
+    this.zoom = 0;
+    this.offset = v3(0, 0, 0);
+    this.calculateZoom(0);
+  }
+  calculateZoom(zoom = this.zoom) {
+    this.zoom = zoom;
+    this.fov = Util.lerp(_PlayerCamera.closeTransform[1], _PlayerCamera.farTransform[1], zoom, { ease: Ease.easeInOutQuad });
+    this.offset = Util.lerp(_PlayerCamera.closeTransform[0], _PlayerCamera.farTransform[0], zoom, { ease: Ease.easeInOutQuad });
   }
   tick(obj) {
-    var _a;
     if (glob.device.locked) {
-      const r = (_a = glob.input.axis("camera")) == null ? void 0 : _a.scale(0.5).scale(obj.intervalS10 / 1e3);
-      this.smoothedRotation = this.smoothedRotation.add(r);
-      this.fov = Util.clamp(this.fov + glob.input.button("zoom") * 0.05, 25, 120);
+      this.calculateZoom(Util.clamp(this.zoom + glob.input.button("zoom") * 5e-4, 0, 1));
     }
-    if (obj.frame % 1 === 0) {
-      this.rotate(new Vector3(-this.smoothedRotation.y, -this.smoothedRotation.x, 0));
-      this.smoothedRotation = v2(0, 0);
-    }
-    this.setPosition(this.parent.transform.getWorldPosition());
+    this.setPosition(this.parent.transform.getWorldPosition().add(this.offset));
+    this.setTarget(this.parent.transform.getWorldPosition().add(v3(0, 1.5, 0)));
   }
 };
+_PlayerCamera.closeTransform = [v3(4, 3, 5), 45];
+_PlayerCamera.farTransform = [v3(0, 15, 1), 70];
+var PlayerCamera = _PlayerCamera;
 
 // ts/classes/input/mouseReader.ts
-var MouseMoveReader = class extends InputReader {
-  constructor() {
-    super();
-    this._delta = v2(0);
-    if (!glob.mobile) {
-      glob.renderer.dom.addEventListener("mousemove", (e) => {
-        this._delta.x += e.movementX;
-        this._delta.y += e.movementY;
-      });
-    }
-  }
-  get value() {
-    return this._delta;
-  }
-  tick() {
-    this._delta = v2(0);
-  }
-};
 var MouseScrollReader = class extends InputReader {
   constructor() {
     super();
@@ -10287,22 +10559,550 @@ var KeyboardAxisReader = class extends InputReader {
   }
 };
 
+// ts/classes/webgl2/meshes/cube.ts
+var Cube = class extends BaseMesh {
+  static generateColors(colors) {
+    const defaultColors = [
+      [0.8, 0.2, 0.2],
+      // Front face (red)
+      [1, 1, 0],
+      // Back face (yellow)
+      [0.2, 0.8, 0.2],
+      // Right face (green)
+      [0.8, 0.2, 0.8],
+      // Left face (purple)
+      [0.2, 0.2, 0.8],
+      // Top face (blue)
+      [1, 0.5, 0]
+      // Bottom face (orange)
+    ];
+    let faceColors;
+    if (!colors) {
+      faceColors = defaultColors;
+    } else if (Array.isArray(colors[0])) {
+      faceColors = colors;
+      if (faceColors.length !== 6) {
+        throw new Error("Must provide exactly 6 colors for faces or a single color");
+      }
+    } else {
+      const singleColor = colors;
+      faceColors = Array(6).fill(singleColor);
+    }
+    const colorArray = [];
+    faceColors.forEach((color) => {
+      for (let i = 0; i < 4; i++) {
+        colorArray.push(...color);
+      }
+    });
+    return new Float32Array(colorArray);
+  }
+  static generateTangents() {
+    const tangents = [
+      // Front face: tangent along x-axis
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      // Back face: tangent along negative x-axis
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      // Right face: tangent along negative z-axis
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      // Left face: tangent along z-axis
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      // Top face: tangent along x-axis
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      // Bottom face: tangent along x-axis
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0
+    ];
+    return new Float32Array(tangents);
+  }
+  static generateBitangents() {
+    const bitangents = [
+      // Front face: bitangent along y-axis
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      // Back face: bitangent along y-axis
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      // Right face: bitangent along y-axis
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      // Left face: bitangent along y-axis
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      // Top face: bitangent along z-axis (negative)
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      // Bottom face: bitangent along z-axis
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1
+    ];
+    return new Float32Array(bitangents);
+  }
+  static createMeshData(props = {}) {
+    let meshColors = props.colors;
+    if (props.material && !meshColors) {
+      const { baseColor } = props.material;
+      meshColors = [baseColor.x, baseColor.y, baseColor.z];
+    }
+    return {
+      vertices: this.vertices,
+      indices: this.indices,
+      normals: this.normals,
+      texCoords: this.texCoords,
+      colors: this.generateColors(meshColors),
+      tangents: this.generateTangents(),
+      bitangents: this.generateBitangents()
+    };
+  }
+  static create(props = {}) {
+    if (!props.material && props.colors) {
+      let baseColor;
+      if (Array.isArray(props.colors[0])) {
+        const firstColor = props.colors[0];
+        baseColor = v3(firstColor[0], firstColor[1], firstColor[2]);
+      } else {
+        const singleColor = props.colors;
+        baseColor = v3(singleColor[0], singleColor[1], singleColor[2]);
+      }
+      props = __spreadProps(__spreadValues({}, props), {
+        material: new Material({
+          baseColor,
+          roughness: 0.5,
+          metallic: 0,
+          ambientOcclusion: 1,
+          emissive: v3(0, 0, 0)
+        })
+      });
+    }
+    const meshData = this.createMeshData(props);
+    const sceneObject = this.createSceneObject(meshData, props);
+    return sceneObject;
+  }
+};
+Cube.vertices = new Float32Array([
+  // Front face
+  -0.5,
+  -0.5,
+  0.5,
+  // 0
+  0.5,
+  -0.5,
+  0.5,
+  // 1
+  0.5,
+  0.5,
+  0.5,
+  // 2
+  -0.5,
+  0.5,
+  0.5,
+  // 3
+  // Back face
+  -0.5,
+  -0.5,
+  -0.5,
+  // 4
+  0.5,
+  -0.5,
+  -0.5,
+  // 5
+  0.5,
+  0.5,
+  -0.5,
+  // 6
+  -0.5,
+  0.5,
+  -0.5,
+  // 7
+  // Right face
+  0.5,
+  -0.5,
+  0.5,
+  // 8 (1)
+  0.5,
+  -0.5,
+  -0.5,
+  // 9 (5)
+  0.5,
+  0.5,
+  -0.5,
+  // 10 (6)
+  0.5,
+  0.5,
+  0.5,
+  // 11 (2)
+  // Left face
+  -0.5,
+  -0.5,
+  -0.5,
+  // 12 (4)
+  -0.5,
+  -0.5,
+  0.5,
+  // 13 (0)
+  -0.5,
+  0.5,
+  0.5,
+  // 14 (3)
+  -0.5,
+  0.5,
+  -0.5,
+  // 15 (7)
+  // Top face
+  -0.5,
+  0.5,
+  0.5,
+  // 16 (3)
+  0.5,
+  0.5,
+  0.5,
+  // 17 (2)
+  0.5,
+  0.5,
+  -0.5,
+  // 18 (6)
+  -0.5,
+  0.5,
+  -0.5,
+  // 19 (7)
+  // Bottom face
+  -0.5,
+  -0.5,
+  -0.5,
+  // 20 (4)
+  0.5,
+  -0.5,
+  -0.5,
+  // 21 (5)
+  0.5,
+  -0.5,
+  0.5,
+  // 22 (1)
+  -0.5,
+  -0.5,
+  0.5
+  // 23 (0)
+]);
+Cube.indices = new Uint16Array([
+  // Front
+  0,
+  1,
+  2,
+  2,
+  3,
+  0,
+  // Back (reversed order)
+  4,
+  6,
+  5,
+  6,
+  4,
+  7,
+  // Right
+  8,
+  9,
+  10,
+  10,
+  11,
+  8,
+  // Left
+  12,
+  13,
+  14,
+  14,
+  15,
+  12,
+  // Top
+  16,
+  17,
+  18,
+  18,
+  19,
+  16,
+  // Bottom
+  20,
+  21,
+  22,
+  22,
+  23,
+  20
+]);
+Cube.normals = new Float32Array([
+  // Front face
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  // Back face
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  // Right face
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  // Left face
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  // Top face
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0,
+  1,
+  0,
+  // Bottom face
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0,
+  0,
+  -1,
+  0
+]);
+Cube.texCoords = new Float32Array([
+  // Front
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  0,
+  1,
+  // Back
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  // Right
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  0,
+  1,
+  // Left
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  // Top
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  0,
+  1,
+  // Bottom
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1
+]);
+
 // ts/classes/level/freeCam/playerActor.ts
 var PlayerActor = class extends Actor {
   constructor() {
     super({
-      position: v3(-10, 1.3, 0),
+      position: v3(-10, 1, 0),
       controllers: [
-        new PlayerController()
+        new JumpController()
       ]
     });
     this.joysticks = {
-      "movement": [new KeyboardJoyStickReader(["a", "d", "s", "w"])],
-      "camera": [new MouseMoveReader()]
+      "movement": [new KeyboardJoyStickReader(["a", "d", "s", "w"])]
     };
     this.buttons = {
       "jump": [new KeyboardReader(" ")],
-      "zoom": [new MouseScrollReader()],
+      "zoom": [new MouseScrollReader(), new KeyboardAxisReader(["-", "="])],
       "speed": [new KeyboardAxisReader(["q", "e"])]
     };
   }
@@ -10310,6 +11110,18 @@ var PlayerActor = class extends Actor {
     super.build();
     this.camera = new PlayerCamera(this.scene, this);
     this.scene.camera = this.camera;
+    this.add(Cube.create({
+      position: v3(0, 1, 0),
+      rotation: Quaternion.fromEuler(0, 0, 0),
+      scale: v3(1, 2, 1),
+      material: new Material({
+        baseColor: v3(1, 0, 0),
+        roughness: 0.5,
+        metallic: 0.5,
+        ambientOcclusion: 0.5,
+        emissive: v3(0, 0, 0)
+      })
+    }));
   }
   tick(obj) {
     super.tick(obj);
@@ -11101,7 +11913,7 @@ var TestLevel = class extends Scene {
     this.ui.add(this.positionData = UI.data({ label: "P", size: v2(400, 100) }), "bottom");
     this.ui.add(this.rotationData = UI.data({ label: "R", size: v2(400, 100) }), "bottom");
     this.ui.add(this.fpsData = UI.data({ label: "FPS", size: v2(400, 100) }), "bottom");
-    this.ui.add(this.actorData = UI.data({ label: "Actor", size: v2(400, 100) }), "bottom");
+    this.ui.add(this.actorData = UI.data({ label: "Speed", size: v2(400, 100) }), "bottom");
     this.ui.expanded = false;
   }
   tick(obj) {
@@ -11113,7 +11925,7 @@ var TestLevel = class extends Scene {
       this.player.camera.getAngle().array.map((v) => v.toFixed(2)).join(", ")
     );
     this.fpsData.change(obj.frameRate.toFixed(2) + "/" + obj.maxRate.toFixed(2));
-    this.actorData.change("fov: " + this.player.camera.fov.toFixed(0) + ", speed: " + (this.player.controllers[0].speed * 10).toFixed(1) + ", jumpDuration: " + this.player.controllers[0].jumpDuration.toFixed(1));
+    this.actorData.change("".concat(this.player.speed.toFixed(2), " km/h"));
   }
 };
 
@@ -11178,6 +11990,7 @@ var Ticker = class {
         intervalS20: this.averagedInterval(20, interval),
         maxRate: this.maxRate
       };
+      glob.ticker = o;
       this.callbacks.forEach((c) => {
         c(o);
       });
