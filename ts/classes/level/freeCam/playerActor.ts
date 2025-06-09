@@ -1,5 +1,4 @@
 import { Actor } from "../../actor/actor";
-import { JumpController } from './playerController';
 import { v3 } from "../../util/math/vector3";
 import { TickerReturnData } from '../../ticker';
 import { PlayerCamera } from './playerCamera';
@@ -8,6 +7,7 @@ import { KeyboardAxisReader, KeyboardJoyStickReader, KeyboardReader } from '../.
 import { Cube } from '../../webgl2/meshes/cube';
 import { Quaternion } from '../../util/math/quaternion';
 import { Material } from '../../webgl2/material';
+import { PlayerController } from './playerController';
 export class PlayerActor extends Actor {
     public camera: PlayerCamera;
 
@@ -15,12 +15,21 @@ export class PlayerActor extends Actor {
         super({
             position: v3(-10, 1, 0),
             controllers: [
-                new JumpController({
-                    turnSpeed: 480,
-                    acceleration: 3,
-                    deceleration: 4,
-                    brakeDeceleration: 6,
-                    maxSpeed: 30,
+                new PlayerController({
+                    turnSpeed: 480,            // Fast turning (480°/sec)
+                    acceleration: 3,           // Quick acceleration
+                    deceleration: 4,           // Quick deceleration
+                    brakeDeceleration: 6,      // Responsive braking
+                    maxSpeed: 30,              // 30 km/h max speed
+                    // Jump settings now use sensible defaults:
+                    // jumpHeight: 1.2m, minJumpHeight: 0.4m, earlyReleaseMultiplier: 0.6, gravity: 0.2
+                    
+                    // Advanced features available but not configured:
+                    // coyoteTime: 100,           
+                    jumpBufferTime: 120,       
+                    maxJumps: 2
+                    // ascendingGravity: 0.85,    
+                    // descendingGravity: 1.15,   
                 })
             ]
         });
