@@ -15,7 +15,13 @@ export class PlayerActor extends Actor {
         super({
             position: v3(-10, 1, 0),
             controllers: [
-                new JumpController()
+                new JumpController({
+                    turnSpeed: 480,
+                    acceleration: 3,
+                    deceleration: 4,
+                    brakeDeceleration: 6,
+                    maxSpeed: 30,
+                })
             ]
         });
         this.joysticks = {

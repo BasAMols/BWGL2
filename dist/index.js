@@ -10181,8 +10181,9 @@ var Controller = class {
 
 // ts/classes/level/freeCam/movementController.ts
 var MovementController = class extends Controller {
+  // Current actor yaw in radians
   constructor(props = {}) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     super();
     this.movement = {
       maxSpeed: 30,
@@ -10199,11 +10200,15 @@ var MovementController = class extends Controller {
     this._speedFactor = 0.2;
     // Current speed factor (0.0 to 1.0)
     this.rotateToMovement = true;
+    this.turnSpeed = 0;
+    // Turn speed in degrees per second (0 = instant)
+    this.currentYaw = 0;
     this.movement.maxSpeed = (_a = props.maxSpeed) != null ? _a : this.movement.maxSpeed;
     this.movement.acceleration = (_b = props.acceleration) != null ? _b : this.movement.acceleration;
     this.movement.deceleration = (_c = props.deceleration) != null ? _c : this.movement.deceleration;
     this.movement.brakeDeceleration = (_d = props.brakeDeceleration) != null ? _d : this.movement.brakeDeceleration;
     this.rotateToMovement = (_e = props.rotateToMovement) != null ? _e : this.rotateToMovement;
+    this.turnSpeed = (_f = props.turnSpeed) != null ? _f : this.turnSpeed;
   }
   tick(obj) {
     var _a, _b;
@@ -10253,7 +10258,25 @@ var MovementController = class extends Controller {
     }
     if (this.rotateToMovement && this.movement.currentVelocity.magnitude() > 1e-3) {
       const movementDirection = this.movement.currentVelocity.xz;
-      this.actor.transform.setRotation(Quaternion.fromEuler(0, movementDirection.angle(), 0));
+      const targetYaw = movementDirection.angle();
+      if (this.turnSpeed <= 0) {
+        this.currentYaw = targetYaw;
+      } else {
+        const frameTime = obj.intervalS10 / 1e3;
+        const maxTurnRadians = this.turnSpeed * Math.PI / 180 * frameTime;
+        let angleDiff = targetYaw - this.currentYaw;
+        while (angleDiff > Math.PI)
+          angleDiff -= 2 * Math.PI;
+        while (angleDiff < -Math.PI)
+          angleDiff += 2 * Math.PI;
+        const turnAmount = Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), maxTurnRadians);
+        this.currentYaw += turnAmount;
+        while (this.currentYaw > Math.PI)
+          this.currentYaw -= 2 * Math.PI;
+        while (this.currentYaw < -Math.PI)
+          this.currentYaw += 2 * Math.PI;
+      }
+      this.actor.transform.setRotation(Quaternion.fromEuler(0, this.currentYaw, 0));
     }
     const horizontalMovement = this.movement.currentVelocity.scale(obj.intervalS10 / 120);
     const currentPosition = this.actor.transform.getLocalPosition();
@@ -10280,10 +10303,18 @@ var MovementController = class extends Controller {
   getCurrentVelocity() {
     return v3(this.movement.currentVelocity.x, this.movement.currentVelocity.y, this.movement.currentVelocity.z);
   }
+  getTurnSpeed() {
+    return this.turnSpeed;
+  }
+  // Returns degrees per second
   // Setters for runtime adjustment
   setMaxSpeed(speed) {
     this.movement.maxSpeed = speed;
   }
+  setTurnSpeed(degreesPerSecond) {
+    this.turnSpeed = Math.max(0, degreesPerSecond);
+  }
+  // Clamp to 0+
   setAcceleration(accel) {
     this.movement.acceleration = accel;
   }
@@ -11094,7 +11125,13 @@ var PlayerActor = class extends Actor {
     super({
       position: v3(-10, 1, 0),
       controllers: [
-        new JumpController()
+        new JumpController({
+          turnSpeed: 480,
+          acceleration: 3,
+          deceleration: 4,
+          brakeDeceleration: 6,
+          maxSpeed: 30
+        })
       ]
     });
     this.joysticks = {

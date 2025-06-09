@@ -11,6 +11,7 @@ export interface MovementControllerProps {
     deceleration?: number;      // Natural slowdown rate (units per second)
     brakeDeceleration?: number; // Active braking rate when input opposes movement (units per second)
     rotateToMovement?: boolean; // Whether to rotate actor to face movement direction
+    turnSpeed?: number;         // Maximum turn speed in degrees per second (0 = instant)
 }
 
 export class MovementController extends Controller {
@@ -26,6 +27,8 @@ export class MovementController extends Controller {
     
     private _speedFactor: number = 0.2;        // Current speed factor (0.0 to 1.0)
     private rotateToMovement: boolean = true;
+    private turnSpeed: number = 0;              // Turn speed in degrees per second (0 = instant)
+    private currentYaw: number = 0;             // Current actor yaw in radians
 
     constructor(props: MovementControllerProps = {}) {
         super();
@@ -36,6 +39,7 @@ export class MovementController extends Controller {
         this.movement.deceleration = props.deceleration ?? this.movement.deceleration;
         this.movement.brakeDeceleration = props.brakeDeceleration ?? this.movement.brakeDeceleration;
         this.rotateToMovement = props.rotateToMovement ?? this.rotateToMovement;
+        this.turnSpeed = props.turnSpeed ?? this.turnSpeed;
     }
 
     tick(obj: TickerReturnData) {
@@ -107,7 +111,31 @@ export class MovementController extends Controller {
         // Rotate actor to face movement direction
         if (this.rotateToMovement && this.movement.currentVelocity.magnitude() > 0.001) {
             const movementDirection = this.movement.currentVelocity.xz;
-            this.actor.transform.setRotation(Quaternion.fromEuler(0, movementDirection.angle(), 0));
+            const targetYaw = movementDirection.angle();
+            
+            if (this.turnSpeed <= 0) {
+                // Instant rotation (current behavior)
+                this.currentYaw = targetYaw;
+            } else {
+                // Smooth rotation with turn speed limit
+                const frameTime = obj.intervalS10 / 1000; // Convert ms to seconds
+                const maxTurnRadians = (this.turnSpeed * Math.PI / 180) * frameTime; // Convert degrees/sec to radians/frame
+                
+                // Calculate shortest angle difference
+                let angleDiff = targetYaw - this.currentYaw;
+                while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+                while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+                
+                // Limit the turn amount
+                const turnAmount = Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), maxTurnRadians);
+                this.currentYaw += turnAmount;
+                
+                // Normalize angle
+                while (this.currentYaw > Math.PI) this.currentYaw -= 2 * Math.PI;
+                while (this.currentYaw < -Math.PI) this.currentYaw += 2 * Math.PI;
+            }
+            
+            this.actor.transform.setRotation(Quaternion.fromEuler(0, this.currentYaw, 0));
         }
 
         // Apply horizontal movement to actor position
@@ -124,9 +152,11 @@ export class MovementController extends Controller {
     public getEffectiveSpeed(): number { return this.movement.maxSpeed * this._speedFactor; } // Returns km/h
     public getCurrentSpeed(): number { return this.movement.currentVelocity.magnitude(); }
     public getCurrentVelocity(): Vector3 { return v3(this.movement.currentVelocity.x, this.movement.currentVelocity.y, this.movement.currentVelocity.z); }
+    public getTurnSpeed(): number { return this.turnSpeed; } // Returns degrees per second
     
     // Setters for runtime adjustment
     public setMaxSpeed(speed: number): void { this.movement.maxSpeed = speed; }
+    public setTurnSpeed(degreesPerSecond: number): void { this.turnSpeed = Math.max(0, degreesPerSecond); } // Clamp to 0+
     public setAcceleration(accel: number): void { this.movement.acceleration = accel; }
     public setDeceleration(decel: number): void { this.movement.deceleration = decel; }
     public setBrakeDeceleration(brake: number): void { this.movement.brakeDeceleration = brake; }
