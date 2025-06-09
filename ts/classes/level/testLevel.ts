@@ -2,12 +2,13 @@ import { v3 } from '../util/math/vector3';
 import { TickerReturnData } from '../ticker';
 import { Scene } from '../webgl2/scene';
 import { Camera } from '../webgl2/camera';
-import { PlayerActor } from './freeCam/a_player';
-import { Ocean } from './world/ocean';
+import { PlayerActor } from './freeCam/player/a_player';
 import { Island } from './world/island';
 import { Sky } from './world/sky';
 import { UI, UIElement } from '../elements/UI';
 import { v2 } from '../util/math/vector2';
+import { CarActor } from './freeCam/car/a_car';
+import { CarController } from './freeCam/car/c_car';
 
 export class TestLevel extends Scene {
     protected clearColor: [number, number, number, number] = [0.2, 0.3, 0.5, 1.0];  // Match sky color
@@ -17,7 +18,10 @@ export class TestLevel extends Scene {
     fpsData: UIElement<string>;
     rotationData: UIElement<string>;
     actorData: UIElement<string>;
+    world: Island;
+    car: CarActor;
 
+    public get progress(): number { return (this.car.controllers[0] as CarController).progress; }
 
     constructor() {
         // Position camera to see reflections better
@@ -26,10 +30,10 @@ export class TestLevel extends Scene {
             ambientLightIntensity: 0.7,  // Very subtle ambient lighting,
         });
 
-        this.add(new Ocean());
-        this.add(new Island());
-        this.add(new Sky(this));
+        this.add(this.world = new Island());
+        this.add(this.car = new CarActor(this.world));
         this.add(this.player = new PlayerActor());
+        this.add(new Sky(this));
 
         this.ui.add((this.positionData = UI.data({ label: 'P', size: v2(400, 100) })), 'bottom');
         this.ui.add((this.rotationData = UI.data({ label: 'R', size: v2(400, 100) })), 'bottom');

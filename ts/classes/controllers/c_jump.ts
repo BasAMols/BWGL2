@@ -1,5 +1,5 @@
-import { TickerReturnData } from '../../ticker';
-import { v3, Vector3 } from "../../util/math/vector3";
+import { TickerReturnData } from '../ticker';
+import { v3, Vector3 } from "../util/math/vector3";
 import { MovementController, MovementControllerProps } from './c_movement';
 
 export interface JumpControllerProps extends MovementControllerProps {

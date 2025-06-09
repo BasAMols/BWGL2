@@ -92,6 +92,10 @@ export class InputDevices {
     ready() {
         window.addEventListener(`contextmenu`, (e) => e.preventDefault());
 
+        this.locked = true;
+        this.keyboard.ready();
+        return;
+
         this.mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         if (this.mobile) {
             //mobile

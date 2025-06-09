@@ -2,7 +2,7 @@ import { SceneObject, SceneObjectProps } from "./sceneObject";
 import { FBXLoader } from "./fbxLoader";
 import { ContainerObject } from './containerObject';
 
-export class FBX extends ContainerObject {
+export class FBXscene extends ContainerObject {
     private constructor(url: string, props: SceneObjectProps = {}) {
         super(props);
         this.loadFbx(url);
@@ -14,7 +14,7 @@ export class FBX extends ContainerObject {
     }
 
     static create(url: string, props: SceneObjectProps = {}): SceneObject {
-        const fbx = new FBX(url, props);
+        const fbx = new FBXscene(url, props);
         return fbx;
     }
 }
