@@ -21,16 +21,8 @@ export class PlayerActor extends Actor {
                     deceleration: 4,           // Quick deceleration
                     brakeDeceleration: 6,      // Responsive braking
                     maxSpeed: 30,              // 30 km/h max speed
-                    // Jump settings now use sensible defaults:
-                    // jumpHeight: 1.2m, minJumpHeight: 0.4m, earlyReleaseMultiplier: 0.6, gravity: 0.2
-                    
-                    // Advanced features available but not configured:
-                    // coyoteTime: 100,           
-                    jumpBufferTime: 120,       
-                    maxJumps: 2
-                    // ascendingGravity: 0.85,    
-                    // descendingGravity: 1.15,   
-                })
+                    maxJumps: 2,                  // Allow double jump
+                 })
             ]
         });
         this.joysticks = {

@@ -11185,9 +11185,16 @@ var JumpController = class extends MovementController {
   }
   updateTimers(frameTime) {
     const frameMs = frameTime * 1e3;
-    this.jumpState.jumpBufferTimer = Math.max(0, this.jumpState.jumpBufferTimer - frameMs);
+    const cooldownWasActive = this.jumpState.jumpCooldownTimer > 0;
+    if (this.jumpState.jumpBufferTimer !== Infinity) {
+      this.jumpState.jumpBufferTimer = Math.max(0, this.jumpState.jumpBufferTimer - frameMs);
+    }
     this.jumpState.coyoteTimer = Math.max(0, this.jumpState.coyoteTimer - frameMs);
     this.jumpState.jumpCooldownTimer = Math.max(0, this.jumpState.jumpCooldownTimer - frameMs);
+    const cooldownJustExpired = cooldownWasActive && this.jumpState.jumpCooldownTimer <= 0;
+    if (cooldownJustExpired && this.jumpState.jumpBufferTimer === Infinity && this.jumpState.isGrounded) {
+      this.tryJump();
+    }
   }
   handleJumpInput(jumpPressed) {
     const jumpJustPressed = jumpPressed && !this.jumpState.jumpPressedLastFrame;
@@ -11197,6 +11204,12 @@ var JumpController = class extends MovementController {
         this.jumpState.jumpBufferTimer = this.advancedFeatures.jumpBufferTime;
       }
       this.tryJump();
+    }
+    if (jumpPressed && this.advancedFeatures.jumpBufferTime === Infinity) {
+      this.jumpState.jumpBufferTimer = Infinity;
+    }
+    if (jumpJustReleased && this.jumpState.jumpBufferTimer === Infinity) {
+      this.jumpState.jumpBufferTimer = 0;
     }
     if (jumpJustReleased && this.jumpState.isJumping && this.jumpConfig.minJumpHeight > 0 && !this.jumpState.earlyReleaseApplied) {
       this.handleEarlyRelease();
@@ -11225,7 +11238,9 @@ var JumpController = class extends MovementController {
     if (this.advancedFeatures.jumpCooldown !== void 0) {
       this.jumpState.jumpCooldownTimer = this.advancedFeatures.jumpCooldown;
     }
-    this.jumpState.jumpBufferTimer = 0;
+    if (this.jumpState.jumpBufferTimer !== Infinity) {
+      this.jumpState.jumpBufferTimer = 0;
+    }
     this.jumpState.coyoteTimer = 0;
     this.onJumpStart(this.jumpConfig.maxJumps - this.jumpState.jumpsRemaining);
   }
@@ -11251,13 +11266,11 @@ var JumpController = class extends MovementController {
     this.jumpState.earlyReleaseApplied = true;
   }
   canJump() {
-    if (this.jumpState.jumpCooldownTimer > 0)
-      return false;
     if (this.jumpState.jumpsRemaining <= 0)
       return false;
     const hasGroundOrCoyote = this.jumpState.isGrounded || this.advancedFeatures.coyoteTime !== void 0 && this.jumpState.coyoteTimer > 0;
     if (this.jumpState.jumpsRemaining === this.jumpConfig.maxJumps) {
-      return hasGroundOrCoyote;
+      return hasGroundOrCoyote && this.jumpState.jumpCooldownTimer <= 0;
     } else {
       return true;
     }
@@ -11286,7 +11299,7 @@ var JumpController = class extends MovementController {
     this.jumpState.lastGroundedTime = performance.now();
     this.jumpState.isJumping = false;
     this.jumpState.earlyReleaseApplied = false;
-    if (this.jumpState.jumpBufferTimer > 0) {
+    if (this.jumpState.jumpBufferTimer > 0 && this.jumpState.jumpCooldownTimer <= 0) {
       this.tryJump();
     }
   }
@@ -11340,14 +11353,8 @@ var PlayerActor = class extends Actor {
           // Responsive braking
           maxSpeed: 30,
           // 30 km/h max speed
-          // Jump settings now use sensible defaults:
-          // jumpHeight: 1.2m, minJumpHeight: 0.4m, earlyReleaseMultiplier: 0.6, gravity: 0.2
-          // Advanced features available but not configured:
-          // coyoteTime: 100,           
-          jumpBufferTime: 120,
           maxJumps: 2
-          // ascendingGravity: 0.85,    
-          // descendingGravity: 1.15,   
+          // Allow double jump
         })
       ]
     });

@@ -15,7 +15,7 @@ export interface JumpControllerProps extends MovementControllerProps {
     
     // Advanced Features (only used if provided)
     maxJumps?: number;            // Number of jumps allowed (default: 1)
-    jumpBufferTime?: number;      // ms to buffer jump input before landing
+    jumpBufferTime?: number;      // ms to buffer jump input before landing (use Infinity for hold-to-bounce)
     coyoteTime?: number;          // ms to allow jump after leaving ground
     jumpCooldown?: number;        // ms cooldown between jumps
     
@@ -163,10 +163,21 @@ export class JumpController extends MovementController {
     private updateTimers(frameTime: number): void {
         const frameMs = frameTime * 1000;
         
-        // Update all timers
-        this.jumpState.jumpBufferTimer = Math.max(0, this.jumpState.jumpBufferTimer - frameMs);
+        // Check if cooldown was active before update
+        const cooldownWasActive = this.jumpState.jumpCooldownTimer > 0;
+        
+        // Update all timers (but don't reduce infinite jump buffer)
+        if (this.jumpState.jumpBufferTimer !== Infinity) {
+            this.jumpState.jumpBufferTimer = Math.max(0, this.jumpState.jumpBufferTimer - frameMs);
+        }
         this.jumpState.coyoteTimer = Math.max(0, this.jumpState.coyoteTimer - frameMs);
         this.jumpState.jumpCooldownTimer = Math.max(0, this.jumpState.jumpCooldownTimer - frameMs);
+        
+        // If cooldown just expired and infinite buffer is active, try to jump (but only on ground)
+        const cooldownJustExpired = cooldownWasActive && this.jumpState.jumpCooldownTimer <= 0;
+        if (cooldownJustExpired && this.jumpState.jumpBufferTimer === Infinity && this.jumpState.isGrounded) {
+            this.tryJump();
+        }
     }
     
     private handleJumpInput(jumpPressed: boolean): void {
@@ -184,6 +195,16 @@ export class JumpController extends MovementController {
             
             // Try to jump immediately
             this.tryJump();
+        }
+        
+        // For infinite jump buffer (hold-to-bounce), maintain buffer while held
+        if (jumpPressed && this.advancedFeatures.jumpBufferTime === Infinity) {
+            this.jumpState.jumpBufferTimer = Infinity;
+        }
+        
+        // Clear infinite buffer when button is released
+        if (jumpJustReleased && this.jumpState.jumpBufferTimer === Infinity) {
+            this.jumpState.jumpBufferTimer = 0;
         }
         
         // Handle early jump release for variable height (only once per jump)
@@ -227,8 +248,10 @@ export class JumpController extends MovementController {
             this.jumpState.jumpCooldownTimer = this.advancedFeatures.jumpCooldown;
         }
         
-        // Clear timers
-        this.jumpState.jumpBufferTimer = 0;
+        // Clear timers (but preserve infinite jump buffer for hold-to-bounce)
+        if (this.jumpState.jumpBufferTimer !== Infinity) {
+            this.jumpState.jumpBufferTimer = 0;
+        }
         this.jumpState.coyoteTimer = 0;
         
         this.onJumpStart(this.jumpConfig.maxJumps - this.jumpState.jumpsRemaining);
@@ -271,9 +294,6 @@ export class JumpController extends MovementController {
     }
     
     private canJump(): boolean {
-        // Cooldown check
-        if (this.jumpState.jumpCooldownTimer > 0) return false;
-        
         // Jump count check
         if (this.jumpState.jumpsRemaining <= 0) return false;
         
@@ -281,12 +301,12 @@ export class JumpController extends MovementController {
         const hasGroundOrCoyote = this.jumpState.isGrounded || 
             (this.advancedFeatures.coyoteTime !== undefined && this.jumpState.coyoteTimer > 0);
         
-        // For first jump, need ground or coyote time
-        // For subsequent jumps, just need jumps remaining
+        // For first jump, need ground or coyote time AND no cooldown
         if (this.jumpState.jumpsRemaining === this.jumpConfig.maxJumps) {
-            return hasGroundOrCoyote;
+            return hasGroundOrCoyote && this.jumpState.jumpCooldownTimer <= 0;
         } else {
-            return true; // Air jumps
+            // Air jumps: no cooldown check, just need jumps remaining
+            return true;
         }
     }
     
@@ -324,8 +344,8 @@ export class JumpController extends MovementController {
         this.jumpState.isJumping = false; // No longer jumping
         this.jumpState.earlyReleaseApplied = false; // Reset early release state on landing
         
-        // Execute buffered jump if any
-        if (this.jumpState.jumpBufferTimer > 0) {
+        // Execute buffered jump if any (but only if no cooldown)
+        if (this.jumpState.jumpBufferTimer > 0 && this.jumpState.jumpCooldownTimer <= 0) {
             this.tryJump();
         }
     }
