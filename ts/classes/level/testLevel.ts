@@ -2,7 +2,7 @@ import { v3 } from '../util/math/vector3';
 import { TickerReturnData } from '../ticker';
 import { Scene } from '../webgl2/scene';
 import { Camera } from '../webgl2/camera';
-import { PlayerActor } from './freeCam/playerActor';
+import { PlayerActor } from './freeCam/a_player';
 import { Ocean } from './world/ocean';
 import { Island } from './world/island';
 import { Sky } from './world/sky';

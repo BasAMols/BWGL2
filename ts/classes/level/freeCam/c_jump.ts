@@ -1,35 +1,37 @@
-import { glob } from '../../../game';
 import { TickerReturnData } from '../../ticker';
-import { v3 } from "../../util/math/vector3";
-import { MovementController, MovementControllerProps } from './movementController';
+import { v3, Vector3 } from "../../util/math/vector3";
+import { MovementController, MovementControllerProps } from './c_movement';
 
 export interface JumpControllerProps extends MovementControllerProps {
-    // Basic Jump Properties
-    jumpHeight?: number;           // Maximum jump height in meters (default: 1.2)
-    jumpSpeed?: number;           // Initial jump velocity (calculated from height if not provided)
-    gravity?: number;             // Gravity strength (default: 0.2)
-    
-    // Variable Jump Height (early release)
-    minJumpHeight?: number;       // Minimum guaranteed height in meters (default: 0.4)
-    earlyReleaseMultiplier?: number;  // Velocity multiplier when jump released early (default: 0.6)
-    
-    // Advanced Features (only used if provided)
-    maxJumps?: number;            // Number of jumps allowed (default: 1)
-    jumpBufferTime?: number;      // ms to buffer jump input before landing (use Infinity for hold-to-bounce)
-    coyoteTime?: number;          // ms to allow jump after leaving ground
-    jumpCooldown?: number;        // ms cooldown between jumps
-    
-    // Gravity Modifiers (multipliers of base gravity, default: 1.0)
-    ascendingGravity?: number;    // Gravity multiplier while going up
-    descendingGravity?: number;   // Gravity multiplier while falling
-    fastFallMultiplier?: number;  // Extra gravity multiplier when holding down
+    // Jump Configuration
+    jump?: {
+        // Basic Properties
+        height?: number;           // Maximum jump height in meters (default: 1.2)
+        speed?: number;            // Initial jump velocity (calculated from height if not provided)
+        gravity?: number;          // Gravity strength (default: 0.2)
+        
+        // Variable Height (early release)
+        minHeight?: number;        // Minimum guaranteed height in meters (default: 0.4)
+        earlyReleaseMultiplier?: number;  // Velocity multiplier when jump released early (default: 0.6)
+        
+        // Advanced Features (only used if provided)
+        maxJumps?: number;         // Number of jumps allowed (default: 1)
+        bufferTime?: number;       // ms to buffer jump input before landing (use Infinity for hold-to-bounce)
+        coyoteTime?: number;       // ms to allow jump after leaving ground
+        cooldown?: number;         // ms cooldown between jumps
+        
+        // Gravity Modifiers (multipliers of base gravity, default: 1.0)
+        ascendingGravity?: number;  // Gravity multiplier while going up
+        descendingGravity?: number; // Gravity multiplier while falling
+        fastFallMultiplier?: number; // Extra gravity multiplier when holding down
+    };
 }
 
 /**
  * JumpController extends MovementController with jumping capabilities
  * Supports basic jumping, multi-jumping, coyote time, jump buffering, and gravity modifiers
  */
-export class JumpController extends MovementController {
+export abstract class JumpController extends MovementController {
     
     // Jump configuration (using movement system's scaling)
     private jumpConfig = {
@@ -71,26 +73,38 @@ export class JumpController extends MovementController {
     constructor(props: JumpControllerProps = {}) {
         super(props);
         
-        // Apply basic jump properties
-        this.jumpConfig.jumpHeight = props.jumpHeight ?? this.jumpConfig.jumpHeight;
-        this.jumpConfig.gravity = props.gravity ?? this.jumpConfig.gravity;
-        this.jumpConfig.minJumpHeight = props.minJumpHeight ?? this.jumpConfig.minJumpHeight;
-        this.jumpConfig.earlyReleaseMultiplier = props.earlyReleaseMultiplier ?? this.jumpConfig.earlyReleaseMultiplier;
-        this.jumpConfig.maxJumps = props.maxJumps ?? this.jumpConfig.maxJumps;
-        this.jumpConfig.ascendingGravity = props.ascendingGravity ?? this.jumpConfig.ascendingGravity;
-        this.jumpConfig.descendingGravity = props.descendingGravity ?? this.jumpConfig.descendingGravity;
+        // Apply jump properties (new nested structure)
+        if (props.jump) {
+            this.jumpConfig.jumpHeight = props.jump.height ?? this.jumpConfig.jumpHeight;
+            this.jumpConfig.gravity = props.jump.gravity ?? this.jumpConfig.gravity;
+            this.jumpConfig.minJumpHeight = props.jump.minHeight ?? this.jumpConfig.minJumpHeight;
+            this.jumpConfig.earlyReleaseMultiplier = props.jump.earlyReleaseMultiplier ?? this.jumpConfig.earlyReleaseMultiplier;
+            this.jumpConfig.maxJumps = props.jump.maxJumps ?? this.jumpConfig.maxJumps;
+            this.jumpConfig.ascendingGravity = props.jump.ascendingGravity ?? this.jumpConfig.ascendingGravity;
+            this.jumpConfig.descendingGravity = props.jump.descendingGravity ?? this.jumpConfig.descendingGravity;
+            
+            // Advanced features (only if provided)
+            this.advancedFeatures.jumpBufferTime = props.jump.bufferTime;
+            this.advancedFeatures.coyoteTime = props.jump.coyoteTime;
+            this.advancedFeatures.jumpCooldown = props.jump.cooldown;
+            this.advancedFeatures.fastFallMultiplier = props.jump.fastFallMultiplier;
+            
+            // Calculate jump speed from height if not provided
+            this.jumpConfig.jumpSpeed = props.jump.speed ?? this.calculateJumpSpeed(this.jumpConfig.jumpHeight);
+        }
         
-        // Advanced features (only if provided)
-        this.advancedFeatures.jumpBufferTime = props.jumpBufferTime;
-        this.advancedFeatures.coyoteTime = props.coyoteTime;
-        this.advancedFeatures.jumpCooldown = props.jumpCooldown;
-        this.advancedFeatures.fastFallMultiplier = props.fastFallMultiplier;
-        
-        // Calculate jump speed from height if not provided
-        this.jumpConfig.jumpSpeed = props.jumpSpeed ?? this.calculateJumpSpeed(this.jumpConfig.jumpHeight);
+        // Calculate default jump speed if no jump config was provided
+        if (this.jumpConfig.jumpSpeed === 0) {
+            this.jumpConfig.jumpSpeed = this.calculateJumpSpeed(this.jumpConfig.jumpHeight);
+        }
         
         // Initialize jump state
         this.jumpState.jumpsRemaining = this.jumpConfig.maxJumps;
+    }
+    
+    private getJumpDirectionVector(): Vector3 {
+        // Get the direction for jump based on inputMapping.up
+        return this.mapAxisToVector(this.inputMapping.up, 1);
     }
     
     private calculateJumpSpeed(height: number): number {
@@ -101,12 +115,10 @@ export class JumpController extends MovementController {
         return jumpSpeed;
     }
     
-    protected getJumpInput(): boolean {
-        return glob.input.button('jump') > 0;
-    }
+    protected abstract getJumpInput(): boolean;
     
     protected getFastFallInput(): boolean {
-        return (glob.input.button('down') || 0) > 0;
+        return false; // can be overridden in subclass
     }
     
     tick(obj: TickerReturnData) {
@@ -219,7 +231,19 @@ export class JumpController extends MovementController {
         
         // Execute jump with full height (no variable jumping)
         const jumpSpeed = this.calculateJumpSpeed(this.jumpConfig.jumpHeight);
-        this.jumpState.verticalVelocity = jumpSpeed;
+        
+        // Apply jump force in the direction specified by inputMapping.up
+        const jumpDirection = this.getJumpDirectionVector();
+        
+        // If the up direction is Y (default), use the traditional vertical velocity system
+        if (this.inputMapping.up === '+y' || this.inputMapping.up === '-y') {
+            const upMultiplier = this.inputMapping.up === '+y' ? 1 : -1;
+            this.jumpState.verticalVelocity = jumpSpeed * upMultiplier;
+        } else {
+            // For non-Y jump directions, apply impulse to the movement velocity instead
+            const jumpVelocity = jumpDirection.scale(jumpSpeed);
+            this.movement.currentVelocity = this.movement.currentVelocity.add(jumpVelocity);
+        }
         this.jumpState.jumpsRemaining--;
         this.jumpState.jumpStartTime = performance.now();
         this.jumpState.isJumping = true;

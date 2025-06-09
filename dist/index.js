@@ -5797,11 +5797,23 @@ var Keyboard = class {
   constructor() {
     this.keyDown = {};
     this.keyUp = {};
+    this.modifiers = {
+      shift: false,
+      ctrl: false
+    };
+  }
+  shift() {
+    return this.modifiers.shift;
+  }
+  ctrl() {
+    return this.modifiers.ctrl;
   }
   ready() {
     glob.renderer.dom.addEventListener("keydown", (e) => {
       var _a;
       const k = e.key.toLowerCase();
+      this.modifiers.shift = e.shiftKey;
+      this.modifiers.ctrl = e.ctrlKey;
       (_a = this.keyDown[k]) == null ? void 0 : _a.forEach((c) => {
         c(glob.frame);
       });
@@ -5809,6 +5821,8 @@ var Keyboard = class {
     glob.renderer.dom.addEventListener("keyup", (e) => {
       var _a;
       const k = e.key.toLowerCase();
+      this.modifiers.shift = e.shiftKey;
+      this.modifiers.ctrl = e.ctrlKey;
       (_a = this.keyUp[k]) == null ? void 0 : _a.forEach((c) => {
         c();
       });
@@ -10239,7 +10253,7 @@ var Ease = class {
   }
 };
 
-// ts/classes/level/freeCam/playerCamera.ts
+// ts/classes/level/freeCam/cam_player.ts
 var _PlayerCamera = class _PlayerCamera extends Camera {
   constructor(scene, parent) {
     super({ position: v3(0, 2e3, 0), target: v3(0, 1, 0), fov: 30, near: 0.1, far: 100 });
@@ -10264,8 +10278,8 @@ var _PlayerCamera = class _PlayerCamera extends Camera {
     this.setTarget(this.parent.transform.getWorldPosition().add(v3(0, 1.5, 0)));
   }
 };
-_PlayerCamera.closeTransform = [v3(4, 3, 5), 45];
-_PlayerCamera.farTransform = [v3(0, 15, 1), 70];
+_PlayerCamera.closeTransform = [v3(-4, 3, 5), 45];
+_PlayerCamera.farTransform = [v3(0, 15, 4), 70];
 var PlayerCamera = _PlayerCamera;
 
 // ts/classes/input/mouseReader.ts
@@ -10933,11 +10947,11 @@ var Controller = class {
   }
 };
 
-// ts/classes/level/freeCam/movementController.ts
+// ts/classes/level/freeCam/c_movement.ts
 var MovementController = class extends Controller {
   // Current actor yaw in radians
   constructor(props = {}) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
     super();
     this.movement = {
       maxSpeed: 30,
@@ -10951,35 +10965,86 @@ var MovementController = class extends Controller {
       currentVelocity: v3(0)
       // Current horizontal velocity
     };
+    this.inputMapping = {
+      forward: "-z",
+      right: "+x",
+      up: "+y"
+    };
+    this.movementReference = "camera";
     this._speedFactor = 0.2;
     // Current speed factor (0.0 to 1.0)
     this.rotateToMovement = true;
     this.turnSpeed = 0;
     // Turn speed in degrees per second (0 = instant)
     this.currentYaw = 0;
-    this.movement.maxSpeed = (_a = props.maxSpeed) != null ? _a : this.movement.maxSpeed;
-    this.movement.acceleration = (_b = props.acceleration) != null ? _b : this.movement.acceleration;
-    this.movement.deceleration = (_c = props.deceleration) != null ? _c : this.movement.deceleration;
-    this.movement.brakeDeceleration = (_d = props.brakeDeceleration) != null ? _d : this.movement.brakeDeceleration;
-    this.rotateToMovement = (_e = props.rotateToMovement) != null ? _e : this.rotateToMovement;
-    this.turnSpeed = (_f = props.turnSpeed) != null ? _f : this.turnSpeed;
+    if (props.inputMapping) {
+      this.inputMapping.forward = (_a = props.inputMapping.forward) != null ? _a : this.inputMapping.forward;
+      this.inputMapping.right = (_b = props.inputMapping.right) != null ? _b : this.inputMapping.right;
+      this.inputMapping.up = (_c = props.inputMapping.up) != null ? _c : this.inputMapping.up;
+    }
+    if (props.movement) {
+      this.movement.maxSpeed = (_d = props.movement.maxSpeed) != null ? _d : this.movement.maxSpeed;
+      this.movement.acceleration = (_e = props.movement.acceleration) != null ? _e : this.movement.acceleration;
+      this.movement.deceleration = (_f = props.movement.deceleration) != null ? _f : this.movement.deceleration;
+      this.movement.brakeDeceleration = (_g = props.movement.brakeDeceleration) != null ? _g : this.movement.brakeDeceleration;
+      this.movementReference = (_h = props.movement.reference) != null ? _h : this.movementReference;
+      this.rotateToMovement = (_i = props.movement.rotateToMovement) != null ? _i : this.rotateToMovement;
+      this.turnSpeed = (_j = props.movement.turnSpeed) != null ? _j : this.turnSpeed;
+    }
+  }
+  mapAxisToVector(axis, value) {
+    switch (axis) {
+      case "+x":
+        return v3(value, 0, 0);
+      case "-x":
+        return v3(-value, 0, 0);
+      case "+y":
+        return v3(0, value, 0);
+      case "-y":
+        return v3(0, -value, 0);
+      case "+z":
+        return v3(0, 0, value);
+      case "-z":
+        return v3(0, 0, -value);
+    }
+  }
+  applyInputMapping(inputX, inputZ) {
+    const forwardVector = this.mapAxisToVector(this.inputMapping.forward, -inputZ);
+    const rightVector = this.mapAxisToVector(this.inputMapping.right, inputX);
+    return forwardVector.add(rightVector);
+  }
+  applyMovementReference(worldVector) {
+    switch (this.movementReference) {
+      case "world":
+        return worldVector;
+      case "actor":
+        return worldVector.rotateXZ(-this.currentYaw);
+      case "camera":
+        if (this.actor.camera) {
+          return worldVector.rotateXZ(-this.actor.camera.yaw - Math.PI);
+        }
+        return worldVector;
+      default:
+        if (typeof this.movementReference === "number") {
+          return worldVector.rotateXZ(-this.movementReference);
+        }
+        return worldVector;
+    }
   }
   tick(obj) {
     var _a, _b;
     const inputX = ((_a = glob.input.axis("movement")) == null ? void 0 : _a.x) || 0;
-    const inputZ = -((_b = glob.input.axis("movement")) == null ? void 0 : _b.y) || 0;
-    const inputDirection = v3(inputX, 0, inputZ);
-    const inputMagnitude = inputDirection.magnitude();
+    const inputY = -((_b = glob.input.axis("movement")) == null ? void 0 : _b.y) || 0;
+    const worldDirection = this.applyInputMapping(inputX, inputY);
+    const inputMagnitude = worldDirection.magnitude();
     let targetVelocity = v3(0);
     if (inputMagnitude > 1e-3) {
-      const normalizedInput = inputDirection.scale(1 / inputMagnitude);
+      const normalizedInput = worldDirection.scale(1 / inputMagnitude);
       const effectiveSpeedKmh = this.movement.maxSpeed * this._speedFactor;
       const effectiveSpeedInternal = effectiveSpeedKmh / 30;
       targetVelocity = normalizedInput.scale(effectiveSpeedInternal);
     }
-    if (this.actor.camera) {
-      targetVelocity = targetVelocity.rotateXZ(-this.actor.camera.yaw - Math.PI);
-    }
+    targetVelocity = this.applyMovementReference(targetVelocity);
     const currentSpeed = this.movement.currentVelocity.magnitude();
     const targetSpeed = targetVelocity.magnitude();
     let changeRate;
@@ -11080,7 +11145,7 @@ var MovementController = class extends Controller {
   }
 };
 
-// ts/classes/level/freeCam/jumpController.ts
+// ts/classes/level/freeCam/c_jump.ts
 var JumpController = class extends MovementController {
   constructor(props = {}) {
     var _a, _b, _c, _d, _e, _f, _g, _h;
@@ -11132,29 +11197,34 @@ var JumpController = class extends MovementController {
       earlyReleaseApplied: false
       // Track if early release has been applied this jump
     };
-    this.jumpConfig.jumpHeight = (_a = props.jumpHeight) != null ? _a : this.jumpConfig.jumpHeight;
-    this.jumpConfig.gravity = (_b = props.gravity) != null ? _b : this.jumpConfig.gravity;
-    this.jumpConfig.minJumpHeight = (_c = props.minJumpHeight) != null ? _c : this.jumpConfig.minJumpHeight;
-    this.jumpConfig.earlyReleaseMultiplier = (_d = props.earlyReleaseMultiplier) != null ? _d : this.jumpConfig.earlyReleaseMultiplier;
-    this.jumpConfig.maxJumps = (_e = props.maxJumps) != null ? _e : this.jumpConfig.maxJumps;
-    this.jumpConfig.ascendingGravity = (_f = props.ascendingGravity) != null ? _f : this.jumpConfig.ascendingGravity;
-    this.jumpConfig.descendingGravity = (_g = props.descendingGravity) != null ? _g : this.jumpConfig.descendingGravity;
-    this.advancedFeatures.jumpBufferTime = props.jumpBufferTime;
-    this.advancedFeatures.coyoteTime = props.coyoteTime;
-    this.advancedFeatures.jumpCooldown = props.jumpCooldown;
-    this.advancedFeatures.fastFallMultiplier = props.fastFallMultiplier;
-    this.jumpConfig.jumpSpeed = (_h = props.jumpSpeed) != null ? _h : this.calculateJumpSpeed(this.jumpConfig.jumpHeight);
+    if (props.jump) {
+      this.jumpConfig.jumpHeight = (_a = props.jump.height) != null ? _a : this.jumpConfig.jumpHeight;
+      this.jumpConfig.gravity = (_b = props.jump.gravity) != null ? _b : this.jumpConfig.gravity;
+      this.jumpConfig.minJumpHeight = (_c = props.jump.minHeight) != null ? _c : this.jumpConfig.minJumpHeight;
+      this.jumpConfig.earlyReleaseMultiplier = (_d = props.jump.earlyReleaseMultiplier) != null ? _d : this.jumpConfig.earlyReleaseMultiplier;
+      this.jumpConfig.maxJumps = (_e = props.jump.maxJumps) != null ? _e : this.jumpConfig.maxJumps;
+      this.jumpConfig.ascendingGravity = (_f = props.jump.ascendingGravity) != null ? _f : this.jumpConfig.ascendingGravity;
+      this.jumpConfig.descendingGravity = (_g = props.jump.descendingGravity) != null ? _g : this.jumpConfig.descendingGravity;
+      this.advancedFeatures.jumpBufferTime = props.jump.bufferTime;
+      this.advancedFeatures.coyoteTime = props.jump.coyoteTime;
+      this.advancedFeatures.jumpCooldown = props.jump.cooldown;
+      this.advancedFeatures.fastFallMultiplier = props.jump.fastFallMultiplier;
+      this.jumpConfig.jumpSpeed = (_h = props.jump.speed) != null ? _h : this.calculateJumpSpeed(this.jumpConfig.jumpHeight);
+    }
+    if (this.jumpConfig.jumpSpeed === 0) {
+      this.jumpConfig.jumpSpeed = this.calculateJumpSpeed(this.jumpConfig.jumpHeight);
+    }
     this.jumpState.jumpsRemaining = this.jumpConfig.maxJumps;
+  }
+  getJumpDirectionVector() {
+    return this.mapAxisToVector(this.inputMapping.up, 1);
   }
   calculateJumpSpeed(height) {
     const jumpSpeed = Math.sqrt(2 * this.jumpConfig.gravity * height);
     return jumpSpeed;
   }
-  getJumpInput() {
-    return glob.input.button("jump") > 0;
-  }
   getFastFallInput() {
-    return (glob.input.button("down") || 0) > 0;
+    return false;
   }
   tick(obj) {
     super.tick(obj);
@@ -11220,7 +11290,14 @@ var JumpController = class extends MovementController {
     if (!canJump)
       return;
     const jumpSpeed = this.calculateJumpSpeed(this.jumpConfig.jumpHeight);
-    this.jumpState.verticalVelocity = jumpSpeed;
+    const jumpDirection = this.getJumpDirectionVector();
+    if (this.inputMapping.up === "+y" || this.inputMapping.up === "-y") {
+      const upMultiplier = this.inputMapping.up === "+y" ? 1 : -1;
+      this.jumpState.verticalVelocity = jumpSpeed * upMultiplier;
+    } else {
+      const jumpVelocity = jumpDirection.scale(jumpSpeed);
+      this.movement.currentVelocity = this.movement.currentVelocity.add(jumpVelocity);
+    }
     this.jumpState.jumpsRemaining--;
     this.jumpState.jumpStartTime = performance.now();
     this.jumpState.isJumping = true;
@@ -11325,36 +11402,43 @@ var JumpController = class extends MovementController {
   }
 };
 
-// ts/classes/level/freeCam/playerController.ts
+// ts/classes/level/freeCam/c_player.ts
 var PlayerController = class extends JumpController {
+  constructor() {
+    super(...arguments);
+    this.speed = 1;
+  }
   tick(obj) {
     super.tick(obj);
-    this.speedFactor = Util.clamp(this.speedFactor + glob.input.button("speed") * 0.01, 0.1, 1);
+    this.speed = Util.clamp(this.speed + glob.input.button("speed") * 0.01, 0.1, 0.5);
+    this.speedFactor = glob.device.keyboard.shift() ? 1 : this.speed;
   }
   getJumpInput() {
     return glob.input.button("jump") > 0.5;
   }
 };
 
-// ts/classes/level/freeCam/playerActor.ts
+// ts/classes/level/freeCam/a_player.ts
 var PlayerActor = class extends Actor {
   constructor() {
     super({
-      position: v3(-10, 1, 0),
+      position: v3(-10, 0, 0),
       controllers: [
         new PlayerController({
-          turnSpeed: 480,
-          // Fast turning (480°/sec)
-          acceleration: 3,
-          // Quick acceleration
-          deceleration: 4,
-          // Quick deceleration
-          brakeDeceleration: 6,
-          // Responsive braking
-          maxSpeed: 30,
-          // 30 km/h max speed
-          maxJumps: 2
-          // Allow double jump
+          movement: {
+            maxSpeed: 30,
+            // 30 km/h max speed
+            acceleration: 3,
+            // Quick acceleration
+            deceleration: 4,
+            // Quick deceleration
+            brakeDeceleration: 6,
+            // Responsive braking
+            reference: "world",
+            // Movement relative to camera (default)
+            turnSpeed: 480
+            // Fast turning (480°/sec)
+          }
         })
       ]
     });

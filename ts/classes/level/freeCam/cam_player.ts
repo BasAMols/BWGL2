@@ -13,8 +13,8 @@ export class PlayerCamera extends Camera {
     smoothedRotation: Vector2 = v2(0, 0);
     zoom: number = 0;
 
-    static closeTransform: [Vector3, number] = [v3(4, 3, 5), 45];
-    static farTransform: [Vector3, number] = [v3(0, 15, 1), 70];
+    static closeTransform: [Vector3, number] = [v3(-4, 3, 5), 45];
+    static farTransform: [Vector3, number] = [v3(0, 15, 4), 70];
 
     offset: Vector3 = v3(0, 0, 0);
 

@@ -6,15 +6,34 @@ export class Keyboard {
     private keyDown: Record<string, [(frame: number) => void]> = {};
     private keyUp: Record<string, [() => void]> = {};
 
+    private modifiers: {
+        shift: boolean;
+        ctrl: boolean;
+    } = {
+        shift: false,
+        ctrl: false,
+    }
+
+    shift(): boolean {
+        return this.modifiers.shift;
+    }
+    ctrl(): boolean {
+        return this.modifiers.ctrl;
+    }
+
     ready() {
         glob.renderer.dom.addEventListener('keydown', (e) => {
             const k = e.key.toLowerCase();
+            this.modifiers.shift = e.shiftKey;
+            this.modifiers.ctrl = e.ctrlKey;
             this.keyDown[k]?.forEach((c) => {
                 c(glob.frame);
             });
         });
         glob.renderer.dom.addEventListener('keyup', (e) => {
             const k = e.key.toLowerCase();
+            this.modifiers.shift = e.shiftKey;
+            this.modifiers.ctrl = e.ctrlKey;
             this.keyUp[k]?.forEach((c) => {
                 c();
             });

@@ -6,12 +6,23 @@ import { Actor } from '../../actor/actor';
 import { Quaternion } from '../../util/math/quaternion';
 
 export interface MovementControllerProps {
-    maxSpeed?: number;          // Maximum speed (units per second equivalent)
-    acceleration?: number;      // Speed buildup rate (units per second)
-    deceleration?: number;      // Natural slowdown rate (units per second)
-    brakeDeceleration?: number; // Active braking rate when input opposes movement (units per second)
-    rotateToMovement?: boolean; // Whether to rotate actor to face movement direction
-    turnSpeed?: number;         // Maximum turn speed in degrees per second (0 = instant)
+    // Input Axis Mapping (affects all movement including jumps)
+    inputMapping?: {
+        forward?: '+x' | '-x' | '+y' | '-y' | '+z' | '-z';  // Default: '-z'
+        right?: '+x' | '-x' | '+y' | '-y' | '+z' | '-z';    // Default: '+x'
+        up?: '+x' | '-x' | '+y' | '-y' | '+z' | '-z';       // Default: '+y'
+    };
+    
+    // Movement Configuration
+    movement?: {
+        maxSpeed?: number;          // Maximum speed (units per second equivalent)
+        acceleration?: number;      // Speed buildup rate (units per second)
+        deceleration?: number;      // Natural slowdown rate (units per second)
+        brakeDeceleration?: number; // Active braking rate when input opposes movement (units per second)
+        reference?: 'camera' | 'world' | 'actor' | number;  // Movement reference system
+        rotateToMovement?: boolean; // Whether to rotate actor to face movement direction
+        turnSpeed?: number;         // Maximum turn speed in degrees per second (0 = instant)
+    };
 }
 
 export class MovementController extends Controller {
@@ -25,6 +36,14 @@ export class MovementController extends Controller {
         currentVelocity: v3(0)      // Current horizontal velocity
     };
     
+    protected inputMapping = {
+        forward: '-z' as '+x' | '-x' | '+y' | '-y' | '+z' | '-z',
+        right: '+x' as '+x' | '-x' | '+y' | '-y' | '+z' | '-z',
+        up: '+y' as '+x' | '-x' | '+y' | '-y' | '+z' | '-z'
+    };
+    
+    protected movementReference: 'camera' | 'world' | 'actor' | number = 'camera';
+    
     private _speedFactor: number = 0.2;        // Current speed factor (0.0 to 1.0)
     private rotateToMovement: boolean = true;
     private turnSpeed: number = 0;              // Turn speed in degrees per second (0 = instant)
@@ -33,36 +52,88 @@ export class MovementController extends Controller {
     constructor(props: MovementControllerProps = {}) {
         super();
         
-        // Apply constructor properties
-        this.movement.maxSpeed = props.maxSpeed ?? this.movement.maxSpeed;
-        this.movement.acceleration = props.acceleration ?? this.movement.acceleration;
-        this.movement.deceleration = props.deceleration ?? this.movement.deceleration;
-        this.movement.brakeDeceleration = props.brakeDeceleration ?? this.movement.brakeDeceleration;
-        this.rotateToMovement = props.rotateToMovement ?? this.rotateToMovement;
-        this.turnSpeed = props.turnSpeed ?? this.turnSpeed;
+        // Apply input mapping
+        if (props.inputMapping) {
+            this.inputMapping.forward = props.inputMapping.forward ?? this.inputMapping.forward;
+            this.inputMapping.right = props.inputMapping.right ?? this.inputMapping.right;
+            this.inputMapping.up = props.inputMapping.up ?? this.inputMapping.up;
+        }
+        
+        // Apply movement properties (new nested structure)
+        if (props.movement) {
+            this.movement.maxSpeed = props.movement.maxSpeed ?? this.movement.maxSpeed;
+            this.movement.acceleration = props.movement.acceleration ?? this.movement.acceleration;
+            this.movement.deceleration = props.movement.deceleration ?? this.movement.deceleration;
+            this.movement.brakeDeceleration = props.movement.brakeDeceleration ?? this.movement.brakeDeceleration;
+            this.movementReference = props.movement.reference ?? this.movementReference;
+            this.rotateToMovement = props.movement.rotateToMovement ?? this.rotateToMovement;
+            this.turnSpeed = props.movement.turnSpeed ?? this.turnSpeed;
+        }
+    }
+    
+    protected mapAxisToVector(axis: '+x' | '-x' | '+y' | '-y' | '+z' | '-z', value: number): Vector3 {
+        switch (axis) {
+            case '+x': return v3(value, 0, 0);
+            case '-x': return v3(-value, 0, 0);
+            case '+y': return v3(0, value, 0);
+            case '-y': return v3(0, -value, 0);
+            case '+z': return v3(0, 0, value);
+            case '-z': return v3(0, 0, -value);
+        }
+    }
+    
+    private applyInputMapping(inputX: number, inputZ: number): Vector3 {
+        // Map input directions to world space based on inputMapping
+        const forwardVector = this.mapAxisToVector(this.inputMapping.forward, -inputZ); // -inputZ because input is inverted
+        const rightVector = this.mapAxisToVector(this.inputMapping.right, inputX);
+        
+        return forwardVector.add(rightVector);
+    }
+    
+    private applyMovementReference(worldVector: Vector3): Vector3 {
+        switch (this.movementReference) {
+            case 'world':
+                return worldVector; // No rotation needed
+                
+            case 'actor':
+                return worldVector.rotateXZ(-this.currentYaw);
+                
+            case 'camera':
+                if ((this.actor as any).camera) {
+                    return worldVector.rotateXZ(-(this.actor as any).camera.yaw - Math.PI);
+                }
+                return worldVector; // Fallback to world if no camera
+                
+            default:
+                // Custom angle (number)
+                if (typeof this.movementReference === 'number') {
+                    return worldVector.rotateXZ(-this.movementReference);
+                }
+                return worldVector;
+        }
     }
 
     tick(obj: TickerReturnData) {
-        // Get input direction (before applying speed)
+        // Get raw input
         const inputX = glob.input.axis('movement')?.x || 0;
-        const inputZ = -glob.input.axis('movement')?.y || 0;
-        const inputDirection = v3(inputX, 0, inputZ);
+        const inputY = -glob.input.axis('movement')?.y || 0; // Note: Y input (forward/backward)
+        
+        // Apply input mapping to get world space direction
+        const worldDirection = this.applyInputMapping(inputX, inputY);
         
         // Calculate target velocity
-        const inputMagnitude = inputDirection.magnitude();
+        const inputMagnitude = worldDirection.magnitude();
         let targetVelocity = v3(0);
         
         if (inputMagnitude > 0.001) { // Avoid divide by zero
-            const normalizedInput = inputDirection.scale(1 / inputMagnitude);
+            const normalizedInput = worldDirection.scale(1 / inputMagnitude);
             const effectiveSpeedKmh = this.movement.maxSpeed * this._speedFactor;
             const effectiveSpeedInternal = effectiveSpeedKmh / 30; // Convert km/h to internal units
             targetVelocity = normalizedInput.scale(effectiveSpeedInternal);
         }
 
-        // Apply camera rotation to target velocity
-        if ((this.actor as any).camera) {
-            targetVelocity = targetVelocity.rotateXZ(-(this.actor as any).camera.yaw - Math.PI);
-        }
+        // Apply movement reference system (camera/world/actor/custom)
+        targetVelocity = this.applyMovementReference(targetVelocity);
 
         // Determine movement type and select appropriate rate
         const currentSpeed = this.movement.currentVelocity.magnitude();
